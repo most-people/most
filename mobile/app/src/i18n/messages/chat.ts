@@ -25,6 +25,11 @@ export const chatMessages = {
     en: 'Channel name',
   },
   'chat.join': { 'zh-CN': '加入', 'zh-TW': '加入', en: 'Join' },
+  'chat.back': {
+    'zh-CN': '返回频道列表',
+    'zh-TW': '返回頻道列表',
+    en: 'Back to channels',
+  },
   'chat.chooseChannel': {
     'zh-CN': '加入或选择一个频道开始聊天',
     'zh-TW': '加入或選擇一個頻道開始聊天',

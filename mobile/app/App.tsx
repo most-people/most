@@ -52,6 +52,8 @@ import {
 } from './src/features/files/filesModel'
 import {
   getRootBackAction,
+  getRootTabFromPathname,
+  getRootTabPath,
   getTabPressAction,
   type RootTab,
 } from './src/navigation/rootNavigation'
@@ -149,6 +151,27 @@ const THEME_LABEL_KEYS = {
   light: 'common.theme.light',
   system: 'common.theme.system',
 } as const satisfies Record<ThemePreference, MessageKey>
+
+function isChatDetailRoute() {
+  return (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/chat' &&
+    Boolean(window.location.hash)
+  )
+}
+
+function getInitialRootTab(fallback: Exclude<RootTab, 'node'>) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return fallback
+  return getRootTabFromPathname(window.location.pathname, fallback)
+}
+
+function updateRootTabRoute(tab: Exclude<RootTab, 'node'>, replace = false) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return
+  const method = replace ? 'replaceState' : 'pushState'
+  window.history[method]({}, '', getRootTabPath(tab))
+  window.dispatchEvent(new Event('most-route-change'))
+}
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
   const size = file.size || 0
@@ -262,9 +285,11 @@ function MostBoxApp() {
   const [appVisibility, setAppVisibility] = useState<
     'active' | 'background' | 'inactive'
   >('active')
-  const [activeTab, setActiveTab] = useState<RootTab>(
-    PRODUCT_PROFILE.features.chat ? 'chat' : 'files'
+  const defaultRootTab = PRODUCT_PROFILE.features.chat ? 'chat' : 'files'
+  const [activeTab, setActiveTab] = useState<RootTab>(() =>
+    getInitialRootTab(defaultRootTab)
   )
+  const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
   const [sharingFolderPath, setSharingFolderPath] = useState<string | null>(
@@ -352,6 +377,32 @@ function MostBoxApp() {
   }, [core])
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
+    const onRouteChange = () => {
+      const nextTab = getRootTabFromPathname(
+        window.location.pathname,
+        defaultRootTab
+      )
+      setActiveTab(nextTab)
+      setNodeRoute('status')
+      setChatDetailRoute(isChatDetailRoute())
+    }
+    window.addEventListener('popstate', onRouteChange)
+    window.addEventListener('most-route-change', onRouteChange)
+    if (
+      window.location.pathname !== '/chat' &&
+      window.location.pathname !== '/file' &&
+      window.location.pathname !== '/transfer'
+    ) {
+      updateRootTabRoute(defaultRootTab, true)
+    }
+    return () => {
+      window.removeEventListener('popstate', onRouteChange)
+      window.removeEventListener('most-route-change', onRouteChange)
+    }
+  }, [defaultRootTab])
+
+  useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       setAppVisibility(
         state === 'active'
@@ -429,6 +480,7 @@ function MostBoxApp() {
       return
     }
     if (nextTab !== 'node') setNodeRoute('status')
+    if (nextTab !== 'node') updateRootTabRoute(nextTab)
     setActiveTab(nextTab)
   }
 
@@ -447,7 +499,7 @@ function MostBoxApp() {
   }
 
   const showHoldingDetails = (holding: MobileHolding) => {
-    setActiveTab('files')
+    changeTab('files')
     setHoldingDetailRequest({ cid: holding.cid, token: Date.now() })
   }
 
@@ -1013,8 +1065,9 @@ function MostBoxApp() {
   }
 
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
+  const isChatDetail = activeTab === 'chat' && chatDetailRoute
   const isSecondaryPage = isNodeChild
-  const hideTabBar = isNodeChild
+  const hideTabBar = isNodeChild || isChatDetail
   const headerTitle = isNodeChild
     ? t('p2pPing.title')
     : t(TAB_LABEL_KEYS[activeTab])
@@ -1108,77 +1161,79 @@ function MostBoxApp() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        <View
-          style={[
-            styles.header,
-            accessibilityLayout ? styles.headerAccessibility : null,
-          ]}
-        >
-          <View style={styles.headerLeft}>
-            {isSecondaryPage ? (
-              <IconButton
-                accessibilityLabel={headerBackLabel}
-                onPress={handleHeaderBack}
-                style={styles.headerIconButton}
-                variant="ghost"
-              >
-                <ChevronLeft size={22} color={theme.colors.text} />
-              </IconButton>
-            ) : null}
-            <Text
-              maxFontSizeMultiplier={1.8}
-              numberOfLines={1}
-              style={styles.mainHeaderTitle}
-            >
-              {headerTitle}
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <IconButton
-              accessibilityLabel={t('common.theme.switch', {
-                current: t(THEME_LABEL_KEYS[preference]),
-                next: t(THEME_LABEL_KEYS[nextThemePreference]),
-              })}
-              onPress={cyclePreference}
-              style={styles.headerIconButton}
-            >
-              {preference === 'dark' ? (
-                <Moon size={18} color={theme.colors.info} />
-              ) : preference === 'light' ? (
-                <Sun size={19} color={theme.colors.warning} />
-              ) : (
-                <Monitor size={18} color={theme.colors.textSecondary} />
-              )}
-            </IconButton>
-            <IconButton
-              accessibilityLabel={t('common.language.choose')}
-              onPress={openLanguageMenu}
-              style={styles.headerIconButton}
-            >
-              <Languages size={19} color={theme.colors.textSecondary} />
-            </IconButton>
-            <Pressable
-              accessibilityLabel={t('app.node.openStatus', {
-                status: statusLabel,
-              })}
-              accessibilityRole="button"
-              onPress={openNodeStatus}
-              style={({ pressed }) => [
-                styles.statusPill,
-                pressed ? styles.pressablePressed : null,
-              ]}
-            >
-              <Radio size={16} color={statusColor} />
+        {!isChatDetail ? (
+          <View
+            style={[
+              styles.header,
+              accessibilityLayout ? styles.headerAccessibility : null,
+            ]}
+          >
+            <View style={styles.headerLeft}>
+              {isSecondaryPage ? (
+                <IconButton
+                  accessibilityLabel={headerBackLabel}
+                  onPress={handleHeaderBack}
+                  style={styles.headerIconButton}
+                  variant="ghost"
+                >
+                  <ChevronLeft size={22} color={theme.colors.text} />
+                </IconButton>
+              ) : null}
               <Text
-                maxFontSizeMultiplier={1.4}
+                maxFontSizeMultiplier={1.8}
                 numberOfLines={1}
-                style={[styles.statusText, statusTextStyle]}
+                style={styles.mainHeaderTitle}
               >
-                {statusLabel}
+                {headerTitle}
               </Text>
-            </Pressable>
+            </View>
+            <View style={styles.headerActions}>
+              <IconButton
+                accessibilityLabel={t('common.theme.switch', {
+                  current: t(THEME_LABEL_KEYS[preference]),
+                  next: t(THEME_LABEL_KEYS[nextThemePreference]),
+                })}
+                onPress={cyclePreference}
+                style={styles.headerIconButton}
+              >
+                {preference === 'dark' ? (
+                  <Moon size={18} color={theme.colors.info} />
+                ) : preference === 'light' ? (
+                  <Sun size={19} color={theme.colors.warning} />
+                ) : (
+                  <Monitor size={18} color={theme.colors.textSecondary} />
+                )}
+              </IconButton>
+              <IconButton
+                accessibilityLabel={t('common.language.choose')}
+                onPress={openLanguageMenu}
+                style={styles.headerIconButton}
+              >
+                <Languages size={19} color={theme.colors.textSecondary} />
+              </IconButton>
+              <Pressable
+                accessibilityLabel={t('app.node.openStatus', {
+                  status: statusLabel,
+                })}
+                accessibilityRole="button"
+                onPress={openNodeStatus}
+                style={({ pressed }) => [
+                  styles.statusPill,
+                  pressed ? styles.pressablePressed : null,
+                ]}
+              >
+                <Radio size={16} color={statusColor} />
+                <Text
+                  maxFontSizeMultiplier={1.4}
+                  numberOfLines={1}
+                  style={[styles.statusText, statusTextStyle]}
+                >
+                  {statusLabel}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <View style={styles.content}>
           <View

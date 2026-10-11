@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +8,9 @@ import {
   Text,
   View,
 } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ArrowLeft,
   MessageCircle,
   Mic,
   MicOff,
@@ -18,7 +19,6 @@ import {
   PhoneOff,
   Plus,
   Send,
-  Users,
 } from 'lucide-react-native'
 import {
   ChatApiClient,
@@ -55,6 +55,19 @@ import {
 } from '../../ui/components'
 import { useFeedback } from '../../ui/feedback'
 import { useMostBoxTheme } from '../../ui/theme'
+
+function updateChatRoute(channel = '') {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return
+  const path = channel ? `/chat#${encodeURIComponent(channel)}` : '/chat'
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new Event('most-route-change'))
+}
+
+function getInitialChatRoute() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return ''
+  if (window.location.pathname !== '/chat') return ''
+  return normalizeChatChannel(decodeURIComponent(window.location.hash.slice(1)))
+}
 
 type ChatBridge = MostBoxMobileCore & {
   getIdentity?: () => MobileIdentity | null
@@ -109,8 +122,10 @@ export function ChatScreen({
   )
   const socketRef = useRef<ChatWebSocketSession | null>(null)
   const voiceSessionRef = useRef<VoiceWebSocketSession | null>(null)
+  const initialChatRoute = useRef(getInitialChatRoute())
   const [channelInput, setChannelInput] = useState('')
   const [channel, setChannel] = useState('')
+  const [chatOpen, setChatOpen] = useState(() => Boolean(getInitialChatRoute()))
   const [channels, setChannels] = useState<string[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
@@ -121,6 +136,21 @@ export function ChatScreen({
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceConnecting, setVoiceConnecting] = useState(false)
   const [voiceError, setVoiceError] = useState('')
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
+    const onRouteChange = () => {
+      setChatOpen(
+        window.location.pathname === '/chat' && Boolean(window.location.hash)
+      )
+    }
+    window.addEventListener('popstate', onRouteChange)
+    window.addEventListener('most-route-change', onRouteChange)
+    return () => {
+      window.removeEventListener('popstate', onRouteChange)
+      window.removeEventListener('most-route-change', onRouteChange)
+    }
+  }, [])
 
   useEffect(
     () => () => {
@@ -265,6 +295,8 @@ export function ChatScreen({
       else await api?.createOrJoinChannel({ name, displayName: name })
       setChannelInput('')
       await loadChannel(name)
+      setChatOpen(true)
+      updateChatRoute(name)
     } catch (error) {
       toast(
         error instanceof Error ? error.message : t('chat.joinFailed'),
@@ -272,6 +304,25 @@ export function ChatScreen({
       )
       setLoading(false)
     }
+  }
+
+  const openChannel = async (name: string) => {
+    await loadChannel(name)
+    setChatOpen(true)
+    updateChatRoute(normalizeChatChannel(name))
+  }
+
+  useEffect(() => {
+    if (!chatOpen || channel || !initialChatRoute.current || !channels.length)
+      return
+    void loadChannel(initialChatRoute.current)
+  }, [chatOpen, channel, channels.length])
+
+  const closeChannel = () => {
+    voiceSessionRef.current?.leave()
+    setVoiceJoined(false)
+    setChatOpen(false)
+    updateChatRoute()
   }
 
   const send = async () => {
@@ -408,246 +459,256 @@ export function ChatScreen({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
+      style={[styles.container, chatOpen ? styles.detailContainer : null]}
     >
-      <View style={styles.joinRow}>
-        <MostTextInput
-          value={channelInput}
-          onChangeText={setChannelInput}
-          onSubmitEditing={joinChannel}
-          placeholder={t('chat.channelPlaceholder')}
-          style={styles.channelInput}
-          autoCapitalize="none"
-        />
-        <MostButton
-          disabled={loading || !channelInput.trim()}
-          onPress={joinChannel}
-          variant="primary"
-          icon={<Plus size={16} color={theme.colors.onAccent} />}
-        >
-          {t('chat.join')}
-        </MostButton>
-      </View>
-      {channels.length > 0 ? (
-        <FlatList
-          horizontal
-          data={channels}
-          keyExtractor={item => item}
-          style={styles.channelListView}
-          contentContainerStyle={styles.channelList}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => void loadChannel(item)}
-              style={[
-                styles.channelChip,
-                item === channel ? styles.channelChipActive : null,
-              ]}
+      {!chatOpen ? (
+        <>
+          <View style={styles.joinRow}>
+            <MostTextInput
+              value={channelInput}
+              onChangeText={setChannelInput}
+              onSubmitEditing={joinChannel}
+              placeholder={t('chat.channelPlaceholder')}
+              style={styles.channelInput}
+              autoCapitalize="none"
+            />
+            <MostButton
+              disabled={loading || !channelInput.trim()}
+              onPress={joinChannel}
+              variant="primary"
+              icon={<Plus size={16} color={theme.colors.onAccent} />}
             >
-              <Text
-                style={[
-                  styles.channelText,
-                  item === channel ? styles.channelTextActive : null,
+              {t('chat.join')}
+            </MostButton>
+          </View>
+          <FlatList
+            data={channels}
+            keyExtractor={item => item}
+            contentContainerStyle={styles.channelList}
+            ListEmptyComponent={
+              <View style={styles.emptyInline}>
+                <Text style={styles.emptyBody}>{t('chat.chooseChannel')}</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => void openChannel(item)}
+                style={({ pressed }) => [
+                  styles.channelRow,
+                  pressed ? styles.pressed : null,
                 ]}
               >
-                #{item}
-              </Text>
-            </Pressable>
-          )}
-        />
-      ) : null}
-      {!localMode && channel ? (
-        <View style={styles.voiceCard}>
-          <View style={styles.voiceHeader}>
-            <View style={styles.voiceTitleRow}>
-              <Phone size={17} color={theme.colors.accent} />
-              <Text style={styles.voiceTitle}>{t('chat.voiceTitle')}</Text>
-              {voiceState ? (
-                <View style={styles.voiceCount}>
-                  <Users size={13} color={theme.colors.textSecondary} />
-                  <Text style={styles.voiceCountText}>
-                    {Object.keys(voiceState.participants).length}
-                  </Text>
+                <View style={styles.channelAvatar}>
+                  <MessageCircle size={18} color={theme.colors.accent} />
                 </View>
-              ) : null}
-            </View>
-            <View style={styles.voiceActions}>
-              {voiceJoined ? (
+                <View style={styles.channelRowText}>
+                  <Text style={styles.channelText}>#{item}</Text>
+                </View>
+                <Text style={styles.channelChevron}>›</Text>
+              </Pressable>
+            )}
+          />
+        </>
+      ) : (
+        <>
+          <View style={styles.detailHeader}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('chat.back')}
+              onPress={closeChannel}
+              style={styles.backButton}
+            >
+              <ArrowLeft size={20} color={theme.colors.text} />
+            </Pressable>
+            <Text numberOfLines={1} style={styles.detailTitle}>
+              #{channel}
+            </Text>
+            {!localMode && channel ? (
+              <View style={styles.detailActions}>
+                {voiceJoined ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      voiceMuted ? t('chat.voiceUnmute') : t('chat.voiceMute')
+                    }
+                    onPress={toggleVoiceMute}
+                    style={styles.detailActionButton}
+                  >
+                    {voiceMuted ? (
+                      <MicOff size={18} color={theme.colors.warning} />
+                    ) : (
+                      <Mic size={18} color={theme.colors.accent} />
+                    )}
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    voiceMuted ? t('chat.voiceUnmute') : t('chat.voiceMute')
+                    voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')
                   }
-                  onPress={toggleVoiceMute}
-                  style={styles.voiceIconButton}
+                  disabled={voiceConnecting}
+                  onPress={() => void toggleVoice()}
+                  style={styles.detailActionButton}
                 >
-                  {voiceMuted ? (
-                    <MicOff size={17} color={theme.colors.warning} />
+                  {voiceJoined ? (
+                    <PhoneOff size={18} color={theme.colors.danger} />
                   ) : (
-                    <Mic size={17} color={theme.colors.accent} />
+                    <Phone size={18} color={theme.colors.accent} />
                   )}
                 </Pressable>
-              ) : null}
-              <MostButton
-                disabled={voiceConnecting}
-                onPress={() => void toggleVoice()}
-                variant={voiceJoined ? 'danger' : 'primary'}
-                icon={
-                  voiceJoined ? (
-                    <PhoneOff size={15} color={theme.colors.onAccent} />
-                  ) : (
-                    <Phone size={15} color={theme.colors.onAccent} />
-                  )
-                }
-              >
-                {voiceConnecting
-                  ? t('chat.voiceConnecting')
-                  : voiceJoined
-                    ? t('chat.voiceLeave')
-                    : t('chat.voiceJoin')}
-              </MostButton>
-            </View>
-          </View>
-          {voiceError ? (
-            <Text style={styles.voiceError}>{voiceError}</Text>
-          ) : null}
-          {voiceJoined && voiceState ? (
-            <View style={styles.voiceParticipants}>
-              {Object.values(voiceState.participants).map(participant => (
-                <Text
-                  key={participant.sessionId}
-                  style={styles.voiceParticipant}
-                >
-                  {participant.displayName || participant.address}
-                  {participant.micMuted ? ` · ${t('chat.voiceMuted')}` : ''}
-                </Text>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.voiceHint}>{t('chat.voiceHint')}</Text>
-          )}
-        </View>
-      ) : null}
-      <View style={styles.messagesCard}>
-        {loading ? (
-          <ActivityIndicator
-            color={theme.colors.accent}
-            style={styles.loader}
-          />
-        ) : null}
-        {!loading && !channel ? (
-          <View style={styles.emptyInline}>
-            <Text style={styles.emptyBody}>{t('chat.chooseChannel')}</Text>
-          </View>
-        ) : null}
-        <FlatList
-          data={messages}
-          keyExtractor={(item, index) =>
-            item.id ||
-            item.clientMessageId ||
-            `${item.author}-${item.timestamp}-${index}`
-          }
-          contentContainerStyle={styles.messages}
-          renderItem={({ item }) => {
-            const attachment = getMessageAttachment(item)
-            const state = attachment
-              ? getAttachmentState(
-                  attachment.cid,
-                  snapshot.holdings,
-                  snapshot.transfers
-                )
-              : null
-            const action =
-              state?.status === 'available'
-                ? 'chat.openAttachment'
-                : state?.status === 'running'
-                  ? 'chat.receivingAttachment'
-                  : state?.status === 'failed'
-                    ? 'chat.retryAttachment'
-                    : 'chat.receiveAttachment'
-            const actionLabel = t(action, {
-              progress: Math.round(state?.transfer?.progress || 0),
-            })
-            return (
-              <View
-                style={[
-                  styles.message,
-                  item.author === identity?.address ? styles.messageMine : null,
-                ]}
-              >
-                <Text style={styles.author}>{item.authorName}</Text>
-                {attachment ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
-                    disabled={state?.status === 'running'}
-                    onPress={() => {
-                      if (state?.holding) void onOpenAttachment(state.holding)
-                      else onReceiveAttachment(attachment)
-                    }}
-                    style={styles.attachmentButton}
-                  >
-                    <Text style={styles.attachmentName}>
-                      {t('chat.attachmentLabel', {
-                        fileName: attachment.fileName,
-                      })}
-                    </Text>
-                    {typeof attachment.size === 'number' ? (
-                      <Text style={styles.attachmentDetails}>
-                        {formatAttachmentSize(attachment.size)}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.attachmentAction}>{actionLabel}</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.content}>{item.content}</Text>
-                )}
-                {item.timestamp ? (
-                  <Text style={styles.timestamp}>
-                    {formatDateTime(item.timestamp)}
+                {voiceState ? (
+                  <Text style={styles.detailActionCount}>
+                    {Object.keys(voiceState.participants).length}
                   </Text>
                 ) : null}
               </View>
-            )
-          }}
-        />
-        <View style={styles.composer}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('chat.attach')}
-            disabled={sending || !channel}
-            onPress={() => void sendAttachment()}
-            style={[
-              styles.attachButton,
-              sending || !channel ? styles.disabled : null,
-            ]}
-          >
-            <Paperclip size={18} color={theme.colors.accent} />
-          </Pressable>
-          <MostTextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={t('chat.messagePlaceholder')}
-            multiline
-            style={styles.draft}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('chat.send')}
-            disabled={sending || !draft.trim()}
-            onPress={() => void send()}
-            style={[
-              styles.sendButton,
-              sending || !draft.trim() ? styles.disabled : null,
-            ]}
-          >
-            {sending ? (
-              <ActivityIndicator color={theme.colors.onAccent} />
             ) : (
-              <Send size={18} color={theme.colors.onAccent} />
+              <View style={styles.detailHeaderSpacer} />
             )}
-          </Pressable>
-        </View>
-      </View>
+          </View>
+          {voiceError ? (
+            <Text
+              style={[
+                styles.voiceError,
+                chatOpen ? styles.detailVoiceError : null,
+              ]}
+            >
+              {voiceError}
+            </Text>
+          ) : null}
+          <View
+            style={[
+              styles.messagesCard,
+              chatOpen ? styles.detailMessagesCard : null,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator
+                color={theme.colors.accent}
+                style={styles.loader}
+              />
+            ) : null}
+            {!loading && !channel ? (
+              <View style={styles.emptyInline}>
+                <Text style={styles.emptyBody}>{t('chat.chooseChannel')}</Text>
+              </View>
+            ) : null}
+            <FlatList
+              data={messages}
+              keyExtractor={(item, index) =>
+                item.id ||
+                item.clientMessageId ||
+                `${item.author}-${item.timestamp}-${index}`
+              }
+              contentContainerStyle={styles.messages}
+              renderItem={({ item }) => {
+                const attachment = getMessageAttachment(item)
+                const state = attachment
+                  ? getAttachmentState(
+                      attachment.cid,
+                      snapshot.holdings,
+                      snapshot.transfers
+                    )
+                  : null
+                const action =
+                  state?.status === 'available'
+                    ? 'chat.openAttachment'
+                    : state?.status === 'running'
+                      ? 'chat.receivingAttachment'
+                      : state?.status === 'failed'
+                        ? 'chat.retryAttachment'
+                        : 'chat.receiveAttachment'
+                const actionLabel = t(action, {
+                  progress: Math.round(state?.transfer?.progress || 0),
+                })
+                return (
+                  <View
+                    style={[
+                      styles.message,
+                      item.author === identity?.address
+                        ? styles.messageMine
+                        : null,
+                    ]}
+                  >
+                    <Text style={styles.author}>{item.authorName}</Text>
+                    {attachment ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
+                        disabled={state?.status === 'running'}
+                        onPress={() => {
+                          if (state?.holding)
+                            void onOpenAttachment(state.holding)
+                          else onReceiveAttachment(attachment)
+                        }}
+                        style={styles.attachmentButton}
+                      >
+                        <Text style={styles.attachmentName}>
+                          {t('chat.attachmentLabel', {
+                            fileName: attachment.fileName,
+                          })}
+                        </Text>
+                        {typeof attachment.size === 'number' ? (
+                          <Text style={styles.attachmentDetails}>
+                            {formatAttachmentSize(attachment.size)}
+                          </Text>
+                        ) : null}
+                        <Text style={styles.attachmentAction}>
+                          {actionLabel}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.content}>{item.content}</Text>
+                    )}
+                    {item.timestamp ? (
+                      <Text style={styles.timestamp}>
+                        {formatDateTime(item.timestamp)}
+                      </Text>
+                    ) : null}
+                  </View>
+                )
+              }}
+            />
+            <View style={styles.composer}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.attach')}
+                disabled={sending || !channel}
+                onPress={() => void sendAttachment()}
+                style={[
+                  styles.attachButton,
+                  sending || !channel ? styles.disabled : null,
+                ]}
+              >
+                <Paperclip size={18} color={theme.colors.accent} />
+              </Pressable>
+              <MostTextInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={t('chat.messagePlaceholder')}
+                multiline
+                style={styles.draft}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.send')}
+                disabled={sending || !draft.trim()}
+                onPress={() => void send()}
+                style={[
+                  styles.sendButton,
+                  sending || !draft.trim() ? styles.disabled : null,
+                ]}
+              >
+                {sending ? (
+                  <ActivityIndicator color={theme.colors.onAccent} />
+                ) : (
+                  <Send size={18} color={theme.colors.onAccent} />
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
     </KeyboardAvoidingView>
   )
 }
@@ -656,38 +717,68 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
   const { colors, radii } = theme
   return StyleSheet.create({
     container: { flex: 1, padding: 14, gap: 10 },
+    detailContainer: { padding: 0, gap: 0 },
     joinRow: { flexDirection: 'row', gap: 8 },
     channelInput: { flex: 1 },
     channelListView: { flexGrow: 0, height: 42 },
     channelList: { gap: 8 },
-    voiceCard: {
-      ...getGlassSurfaceStyle(theme, 'subtle'),
-      gap: 7,
-      padding: 10,
+    channelRow: {
+      alignItems: 'center',
+      borderBottomColor: colors.border,
+      borderBottomWidth: 1,
+      flexDirection: 'row',
+      gap: 10,
+      minHeight: 66,
+      paddingHorizontal: 6,
+      paddingVertical: 10,
     },
-    voiceHeader: {
+    channelAvatar: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: radii.full,
+      height: 42,
+      justifyContent: 'center',
+      width: 42,
+    },
+    channelRowText: { flex: 1, gap: 4, minWidth: 0 },
+    channelChevron: { color: colors.textMuted, fontSize: 24 },
+    detailHeader: {
       alignItems: 'center',
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      minHeight: 42,
+      paddingHorizontal: 14,
     },
-    voiceTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
-    voiceTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },
-    voiceCount: { alignItems: 'center', flexDirection: 'row', gap: 3 },
-    voiceCountText: { color: colors.textSecondary, fontSize: 12 },
-    voiceActions: { alignItems: 'center', flexDirection: 'row', gap: 6 },
-    voiceIconButton: {
+    backButton: {
       alignItems: 'center',
-      borderColor: colors.border,
-      borderRadius: radii.full,
-      borderWidth: 1,
-      height: 34,
+      height: 38,
       justifyContent: 'center',
-      width: 34,
+      width: 38,
     },
-    voiceParticipants: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    voiceParticipant: { color: colors.textSecondary, fontSize: 12 },
-    voiceHint: { color: colors.textMuted, fontSize: 12 },
+    detailTitle: {
+      color: colors.text,
+      flex: 1,
+      fontSize: 17,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    detailActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 3,
+      justifyContent: 'flex-end',
+      minWidth: 76,
+    },
+    detailActionButton: {
+      alignItems: 'center',
+      height: 36,
+      justifyContent: 'center',
+      width: 32,
+    },
+    detailActionCount: { color: colors.textSecondary, fontSize: 11 },
+    detailHeaderSpacer: { width: 38 },
+    pressed: { opacity: 0.65 },
     voiceError: { color: colors.danger, fontSize: 12 },
+    detailVoiceError: { paddingHorizontal: 14 },
     channelChip: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
       paddingHorizontal: 12,
@@ -704,6 +795,12 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       flex: 1,
       minHeight: 180,
       overflow: 'hidden',
+    },
+    detailMessagesCard: {
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+      borderRadius: 0,
+      borderWidth: 0,
     },
     messages: { padding: 12, gap: 8, flexGrow: 1 },
     message: {
