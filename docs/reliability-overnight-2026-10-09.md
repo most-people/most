@@ -26,7 +26,7 @@
 - 缓存恢复测试检查完成记录的阶段、字节数及落盘记录，移动端完整测试通过（前端 89、后端 74），移动端类型检查通过。
 - 本批次仍不自动重启下载；字节记录是进度快照，实际恢复偏移继续以临时文件大小为准，最终信任依据始终是重新计算的 CID。
 - ARM64 Release APK 构建通过，已使用 `install -r` 覆盖安装到真机 `14cdba73`，未清除数据。启动后进程存在，所检查的近期 AndroidRuntime / ReactNativeJS 错误日志为空；尚未进行本版本的 UI 和网络中断验收。
-- 新 APK：`mobile/app/dist/mostbox-android-0.5.3-release.apk`，SHA256 `a6ab7f50eb05c579697e55a2d49504b7f2ed4e69092231ce0d17df50a26834d5`。包含本夜前三个实施批次。
+- 新 APK：`app/dist/mostbox-android-0.5.3-release.apk`，SHA256 `a6ab7f50eb05c579697e55a2d49504b7f2ed4e69092231ce0d17df50a26834d5`。包含本夜前三个实施批次。
 
 ## 批次：文件页长任务提示
 
@@ -50,9 +50,9 @@
 
 ## 批次：真机连续内存采样工具
 
-- 新增只读脚本 `mobile/app/scripts/sample-physical-memory.mjs`，要求明确的已授权真机 serial，拒绝模拟器；每约 2 秒记录时间、MostBox PID 和完整 `dumpsys meminfo`。每个样本立即保存，采样错误也保留，便于区分进程消失与正常内存变化。
+- 新增只读脚本 `app/scripts/sample-physical-memory.mjs`，要求明确的已授权真机 serial，拒绝模拟器；每约 2 秒记录时间、MostBox PID 和完整 `dumpsys meminfo`。每个样本立即保存，采样错误也保留，便于区分进程消失与正常内存变化。
 - 已在 `14cdba73` 运行 5 秒采样并保存 3 个样本：`docs/qa/2026-10-09/android-physical/idle-memory-samples.json`。这是待机基线，不是 256MiB / 2112MiB 下载峰值结论。
-- 大文件验收时在 `mobile/app` 运行：`node scripts/sample-physical-memory.mjs --serial 14cdba73 --seconds 600 --output ../../docs/qa/2026-10-09/android-physical/download-memory-samples.json`，然后在手机开始下载新 CID；结束后结合任务阶段分析内存，不能把已持有 CID 的快速完成当作网络下载。
+- 大文件验收时在 `mobile` 运行：`node scripts/sample-physical-memory.mjs --serial 14cdba73 --seconds 600 --output ../../docs/qa/2026-10-09/android-physical/download-memory-samples.json`，然后在手机开始下载新 CID；结束后结合任务阶段分析内存，不能把已持有 CID 的快速完成当作网络下载。
 
 ## 晨间真机测试清单
 
@@ -60,7 +60,7 @@
 
 中继接入前的本地源码检查确认：`hyperswarm/index.js` 接收并转换 `relayThrough`，连接失败时存在强制 relaying 分支；`hyperdht/lib/connect.js` 有数据 relay 连接逻辑，`hyperdht/lib/server.js` 使用 `blind-relay`。这仅确认锁定依赖的可接入入口，不证明 Bare 真机兼容、UDP 禁用时可用或已部署中继。尚未修改产品连接策略、接入第三方服务或启用付费流量。
 
-当前手机已安装包含持久化恢复、字节偏移重试、阶段提示、CID 校验进度的 APK；未清除用户数据。APK 在 `mobile/app/dist/mostbox-android-0.5.3-release.apk`，SHA256 见上面的最新构建记录。
+当前手机已安装包含持久化恢复、字节偏移重试、阶段提示、CID 校验进度的 APK；未清除用户数据。APK 在 `app/dist/mostbox-android-0.5.3-release.apk`，SHA256 见上面的最新构建记录。
 
 1. 发布大文件，确认文件页展示计算 CID / 写入内容阶段，传输页进度更新；完成后再保存并校验实际输出。
 2. 下载手机从未持有的新 CID，分别在约 10%、50%、90% 断网或停止应用；恢复并重试，确认完整文件最终校验成功。重启后需要手动重试，当前没有后台服务或自动恢复承诺。

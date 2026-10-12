@@ -2428,6 +2428,16 @@ function ChatPage() {
       }
       headerRight={
         <div className="header-right-actions">
+          {activeChannel && !isInviteUser && (
+            <button
+              className="btn btn-icon chat-call-btn"
+              onClick={handleOpenActiveVoiceRoom}
+              title={t('chat.voice.menu')}
+              aria-label={t('chat.voice.menu')}
+            >
+              <PhoneCall size={18} />
+            </button>
+          )}
           {activeChannel && (
             <button
               className="btn btn-icon"

@@ -15,7 +15,7 @@
 生成候选配置并核对身份：
 
 ```bash
-cd mobile/app
+cd app
 MOST_PRODUCT=inkbox npx expo config --json
 MOST_PRODUCT=inkbox node scripts/check-ios-release.mjs
 ```

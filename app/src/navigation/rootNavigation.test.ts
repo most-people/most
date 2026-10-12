@@ -52,6 +52,16 @@ test('back action closes overlays and node child routes before exiting', () => {
       ...base,
       activeTab: 'files',
       downloadModalOpen: false,
+      filesLibraryOpen: true,
+      languageModalOpen: false,
+    }),
+    'closeFilesLibrary'
+  )
+  assert.equal(
+    getRootBackAction({
+      ...base,
+      activeTab: 'files',
+      downloadModalOpen: false,
       languageModalOpen: false,
     }),
     'exit'

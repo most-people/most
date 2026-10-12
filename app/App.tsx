@@ -25,22 +25,23 @@ import * as Sharing from 'expo-sharing'
 import { saveFileToDirectory } from './src/files/nativeFileExport'
 import b4a from 'b4a'
 import {
-  ArrowLeftRight,
   Check,
   ChevronLeft,
-  Files,
+  Compass,
   Languages,
   ListChecks,
   Loader,
   Monitor,
   Moon,
   MessageCircle,
-  Radio,
   ShieldCheck,
   Sun,
+  UserRound,
+  Users,
   X,
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
+import { ContactsScreen } from './src/features/chat/ContactsScreen'
 import {
   WebFilePreview,
   type WebFilePreviewFile,
@@ -58,6 +59,7 @@ import {
   type RootTab,
 } from './src/navigation/rootNavigation'
 import { NodeScreen } from './src/features/node/NodeScreen'
+import { MeScreen } from './src/features/node/MeScreen'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
@@ -107,7 +109,6 @@ import {
   IconButton,
   MostButton,
   MostTextInput,
-  getGlassSurfaceStyle,
 } from './src/ui/components'
 import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
@@ -139,10 +140,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 }
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
-  files: 'nav.files',
-  transfers: 'nav.transfers',
-  chat: 'nav.chat',
-  node: 'nav.node',
+  files: 'nav.contacts',
+  transfers: 'nav.discover',
+  chat: 'nav.wechat',
+  node: 'nav.me',
 }
 
 const THEME_LABEL_KEYS = {
@@ -290,6 +291,12 @@ function MostBoxApp() {
   )
   const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
+  const [filesView, setFilesView] = useState<'contacts' | 'library'>('contacts')
+  const [nodeView, setNodeView] = useState<'me' | 'status'>('me')
+  const [openChannelRequest, setOpenChannelRequest] = useState<{
+    channel: string
+    token: number
+  } | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [sharingFolderPath, setSharingFolderPath] = useState<string | null>(
     null
@@ -477,8 +484,32 @@ function MostBoxApp() {
       return
     }
     if (nextTab !== 'node') setNodeRoute('status')
+    if (nextTab === 'files') setFilesView('contacts')
+    if (nextTab === 'node') setNodeView('me')
     updateRootTabRoute(nextTab)
     setActiveTab(nextTab)
+  }
+
+  const openFileLibrary = () => {
+    setFilesView('library')
+    updateRootTabRoute('files')
+    setActiveTab('files')
+  }
+
+  const openNodeStatus = () => {
+    setNodeView('status')
+    updateRootTabRoute('node')
+    setActiveTab('node')
+  }
+
+  const openContactChannel = (channel: string) => {
+    setOpenChannelRequest({ channel, token: Date.now() })
+    setChatDetailRoute(true)
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/chat#${encodeURIComponent(channel)}`)
+      window.dispatchEvent(new Event('most-route-change'))
+    }
+    setActiveTab('chat')
   }
 
   const markCopied = (cid: string) => {
@@ -491,7 +522,7 @@ function MostBoxApp() {
   }
 
   const showHoldingDetails = (holding: MobileHolding) => {
-    changeTab('files')
+    openFileLibrary()
     setHoldingDetailRequest({ cid: holding.cid, token: Date.now() })
   }
 
@@ -639,6 +670,7 @@ function MostBoxApp() {
     const action = getRootBackAction({
       activeTab,
       downloadModalOpen,
+      filesLibraryOpen: activeTab === 'files' && filesView === 'library',
       languageModalOpen,
       nodeRoute,
     })
@@ -648,6 +680,10 @@ function MostBoxApp() {
     }
     if (action === 'closeReceive') {
       closeDownloadModal()
+      return true
+    }
+    if (action === 'closeFilesLibrary') {
+      setFilesView('contacts')
       return true
     }
     if (action === 'closeNodeChild') {
@@ -1057,18 +1093,25 @@ function MostBoxApp() {
   }
 
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
+  const isFilesLibrary = activeTab === 'files' && filesView === 'library'
   const isChatDetail = activeTab === 'chat' && chatDetailRoute
-  const isSecondaryPage = isNodeChild
-  const hideTabBar = isNodeChild || isChatDetail
+  const isSecondaryPage = isNodeChild || isFilesLibrary
+  const hideTabBar = isNodeChild || isChatDetail || isFilesLibrary
   const headerTitle = isNodeChild
     ? t('p2pPing.title')
-    : t(TAB_LABEL_KEYS[activeTab])
-  const headerBackLabel = isNodeChild ? t('p2pPing.back') : ''
+    : isFilesLibrary
+      ? t('nav.files')
+      : t(TAB_LABEL_KEYS[activeTab])
+  const headerBackLabel = isNodeChild || isFilesLibrary ? t('common.back') : ''
   const nextThemePreference = getNextThemePreference(preference)
 
   const handleHeaderBack = () => {
     if (isNodeChild) {
       setNodeRoute('status')
+      return
+    }
+    if (isFilesLibrary) {
+      setFilesView('contacts')
       return
     }
   }
@@ -1204,26 +1247,33 @@ function MostBoxApp() {
               activeTab !== 'files' ? styles.tabPanelHidden : null,
             ]}
           >
-            <FilesScreen
-              actionDisabled={!isReady || publishing}
-              copiedCid={copiedCid}
-              deletingCid={deletingCid}
-              detailRequest={holdingDetailRequest}
-              exportingCid={exportingCid}
-              receiveDisabled={Boolean(downloadingCid)}
-              sharingFolderPath={sharingFolderPath}
-              reselectToken={reselectTokens.files}
-              snapshot={currentSnapshot}
-              onCopyHoldingLink={handleCopyHoldingLink}
-              onDeleteHolding={handleDeleteHolding}
-              onDownloadHolding={handleDownloadHolding}
-              onOpenHolding={handleOpenHolding}
-              onPublishFile={handlePublishFile}
-              onReceiveLink={openDownloadModal}
-              onSaveHolding={handleSaveHolding}
-              onShareHolding={handleShareHolding}
-              onShareFolder={handleShareFolder}
-            />
+            {filesView === 'contacts' ? (
+              <ContactsScreen
+                snapshot={currentSnapshot}
+                onOpenChannel={openContactChannel}
+              />
+            ) : (
+              <FilesScreen
+                actionDisabled={!isReady || publishing}
+                copiedCid={copiedCid}
+                deletingCid={deletingCid}
+                detailRequest={holdingDetailRequest}
+                exportingCid={exportingCid}
+                receiveDisabled={Boolean(downloadingCid)}
+                sharingFolderPath={sharingFolderPath}
+                reselectToken={reselectTokens.files}
+                snapshot={currentSnapshot}
+                onCopyHoldingLink={handleCopyHoldingLink}
+                onDeleteHolding={handleDeleteHolding}
+                onDownloadHolding={handleDownloadHolding}
+                onOpenHolding={handleOpenHolding}
+                onPublishFile={handlePublishFile}
+                onReceiveLink={openDownloadModal}
+                onSaveHolding={handleSaveHolding}
+                onShareHolding={handleShareHolding}
+                onShareFolder={handleShareFolder}
+              />
+            )}
           </View>
           <View
             style={[
@@ -1239,6 +1289,8 @@ function MostBoxApp() {
               snapshot={currentSnapshot}
               runtimeStatus={transferRuntimeStatus}
               onCancelDownload={handleCancelTransfer}
+              onOpenFiles={openFileLibrary}
+              onOpenNode={openNodeStatus}
               onOpenHolding={showHoldingDetails}
               onRetryTransfer={handleRetryTransfer}
               onShowTransferDetails={handleShowTransferDetails}
@@ -1253,6 +1305,8 @@ function MostBoxApp() {
             >
               <ChatScreen
                 client={core}
+                openChannelRequest={openChannelRequest}
+                onDetailChange={setChatDetailRoute}
                 onPublishAttachment={handlePublishChatAttachment}
                 onReceiveAttachment={attachment => {
                   const inspection = inspectReceiveLink(attachment.link)
@@ -1279,7 +1333,14 @@ function MostBoxApp() {
               activeTab !== 'node' ? styles.tabPanelHidden : null,
             ]}
           >
-            {nodeRoute === 'p2pPing' ? (
+            {nodeView === 'me' ? (
+              <MeScreen
+                snapshot={currentSnapshot}
+                username={currentSnapshot.node.username}
+                onOpenFiles={openFileLibrary}
+                onOpenNode={openNodeStatus}
+              />
+            ) : nodeRoute === 'p2pPing' ? (
               <P2PPingScreen
                 ping={currentSnapshot.p2pPing}
                 ready={isNodeOnline}
@@ -1324,7 +1385,7 @@ function MostBoxApp() {
             <TabButton
               active={activeTab === 'files'}
               icon={
-                <Files
+                <Users
                   size={21}
                   color={
                     activeTab === 'files'
@@ -1333,13 +1394,13 @@ function MostBoxApp() {
                   }
                 />
               }
-              label={t('nav.files')}
+              label={t('nav.contacts')}
               onPress={() => changeTab('files')}
             />
             <TabButton
               active={activeTab === 'transfers'}
               icon={
-                <ArrowLeftRight
+                <Compass
                   size={21}
                   color={
                     activeTab === 'transfers'
@@ -1348,13 +1409,13 @@ function MostBoxApp() {
                   }
                 />
               }
-              label={t('nav.transfers')}
+              label={t('nav.discover')}
               onPress={() => changeTab('transfers')}
             />
             <TabButton
               active={activeTab === 'node'}
               icon={
-                <Radio
+                <UserRound
                   size={21}
                   color={
                     activeTab === 'node'
@@ -1363,7 +1424,7 @@ function MostBoxApp() {
                   }
                 />
               }
-              label={t('nav.node')}
+              label={t('nav.me')}
               onPress={() => changeTab('node')}
             />
           </View>
@@ -1711,6 +1772,7 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.background,
     },
     backgroundDecorations: {
+      display: 'none',
       position: 'absolute',
       top: 0,
       right: 0,
@@ -1776,18 +1838,17 @@ function createStyles(theme: MostBoxTheme) {
       paddingBottom: 24,
     },
     header: {
-      ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
       flexDirection: 'row',
       gap: 12,
       justifyContent: 'space-between',
-      minHeight: 64,
-      paddingHorizontal: 20,
+      minHeight: 56,
+      paddingHorizontal: 16,
       borderRadius: 0,
       borderWidth: 0,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderStrong,
-      backgroundColor: colors.glass,
+      backgroundColor: colors.background,
     },
     headerAccessibility: {
       minHeight: 64,
@@ -1806,6 +1867,7 @@ function createStyles(theme: MostBoxTheme) {
       minWidth: 0,
     },
     headerEyebrow: {
+      display: 'none',
       color: colors.textMuted,
       fontSize: 10,
       fontWeight: '600',
@@ -1824,7 +1886,7 @@ function createStyles(theme: MostBoxTheme) {
     mainHeaderTitle: {
       color: colors.text,
       flex: 1,
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: '700',
     },
     brandMark: {
@@ -1861,17 +1923,16 @@ function createStyles(theme: MostBoxTheme) {
       display: 'none',
     },
     tabBar: {
-      ...getGlassSurfaceStyle(theme, 'subtle'),
-      minHeight: 70,
+      minHeight: 60,
       flexDirection: 'row',
       alignItems: 'stretch',
-      paddingHorizontal: 8,
-      paddingVertical: 7,
+      paddingHorizontal: 2,
+      paddingVertical: 2,
       borderRadius: 0,
       borderWidth: 0,
       borderTopWidth: 1,
       borderTopColor: colors.borderStrong,
-      backgroundColor: colors.glassSolid,
+      backgroundColor: colors.surface,
     },
     tabButton: {
       flex: 1,
@@ -1879,16 +1940,16 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 2,
-      borderRadius: radii.medium,
-      marginHorizontal: 3,
+      borderRadius: 0,
+      marginHorizontal: 0,
     },
     tabButtonActive: {
-      backgroundColor: colors.accentSoft,
+      backgroundColor: 'transparent',
     },
     tabText: {
       alignSelf: 'stretch',
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: '500',
       textAlign: 'center',
     },

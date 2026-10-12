@@ -55,10 +55,10 @@ MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消�
 
 iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的 Android 商店版是完整功能应用，提供本机 Bare Worklet 节点、远程节点连接、文件传输与做种、频道聊天、Web3 工具和相关身份能力；各工具箱可以独立使用，不构成文件分享前置条件。连接远程节点时可使用节点地址、邀请码和签名身份；本机功能无需云端注册账号。远程 daemon 可以独立持续工作，本机节点的做种和下载受 Android 生命周期影响，当前保证应用在前台时持续运行，回到前台后自动恢复。Expo Web 仍是独立的自托管节点控制台。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
 
-移动端工程入口以 `mobile/app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
+移动端工程入口以 `app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 
 ```bash
-cd mobile/app
+cd app
 npm install
 npm start      # 启动 Expo Web，默认访问 http://localhost:2021
 npm test       # 运行移动端 CID、most://、P2P Ping 和 Bare Worklet IPC 测试
@@ -100,7 +100,7 @@ npm start
 npm run server
 ```
 
-开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。Expo Web 在 `mobile/app/` 中运行 `npm run web`，默认访问 `http://localhost:2021`。
+开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。Expo Web 在 `app/` 中运行 `npm run web`，默认访问 `http://localhost:2021`。
 
 ### 浏览器来源白名单
 
@@ -197,7 +197,7 @@ VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，�
 - `src/hooks/`、`src/lib/`、`src/stores/`、`src/styles/`：共享 hooks、工具、状态和样式。
 - `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
 - `server/`：daemon、HTTP API、P2P 引擎和协议测试。
-- `mobile/app/`：Android/iOS 移动端应用和共享 Bare Worklet P2P 核心。
+- `app/`：Android/iOS 移动端应用和共享 Bare Worklet P2P 核心。
 
 ## 测试与格式化
 
@@ -209,7 +209,7 @@ npm test              # 运行全部后端测试
 npm run test:unit     # 只运行后端单元测试
 npm run test:protocol # 运行 CID / 发布 / 下载 / P2P 接力协议回归
 
-cd mobile/app
+cd app
 npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```
 
@@ -418,9 +418,9 @@ npx most-box@latest
 
 ## CI/CD
 
-发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 与 iOS `buildNumber` 也必须同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和移动端构建号；本地 iOS 原生工程存在时也会校验其版本，并由 `mobile/app` 下的 `npm run bundle:ios` 自动同步。
+发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`app/package.json` / `app/package-lock.json`、`app/app.json` 和文档里的 Docker 示例 tag；`app/app.json` 的 Android `versionCode` 与 iOS `buildNumber` 也必须同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和移动端构建号；本地 iOS 原生工程存在时也会校验其版本，并由 `app` 下的 `npm run bundle:ios` 自动同步。
 
-Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 为 `mobile/app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
+Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 为 `mobile`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
 
 ### Code signing policy
 

@@ -41,6 +41,7 @@ export const chatMessages = {
     en: 'Write a message',
   },
   'chat.send': { 'zh-CN': '发送消息', 'zh-TW': '傳送訊息', en: 'Send message' },
+  'chat.sendShort': { 'zh-CN': '发送', 'zh-TW': '傳送', en: 'Send' },
   'chat.attach': {
     'zh-CN': '发送文件附件',
     'zh-TW': '傳送檔案附件',
@@ -135,5 +136,85 @@ export const chatMessages = {
     'zh-CN': '语音连接失败',
     'zh-TW': '語音連線失敗',
     en: 'Could not connect to voice signaling',
+  },
+  'chat.callOptions': {
+    'zh-CN': '通话选项',
+    'zh-TW': '通話選項',
+    en: 'Call options',
+  },
+  'chat.callTitle': {
+    'zh-CN': '发起通话',
+    'zh-TW': '發起通話',
+    en: 'Start a call',
+  },
+  'chat.videoCall': {
+    'zh-CN': '视频通话',
+    'zh-TW': '視訊通話',
+    en: 'Video call',
+  },
+  'chat.voiceRequiresRemote': {
+    'zh-CN': '语音通话需要连接远程节点',
+    'zh-TW': '語音通話需要連線遠端節點',
+    en: 'Voice calls require a remote node',
+  },
+  'chat.videoUnavailable': {
+    'zh-CN': '视频通话暂未接入',
+    'zh-TW': '視訊通話尚未接入',
+    en: 'Video calls are not connected yet',
+  },
+  'chat.switchToVoice': {
+    'zh-CN': '切换到按住说话',
+    'zh-TW': '切換到按住說話',
+    en: 'Switch to voice message',
+  },
+  'chat.switchToKeyboard': {
+    'zh-CN': '切换到键盘输入',
+    'zh-TW': '切換到鍵盤輸入',
+    en: 'Switch to keyboard',
+  },
+  'chat.holdToTalk': {
+    'zh-CN': '按住说话',
+    'zh-TW': '按住說話',
+    en: 'Hold to talk',
+  },
+  'chat.releaseToSend': {
+    'zh-CN': '松开结束',
+    'zh-TW': '放開結束',
+    en: 'Release to finish',
+  },
+  'chat.voiceMessageUnavailable': {
+    'zh-CN': '语音消息暂未接入',
+    'zh-TW': '語音訊息尚未接入',
+    en: 'Voice messages are not connected yet',
+  },
+  'chat.emoji': {
+    'zh-CN': '表情',
+    'zh-TW': '表情',
+    en: 'Emoji',
+  },
+  'chat.moreActions': {
+    'zh-CN': '更多功能',
+    'zh-TW': '更多功能',
+    en: 'More actions',
+  },
+  'chat.moreTitle': {
+    'zh-CN': '更多功能',
+    'zh-TW': '更多功能',
+    en: 'More actions',
+  },
+  'chat.fileAction': {
+    'zh-CN': '文件',
+    'zh-TW': '檔案',
+    en: 'File',
+  },
+  'chat.cameraAction': {
+    'zh-CN': '拍摄',
+    'zh-TW': '拍攝',
+    en: 'Camera',
+  },
+  'chat.mediaUnavailable': {
+    'zh-CN': '相机和相册暂未接入',
+    'zh-TW': '相機和相簿尚未接入',
+    en: 'Camera and photo library are not connected yet',
   },
 } as const

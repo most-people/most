@@ -224,9 +224,7 @@ export function collectIosReleaseIssues({
 export function checkIosRelease(projectDir = defaultProjectDir) {
   const packageJson = readJson(path.join(projectDir, 'package.json'))
   const packageLock = readJson(path.join(projectDir, 'package-lock.json'))
-  const rootPackage = readJson(
-    path.resolve(projectDir, '..', '..', 'package.json')
-  )
+  const rootPackage = readJson(path.resolve(projectDir, '..', 'package.json'))
   const baseExpo = readJson(path.join(projectDir, 'app.json')).expo
   const expo = applyIosReleaseProfile(
     baseExpo,

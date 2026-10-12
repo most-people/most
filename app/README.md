@@ -21,7 +21,7 @@ MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心，产品定
 所有移动端命令都从本目录执行：
 
 ```bash
-cd mobile/app
+cd app
 npm install
 npm start
 npm run web
@@ -48,7 +48,7 @@ Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare 
 npm run build:web
 ```
 
-Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。生产环境由 Cloudflare Pages 直接连接 `most-people/most` 仓库，production branch 为 `pre`，Root directory 为 `mobile/app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后 Pages 自动发布到 `app.most.box`，不需要 Cloudflare API Token。
+Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。生产环境由 Cloudflare Pages 直接连接 `most-people/most` 仓库，production branch 为 `pre`，Root directory 为 `mobile`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后 Pages 自动发布到 `app.most.box`，不需要 Cloudflare API Token。
 
 ## 内部 APK
 
@@ -139,11 +139,11 @@ npm run build:play
 npx eas-cli@latest build --platform android --profile android-production
 ```
 
-Play Console 填报、审核说明和素材要求见 `../../docs/google-play-submission.md`。
+Play Console 填报、审核说明和素材要求见 `../docs/google-play-submission.md`。
 
 ## 验收
 
-Android 真机验收清单见 `../../docs/mobile-android-alpha.md`。最高优先级回归仍是原发布者退出后，由 Android 前台种子继续向新节点传播：
+Android 真机验收清单见 `../docs/mobile-android-alpha.md`。最高优先级回归仍是原发布者退出后，由 Android 前台种子继续向新节点传播：
 
 ```bash
 node scripts/android-real-p2p-seed.mjs --handoff-check

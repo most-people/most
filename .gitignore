@@ -39,14 +39,14 @@ NUL
 .electron-builder-out/
 
 # Mobile app local outputs
-mobile/app/.expo/
-mobile/app/android/
-mobile/app/ios/
-mobile/app/app.bundle.mjs
-mobile/app/app.bundle.js
-mobile/app/appBundle.android.js
-mobile/app/appBundle.ios.js
-mobile/app/web-dist/
+app/.expo/
+app/android/
+app/ios/
+app/app.bundle.mjs
+app/app.bundle.js
+app/appBundle.android.js
+app/appBundle.ios.js
+app/web-dist/
 
 # macOS
 *.dmg

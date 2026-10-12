@@ -1,24 +1,28 @@
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  Camera,
+  FileText,
+  Keyboard as KeyboardIcon,
   MessageCircle,
   Mic,
   MicOff,
-  Paperclip,
-  Phone,
+  PhoneCall,
   PhoneOff,
   Plus,
-  Send,
+  Smile,
 } from 'lucide-react-native'
 import {
   ChatApiClient,
@@ -49,12 +53,49 @@ import {
 } from './attachmentModel'
 import { useI18n } from '../../i18n'
 import {
+  BottomSheetCard,
   MostButton,
   MostTextInput,
   getGlassSurfaceStyle,
 } from '../../ui/components'
 import { useFeedback } from '../../ui/feedback'
 import { useMostBoxTheme } from '../../ui/theme'
+
+const FIXTURE_CHANNELS = ['产品讨论', '文件分享', '开发联调']
+const FIXTURE_CHANNEL_PREVIEWS: Record<string, string> = {
+  产品讨论: '欢迎加入产品讨论群',
+  文件分享: '可以在这里发送 most:// 链接',
+  开发联调: '第三方接入调试频道',
+}
+const FIXTURE_MESSAGES: Record<string, ChatMessage[]> = {
+  产品讨论: [
+    {
+      id: 'fixture-product-1',
+      content: '欢迎加入产品讨论群，新的消息会实时同步。',
+      author: 'fixture-product',
+      authorName: 'MostBox 小助手',
+      timestamp: '2026-10-13T08:00:00.000Z',
+    },
+  ],
+  文件分享: [
+    {
+      id: 'fixture-files-1',
+      content: '可以在这里发送 most:// 链接，下载完成后会自动继续做种。',
+      author: 'fixture-files',
+      authorName: '文件助手',
+      timestamp: '2026-10-13T08:06:00.000Z',
+    },
+  ],
+  开发联调: [
+    {
+      id: 'fixture-dev-1',
+      content: '这是第三方接入调试频道，适合验证邀请和消息协议。',
+      author: 'fixture-dev',
+      authorName: '开发联调',
+      timestamp: '2026-10-13T08:12:00.000Z',
+    },
+  ],
+}
 
 function updateChatRoute(channel = '') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -89,6 +130,8 @@ type ChatBridge = MostBoxMobileCore & {
 export type ChatScreenProps = {
   client: MostBoxMobileCore
   snapshot: MobileCoreSnapshot
+  openChannelRequest?: { channel: string; token: number } | null
+  onDetailChange?: (open: boolean) => void
   onPublishAttachment: () => Promise<ChatAttachment | null>
   onReceiveAttachment: (attachment: ChatAttachment) => void
   onOpenAttachment: (holding: MobileHolding) => void | Promise<void>
@@ -97,6 +140,8 @@ export type ChatScreenProps = {
 export function ChatScreen({
   client,
   snapshot,
+  openChannelRequest,
+  onDetailChange,
   onPublishAttachment,
   onReceiveAttachment,
   onOpenAttachment,
@@ -122,7 +167,7 @@ export function ChatScreen({
   )
   const socketRef = useRef<ChatWebSocketSession | null>(null)
   const voiceSessionRef = useRef<VoiceWebSocketSession | null>(null)
-  const initialChatRoute = useRef(getInitialChatRoute())
+  const lastOpenChannelTokenRef = useRef<number | null>(null)
   const [channelInput, setChannelInput] = useState('')
   const [channel, setChannel] = useState('')
   const [chatOpen, setChatOpen] = useState(() => Boolean(getInitialChatRoute()))
@@ -136,13 +181,29 @@ export function ChatScreen({
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceConnecting, setVoiceConnecting] = useState(false)
   const [voiceError, setVoiceError] = useState('')
+  const [callSheetOpen, setCallSheetOpen] = useState(false)
+  const [actionSheetOpen, setActionSheetOpen] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const [composerMode, setComposerMode] = useState<'keyboard' | 'voice'>(
+    'keyboard'
+  )
+  const [recordingVoiceMessage, setRecordingVoiceMessage] = useState(false)
+  const visibleChannels = channels.length ? channels : FIXTURE_CHANNELS
+  const visibleMessages =
+    messages.length || !channel ? messages : FIXTURE_MESSAGES[channel] || []
+
+  useEffect(() => {
+    onDetailChange?.(chatOpen)
+  }, [chatOpen, onDetailChange])
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
     const onRouteChange = () => {
-      setChatOpen(
-        window.location.pathname === '/chat' && Boolean(window.location.hash)
-      )
+      const nextChannel = getInitialChatRoute()
+      setChatOpen(Boolean(nextChannel))
+      onDetailChange?.(Boolean(nextChannel))
+      if (channel !== nextChannel) setMessages([])
+      setChannel(nextChannel)
     }
     window.addEventListener('popstate', onRouteChange)
     window.addEventListener('most-route-change', onRouteChange)
@@ -150,7 +211,7 @@ export function ChatScreen({
       window.removeEventListener('popstate', onRouteChange)
       window.removeEventListener('most-route-change', onRouteChange)
     }
-  }, [])
+  }, [channel, onDetailChange])
 
   useEffect(
     () => () => {
@@ -242,49 +303,55 @@ export function ChatScreen({
     if (items) setMessages(items)
   }, [channel, localMode, snapshot.channelMessages])
 
-  const loadChannel = async (name: string) => {
-    const normalizedName = normalizeChatChannel(name)
-    if ((!api && !localMode) || !normalizedName) return
-    setLoading(true)
-    try {
-      const localMessages = localMode
-        ? await bridge.getChannelMessages?.(normalizedName)
-        : null
-      const page = localMode
-        ? null
-        : await api?.getHistory(normalizedName, { limit: 100 })
-      setChannel(normalizedName)
-      setMessages(localMode ? localMessages || [] : page?.messages || [])
-      socketRef.current?.close()
-      if (!localMode && api) {
-        const session = new ChatWebSocketSession({
-          baseUrl: endpoint,
-          invite,
-          identity,
-          onEvent: event => {
-            if (
-              event.event === 'channel:message' &&
-              normalizeChatChannel(event.channel) === normalizedName
-            )
-              setMessages(current =>
-                mergeChatMessages(current, [event.message])
+  const loadChannel = useCallback(
+    async (name: string) => {
+      const normalizedName = normalizeChatChannel(name)
+      if ((!api && !localMode) || !normalizedName) return
+      setLoading(true)
+      try {
+        const localMessages = localMode
+          ? await bridge.getChannelMessages?.(normalizedName)
+          : null
+        const page = localMode
+          ? null
+          : await api?.getHistory(normalizedName, { limit: 100 })
+        setChannel(normalizedName)
+        setMessages(localMode ? localMessages || [] : page?.messages || [])
+        socketRef.current?.close()
+        if (!localMode && api) {
+          const session = new ChatWebSocketSession({
+            baseUrl: endpoint,
+            invite,
+            identity,
+            onEvent: event => {
+              if (
+                event.event === 'channel:message' &&
+                normalizeChatChannel(event.channel) === normalizedName
               )
-          },
-        })
-        socketRef.current = session
-        await session.subscribe(normalizedName)
+                setMessages(current =>
+                  mergeChatMessages(current, [event.message])
+                )
+            },
+          })
+          socketRef.current = session
+          await session.subscribe(normalizedName)
+        }
+        setChannels(current =>
+          current.includes(normalizedName)
+            ? current
+            : [...current, normalizedName]
+        )
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : t('chat.loadFailed'),
+          'error'
+        )
+      } finally {
+        setLoading(false)
       }
-      if (!channels.includes(normalizedName))
-        setChannels(current => [...current, normalizedName])
-    } catch (error) {
-      toast(
-        error instanceof Error ? error.message : t('chat.loadFailed'),
-        'error'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    [api, bridge, endpoint, identity, invite, localMode, t, toast]
+  )
 
   const joinChannel = async () => {
     const name = normalizeChatChannel(channelInput)
@@ -313,15 +380,38 @@ export function ChatScreen({
   }
 
   useEffect(() => {
-    if (!chatOpen || channel || !initialChatRoute.current || !channels.length)
+    const requestToken = openChannelRequest?.token
+    const requestedChannel = normalizeChatChannel(
+      openChannelRequest?.channel || ''
+    )
+    if (
+      !requestedChannel ||
+      requestToken === undefined ||
+      lastOpenChannelTokenRef.current === requestToken
+    )
       return
-    void loadChannel(initialChatRoute.current)
-  }, [chatOpen, channel, channels.length])
+    lastOpenChannelTokenRef.current = requestToken
+    void loadChannel(requestedChannel).then(() => {
+      setChatOpen(true)
+      updateChatRoute(requestedChannel)
+    })
+  }, [loadChannel, openChannelRequest?.token])
+
+  useEffect(() => {
+    const routeChannel = getInitialChatRoute()
+    if (!chatOpen || channel || !routeChannel || !channels.length) return
+    void loadChannel(routeChannel)
+  }, [chatOpen, channel, channels.length, loadChannel])
 
   const closeChannel = () => {
     voiceSessionRef.current?.leave()
     setVoiceJoined(false)
+    setCallSheetOpen(false)
+    setActionSheetOpen(false)
+    setEmojiOpen(false)
+    setComposerMode('keyboard')
     setChatOpen(false)
+    onDetailChange?.(false)
     updateChatRoute()
   }
 
@@ -439,6 +529,42 @@ export function ChatScreen({
     })
   }
 
+  const startVoiceCall = () => {
+    setCallSheetOpen(false)
+    if (localMode) {
+      toast(t('chat.voiceRequiresRemote'), 'info')
+      return
+    }
+    void toggleVoice()
+  }
+
+  const showVideoCallUnavailable = () => {
+    setCallSheetOpen(false)
+    toast(t('chat.videoUnavailable'), 'info')
+  }
+
+  const toggleComposerMode = () => {
+    setEmojiOpen(false)
+    if (composerMode === 'keyboard') Keyboard.dismiss()
+    setComposerMode(current => (current === 'keyboard' ? 'voice' : 'keyboard'))
+  }
+
+  const appendEmoji = (emoji: string) => {
+    setDraft(current => `${current}${emoji}`)
+    setEmojiOpen(false)
+  }
+
+  const startVoiceMessage = () => {
+    if (!channel || sending) return
+    setRecordingVoiceMessage(true)
+  }
+
+  const stopVoiceMessage = () => {
+    if (!recordingVoiceMessage) return
+    setRecordingVoiceMessage(false)
+    toast(t('chat.voiceMessageUnavailable'), 'info')
+  }
+
   if (!localMode && !endpoint)
     return (
       <View style={styles.empty}>
@@ -483,7 +609,7 @@ export function ChatScreen({
           </View>
           <View style={styles.channelListCard}>
             <FlatList
-              data={channels}
+              data={visibleChannels}
               keyExtractor={item => item}
               contentContainerStyle={styles.channelList}
               ListEmptyComponent={
@@ -506,8 +632,14 @@ export function ChatScreen({
                   </View>
                   <View style={styles.channelRowText}>
                     <Text style={styles.channelText}>#{item}</Text>
+                    <Text numberOfLines={1} style={styles.channelPreview}>
+                      {FIXTURE_CHANNEL_PREVIEWS[item] || t('chat.openHint')}
+                    </Text>
                   </View>
-                  <Text style={styles.channelChevron}>›</Text>
+                  <View style={styles.channelMeta}>
+                    <Text style={styles.channelTime}>08:12</Text>
+                    <Text style={styles.channelChevron}>›</Text>
+                  </View>
                 </Pressable>
               )}
             />
@@ -527,7 +659,7 @@ export function ChatScreen({
             <Text numberOfLines={1} style={styles.detailTitle}>
               #{channel}
             </Text>
-            {!localMode && channel ? (
+            {channel ? (
               <View style={styles.detailActions}>
                 {voiceJoined ? (
                   <Pressable
@@ -547,17 +679,14 @@ export function ChatScreen({
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')
-                  }
-                  disabled={voiceConnecting}
-                  onPress={() => void toggleVoice()}
+                  accessibilityLabel={t('chat.callOptions')}
+                  onPress={() => setCallSheetOpen(true)}
                   style={styles.detailActionButton}
                 >
                   {voiceJoined ? (
                     <PhoneOff size={18} color={theme.colors.danger} />
                   ) : (
-                    <Phone size={18} color={theme.colors.accent} />
+                    <PhoneCall size={19} color={theme.colors.accent} />
                   )}
                 </Pressable>
                 {voiceState ? (
@@ -598,7 +727,7 @@ export function ChatScreen({
               </View>
             ) : null}
             <FlatList
-              data={messages}
+              data={visibleMessages}
               keyExtractor={(item, index) =>
                 item.id ||
                 item.clientMessageId ||
@@ -673,44 +802,231 @@ export function ChatScreen({
                 )
               }}
             />
+            {emojiOpen ? (
+              <View style={styles.emojiPanel}>
+                {['😀', '😂', '👍', '🎉', '❤️', '🙏', '😅', '🤝'].map(emoji => (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={emoji}
+                    key={emoji}
+                    onPress={() => appendEmoji(emoji)}
+                    style={styles.emojiButton}
+                  >
+                    <Text style={styles.emoji}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.composer}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t('chat.attach')}
+                accessibilityLabel={
+                  composerMode === 'keyboard'
+                    ? t('chat.switchToVoice')
+                    : t('chat.switchToKeyboard')
+                }
+                onPress={toggleComposerMode}
+                style={styles.composerIconButton}
+              >
+                {composerMode === 'keyboard' ? (
+                  <Mic size={22} color={theme.colors.text} />
+                ) : (
+                  <KeyboardIcon size={22} color={theme.colors.text} />
+                )}
+              </Pressable>
+              {composerMode === 'keyboard' ? (
+                <MostTextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  onFocus={() => setEmojiOpen(false)}
+                  placeholder={t('chat.messagePlaceholder')}
+                  multiline
+                  style={styles.draft}
+                />
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.holdToTalk')}
+                  disabled={sending || !channel}
+                  onPressIn={startVoiceMessage}
+                  onPressOut={stopVoiceMessage}
+                  style={[
+                    styles.voiceMessageButton,
+                    recordingVoiceMessage
+                      ? styles.voiceMessageButtonActive
+                      : null,
+                    sending || !channel ? styles.disabled : null,
+                  ]}
+                >
+                  <Text style={styles.voiceMessageText}>
+                    {recordingVoiceMessage
+                      ? t('chat.releaseToSend')
+                      : t('chat.holdToTalk')}
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.emoji')}
+                onPress={() => setEmojiOpen(current => !current)}
+                style={styles.composerIconButton}
+              >
+                <Smile size={22} color={theme.colors.text} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.moreActions')}
                 disabled={sending || !channel}
-                onPress={() => void sendAttachment()}
+                onPress={() => setActionSheetOpen(true)}
                 style={[
-                  styles.attachButton,
+                  styles.composerIconButton,
                   sending || !channel ? styles.disabled : null,
                 ]}
               >
-                <Paperclip size={18} color={theme.colors.accent} />
+                <Plus size={23} color={theme.colors.text} />
               </Pressable>
-              <MostTextInput
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={t('chat.messagePlaceholder')}
-                multiline
-                style={styles.draft}
-              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('chat.send')}
-                disabled={sending || !draft.trim()}
+                disabled={sending || !draft.trim() || !channel}
                 onPress={() => void send()}
                 style={[
                   styles.sendButton,
-                  sending || !draft.trim() ? styles.disabled : null,
+                  sending || !draft.trim() || !channel ? styles.disabled : null,
                 ]}
               >
                 {sending ? (
                   <ActivityIndicator color={theme.colors.onAccent} />
                 ) : (
-                  <Send size={18} color={theme.colors.onAccent} />
+                  <Text style={styles.sendLabel}>{t('chat.sendShort')}</Text>
                 )}
               </Pressable>
             </View>
           </View>
+          <Modal
+            animationType="slide"
+            onRequestClose={() => setCallSheetOpen(false)}
+            transparent
+            visible={callSheetOpen}
+          >
+            <View style={styles.sheetOverlay}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                onPress={() => setCallSheetOpen(false)}
+                style={styles.sheetBackdrop}
+              />
+              <BottomSheetCard style={styles.sheetCard}>
+                <Text style={styles.sheetTitle}>{t('chat.callTitle')}</Text>
+                <View style={styles.callOptions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')
+                    }
+                    disabled={localMode || voiceConnecting}
+                    onPress={startVoiceCall}
+                    style={({ pressed }) => [
+                      styles.callOption,
+                      localMode ? styles.disabled : null,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <View style={styles.callOptionIcon}>
+                      <PhoneCall size={22} color={theme.colors.accent} />
+                    </View>
+                    <Text style={styles.callOptionLabel}>
+                      {voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.videoCall')}
+                    onPress={showVideoCallUnavailable}
+                    style={({ pressed }) => [
+                      styles.callOption,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <View style={styles.callOptionIcon}>
+                      <Camera size={22} color={theme.colors.info} />
+                    </View>
+                    <Text style={styles.callOptionLabel}>
+                      {t('chat.videoCall')}
+                    </Text>
+                  </Pressable>
+                </View>
+                <MostButton
+                  onPress={() => setCallSheetOpen(false)}
+                  style={styles.sheetCancel}
+                  variant="ghost"
+                >
+                  {t('common.cancel')}
+                </MostButton>
+              </BottomSheetCard>
+            </View>
+          </Modal>
+          <Modal
+            animationType="slide"
+            onRequestClose={() => setActionSheetOpen(false)}
+            transparent
+            visible={actionSheetOpen}
+          >
+            <View style={styles.sheetOverlay}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                onPress={() => setActionSheetOpen(false)}
+                style={styles.sheetBackdrop}
+              />
+              <BottomSheetCard style={styles.sheetCard}>
+                <Text style={styles.sheetTitle}>{t('chat.moreTitle')}</Text>
+                <View style={styles.actionOptions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.attach')}
+                    onPress={() => {
+                      setActionSheetOpen(false)
+                      void sendAttachment()
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionOption,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <FileText size={22} color={theme.colors.accent} />
+                    <Text style={styles.actionOptionLabel}>
+                      {t('chat.fileAction')}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.cameraAction')}
+                    onPress={() => {
+                      setActionSheetOpen(false)
+                      toast(t('chat.mediaUnavailable'), 'info')
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionOption,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <Camera size={22} color={theme.colors.info} />
+                    <Text style={styles.actionOptionLabel}>
+                      {t('chat.cameraAction')}
+                    </Text>
+                  </Pressable>
+                </View>
+                <MostButton
+                  onPress={() => setActionSheetOpen(false)}
+                  style={styles.sheetCancel}
+                  variant="ghost"
+                >
+                  {t('common.cancel')}
+                </MostButton>
+              </BottomSheetCard>
+            </View>
+          </Modal>
         </>
       )}
     </KeyboardAvoidingView>
@@ -720,41 +1036,47 @@ export function ChatScreen({
 function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
   const { colors, radii } = theme
   return StyleSheet.create({
-    container: { flex: 1, padding: 16, gap: 12 },
-    detailContainer: { padding: 0, gap: 0 },
-    joinRow: { flexDirection: 'row', gap: 10 },
-    channelInput: { flex: 1 },
+    container: { flex: 1, paddingHorizontal: 14, paddingTop: 10 },
+    detailContainer: { padding: 0 },
+    joinRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+    channelInput: {
+      backgroundColor: colors.surfaceSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.small,
+      flex: 1,
+      minHeight: 44,
+    },
     channelListView: { flexGrow: 0, height: 42 },
     channelListCard: {
-      ...getGlassSurfaceStyle(theme, 'subtle'),
+      backgroundColor: colors.background,
       flex: 1,
       minHeight: 180,
       overflow: 'hidden',
-      paddingHorizontal: 8,
     },
-    channelList: { gap: 2, paddingVertical: 4 },
+    channelList: { paddingVertical: 4 },
     channelRow: {
       alignItems: 'center',
-      backgroundColor: colors.glassSubtle,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      borderWidth: 1,
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
       gap: 10,
-      minHeight: 66,
-      paddingHorizontal: 8,
-      paddingVertical: 10,
+      minHeight: 72,
+      paddingHorizontal: 4,
+      paddingVertical: 8,
     },
     channelAvatar: {
       alignItems: 'center',
       backgroundColor: colors.accentSoft,
-      borderRadius: radii.full,
-      height: 42,
+      borderRadius: 10,
+      height: 48,
       justifyContent: 'center',
-      width: 42,
+      width: 48,
     },
     channelRowText: { flex: 1, gap: 4, minWidth: 0 },
-    channelChevron: { color: colors.textMuted, fontSize: 24 },
+    channelPreview: { color: colors.textSecondary, fontSize: 12 },
+    channelMeta: { alignItems: 'flex-end', gap: 4 },
+    channelTime: { color: colors.textMuted, fontSize: 10 },
+    channelChevron: { color: colors.textMuted, fontSize: 20 },
     detailHeader: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -804,7 +1126,7 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     channelText: { color: colors.text, fontSize: 15, fontWeight: '600' },
     channelTextActive: { color: colors.accent, fontWeight: '700' },
     messagesCard: {
-      ...getGlassSurfaceStyle(theme),
+      backgroundColor: colors.background,
       flex: 1,
       minHeight: 180,
       overflow: 'hidden',
@@ -815,16 +1137,17 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       borderRadius: 0,
       borderWidth: 0,
     },
-    messages: { padding: 12, gap: 8, flexGrow: 1 },
+    messages: { padding: 12, gap: 10, flexGrow: 1 },
     message: {
       alignSelf: 'flex-start',
       backgroundColor: colors.surfaceSubtle,
-      borderRadius: radii.medium,
+      borderRadius: 4,
       maxWidth: '86%',
-      padding: 9,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
-    messageMine: { alignSelf: 'flex-end', backgroundColor: colors.accentSoft },
-    author: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+    messageMine: { alignSelf: 'flex-end', backgroundColor: '#95ec69' },
+    author: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
     attachmentName: {
       color: colors.text,
       fontSize: 13,
@@ -851,26 +1174,115 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       borderTopWidth: 1,
       flexDirection: 'row',
       gap: 8,
-      padding: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
     draft: { flex: 1, maxHeight: 100 },
-    attachButton: {
+    composerIconButton: {
       alignItems: 'center',
-      borderColor: colors.border,
-      borderRadius: radii.full,
-      borderWidth: 1,
-      height: 40,
+      height: 42,
       justifyContent: 'center',
-      width: 40,
+      width: 34,
     },
+    voiceMessageButton: {
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.small,
+      borderWidth: 1,
+      flex: 1,
+      height: 42,
+      justifyContent: 'center',
+    },
+    voiceMessageButtonActive: {
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.accent,
+    },
+    voiceMessageText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    emojiPanel: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+      borderTopWidth: 1,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
+    emojiButton: {
+      alignItems: 'center',
+      height: 36,
+      justifyContent: 'center',
+      width: 36,
+    },
+    emoji: { fontSize: 24 },
+    sheetOverlay: {
+      backgroundColor: colors.overlay,
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheetBackdrop: StyleSheet.absoluteFill,
+    sheetCard: {
+      borderTopLeftRadius: radii.large,
+      borderTopRightRadius: radii.large,
+      gap: 14,
+      paddingBottom: 24,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+    },
+    sheetTitle: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    callOptions: {
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'center',
+    },
+    callOption: {
+      alignItems: 'center',
+      gap: 8,
+      minWidth: 108,
+      paddingVertical: 8,
+    },
+    callOptionIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: radii.full,
+      height: 52,
+      justifyContent: 'center',
+      width: 52,
+    },
+    callOptionLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
+    actionOptions: { gap: 1 },
+    actionOption: {
+      alignItems: 'center',
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      gap: 12,
+      minHeight: 54,
+      paddingHorizontal: 8,
+    },
+    actionOptionLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+    sheetCancel: { marginTop: 2, width: '100%' },
     sendButton: {
       alignItems: 'center',
-      backgroundColor: colors.accent,
-      borderRadius: radii.full,
-      height: 40,
+      backgroundColor: '#07c160',
+      borderRadius: 7,
+      height: 42,
       justifyContent: 'center',
-      width: 40,
+      minWidth: 58,
+      paddingHorizontal: 10,
     },
+    sendLabel: { color: colors.onAccent, fontSize: 14, fontWeight: '600' },
     disabled: { opacity: 0.45 },
     loader: { marginTop: 16 },
     empty: {

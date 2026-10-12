@@ -6,7 +6,7 @@
 
 | 项目          | 结果                                                               |
 | ------------- | ------------------------------------------------------------------ |
-| 文件          | `mobile/app/dist/mostbox-android-0.5.0-release.aab`                |
+| 文件          | `app/dist/mostbox-android-0.5.0-release.aab`                       |
 | SHA-256       | `B475E8048E765777EA9225A0C9C207F2E48C0504783B8E3262F8EE686E1DAA4A` |
 | 文件大小      | `51,046,057` bytes                                                 |
 | applicationId | `most.box`                                                         |

@@ -41,7 +41,7 @@ function findSdkDirs() {
     process.env.ANDROID_SDK_ROOT,
     readLocalSdkDir(),
     path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk'),
-    path.resolve(projectDir, '..', '..', '.tmp', 'android-build', 'sdk'),
+    path.resolve(projectDir, '..', '.tmp', 'android-build', 'sdk'),
   ])
 }
 

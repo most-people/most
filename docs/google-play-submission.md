@@ -10,8 +10,8 @@ Android 原生入口默认创建本机 Bare Worklet 节点，也可通过节点�
 ## 构建基线
 
 - 包名：`most.box`
-- 版本名：与根包和 `mobile/app/package.json` 一致
-- 版本码：`mobile/app/app.json` 中的 `android.versionCode`，由版本号按 `major * 10000 + minor * 100 + patch` 同步（例如 `0.4.8` 对应 `408`），每次上传必须递增
+- 版本名：与根包和 `app/package.json` 一致
+- 版本码：`app/app.json` 中的 `android.versionCode`，由版本号按 `major * 10000 + minor * 100 + patch` 同步（例如 `0.4.8` 对应 `408`），每次上传必须递增
 - 最低版本：Android 10 / API 29
 - 目标版本：Android 16 / API 36
 - 正式产物：Android App Bundle（`.aab`），当前只分发 `arm64-v8a`
@@ -124,9 +124,9 @@ eas build --platform android --profile android-production
 
 ## 图像资产
 
-- Play 图标：`mobile/app/store-assets/app-icon-512.png`，512 × 512 RGBA PNG
-- Feature graphic：`mobile/app/store-assets/feature-graphic-1024x500.png`，1024 × 500 RGB PNG，不带透明通道
-- 手机截图：`mobile/app/store-assets/screenshots/` 中 6 张 1080 × 1920 PNG
+- Play 图标：`app/store-assets/app-icon-512.png`，512 × 512 RGBA PNG
+- Feature graphic：`app/store-assets/feature-graphic-1024x500.png`，1024 × 500 RGB PNG，不带透明通道
+- 手机截图：`app/store-assets/screenshots/` 中 6 张 1080 × 1920 PNG
 - 截图内容：聊天频道、文件列表、下载确认、传输记录、节点状态
 - 商店素材应如实展示当前 AAB 已提供的聊天、文件、远程节点和 Web3 能力，不得承诺 Android 平台尚未实现的长期后台常驻
 - 静态检查确认 Most profile 的 AAB 含远程节点连接、邀请码和签名身份入口，且未误用墨盒 profile 的关闭配置
@@ -140,8 +140,8 @@ eas build --platform android --profile android-production
 
 ## 审核测试材料
 
-- TXT 测试文件：`mobile/app/store-assets/reviewer-files/mostbox-review.txt`
-- PNG 测试文件：`mobile/app/store-assets/app-icon-512.png`
+- TXT 测试文件：`app/store-assets/reviewer-files/mostbox-review.txt`
+- PNG 测试文件：`app/store-assets/app-icon-512.png`
 - 审核备注无需账号或密码
 - 两个 `most://` 链接必须在提交审核前由同一正式版本发布并记录；审核期间至少保持一个对应种子在线
 - 链接和在线种子是有时效的运行状态，不能提前写死在仓库。上线前将最终链接填入 Play Console 的审核说明，并实测另一台设备能下载且 CID 校验通过

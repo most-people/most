@@ -38,7 +38,7 @@
 
 原生超过 2GiB 的用例使用生成流和计数输出流，不写实际磁盘，不是 Android 大文件导出实测。流异常测试覆盖复制层的关闭和完整性拒绝；DocumentsContract 删除、目录权限和提供者行为仍属于系统验收。
 
-APK：`mobile/app/dist/mostbox-android-0.5.3-emulator-x86_64.apk`。SHA-256：`cfdc85876a32444ac57b5902c905e9b10a13549382e9d46eb27560ef11475c70`。版本仍为 0.5.3；这是本地测试包，没有发版。
+APK：`app/dist/mostbox-android-0.5.3-emulator-x86_64.apk`。SHA-256：`cfdc85876a32444ac57b5902c905e9b10a13549382e9d46eb27560ef11475c70`。版本仍为 0.5.3；这是本地测试包，没有发版。
 
 归档证据：[检查摘要](qa/2026-10-08/mobile-p1/checks.json)、[原生 JUnit 结果](qa/2026-10-08/mobile-p1/native-stream-tests.xml)、[移动测试输出](qa/2026-10-08/mobile-p1/mobile-tests.txt)、[协议测试输出](qa/2026-10-08/mobile-p1/protocol-tests.txt)。
 

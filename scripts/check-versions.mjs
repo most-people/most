@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { resolveVersionCode } from '../mobile/app/scripts/sync-native-android.mjs'
+import { resolveVersionCode } from '../app/scripts/sync-native-android.mjs'
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -17,10 +17,10 @@ function getTagArgument() {
 }
 
 const rootPackageLock = readJson('package-lock.json')
-const mobilePackageLock = readJson('mobile/app/package-lock.json')
-const mobileApp = readJson('mobile/app/app.json')
+const mobilePackageLock = readJson('app/package-lock.json')
+const mobileApp = readJson('app/app.json')
 const rootVersion = readJson('package.json').version
-const nativeIosInfoPlistPath = 'mobile/app/ios/MostBox/Info.plist'
+const nativeIosInfoPlistPath = 'app/ios/MostBox/Info.plist'
 const versions = new Map([
   [
     'CHANGELOG.md latest release',
@@ -32,13 +32,13 @@ const versions = new Map([
   ],
   ['package-lock.json', rootPackageLock.version],
   ['package-lock.json packages root', rootPackageLock.packages?.['']?.version],
-  ['mobile/app/package.json', readJson('mobile/app/package.json').version],
-  ['mobile/app/package-lock.json', mobilePackageLock.version],
+  ['app/package.json', readJson('app/package.json').version],
+  ['app/package-lock.json', mobilePackageLock.version],
   [
-    'mobile/app/package-lock.json packages root',
+    'app/package-lock.json packages root',
     mobilePackageLock.packages?.['']?.version,
   ],
-  ['mobile/app/app.json', mobileApp.expo.version],
+  ['app/app.json', mobileApp.expo.version],
   [
     'docker-compose.example.yml',
     readMatch(

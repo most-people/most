@@ -1,6 +1,6 @@
 import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
+import { useState } from 'react'
 import {
-  ArrowRight,
   Edit2,
   FileText,
   Film,
@@ -12,6 +12,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  Smile,
   Trash2,
 } from 'lucide-react'
 import { SafeImage } from '~/components/SafeImage'
@@ -351,6 +352,10 @@ export function ChatComposer({
   onSelectAttachmentFiles?: (files: File[] | null) => void
 }) {
   const { t } = useI18n()
+  const [composerMode, setComposerMode] = useState<'keyboard' | 'voice'>(
+    'keyboard'
+  )
+  const [emojiOpen, setEmojiOpen] = useState(false)
   const toolsDisabled = disabled || isPublishingAttachment
   const sendDisabled = disabled || isSendingMessage || !message.trim()
   const attachmentTitle = attachmentButtonTitle || t('chat.attachment.add')
@@ -391,9 +396,118 @@ export function ChatComposer({
         className="chat-file-input"
         onChange={event => handleFileInput(event, onSelectAttachmentFiles)}
       />
+      {mentionMenu}
+      <button
+        type="button"
+        className={`btn btn-circle chat-tool-btn chat-mode-btn${
+          composerMode === 'voice' ? ' is-active' : ''
+        }`}
+        disabled={disabled}
+        aria-label={
+          composerMode === 'keyboard'
+            ? t('chat.switchToVoice')
+            : t('chat.switchToKeyboard')
+        }
+        title={
+          composerMode === 'keyboard'
+            ? t('chat.switchToVoice')
+            : t('chat.switchToKeyboard')
+        }
+        onClick={() => {
+          setEmojiOpen(false)
+          setComposerMode(mode => (mode === 'keyboard' ? 'voice' : 'keyboard'))
+        }}
+      >
+        {composerMode === 'keyboard' ? <Mic size={18} /> : <Edit2 size={18} />}
+      </button>
+      {composerMode === 'keyboard' ? (
+        <textarea
+          ref={inputRef}
+          className="textarea chat-composer-input"
+          placeholder={placeholder}
+          value={message}
+          disabled={disabled}
+          rows={1}
+          onChange={event =>
+            onMessageChange(
+              event.target.value,
+              event.target.selectionStart,
+              event.target.selectionEnd
+            )
+          }
+          onSelect={event =>
+            onSelectionChange?.(
+              event.currentTarget.selectionStart,
+              event.currentTarget.selectionEnd
+            )
+          }
+          onKeyUp={event =>
+            onSelectionChange?.(
+              event.currentTarget.selectionStart,
+              event.currentTarget.selectionEnd
+            )
+          }
+          onCompositionStart={() => onCompositionChange?.(true)}
+          onCompositionEnd={event => {
+            onCompositionChange?.(false)
+            onSelectionChange?.(
+              event.currentTarget.selectionStart,
+              event.currentTarget.selectionEnd
+            )
+          }}
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <button
+          type="button"
+          className="chat-voice-message-btn"
+          disabled={disabled}
+          onClick={() => onOpenVoiceRoom?.()}
+        >
+          {t('chat.holdToTalk')}
+        </button>
+      )}
+      <button
+        type="button"
+        className={`btn btn-circle chat-tool-btn chat-emoji-btn${
+          emojiOpen ? ' is-active' : ''
+        }`}
+        disabled={disabled}
+        aria-label={t('chat.emoji')}
+        title={t('chat.emoji')}
+        onClick={() => setEmojiOpen(open => !open)}
+      >
+        <Smile size={18} />
+      </button>
+      {emojiOpen && (
+        <div
+          className="chat-emoji-panel"
+          role="listbox"
+          aria-label={t('chat.emoji')}
+        >
+          {['😀', '😂', '😍', '👍', '🎉', '🙏'].map(emoji => (
+            <button
+              key={emoji}
+              type="button"
+              className="chat-emoji-option"
+              onClick={() => {
+                const nextMessage = `${message}${emoji}`
+                onMessageChange(
+                  nextMessage,
+                  nextMessage.length,
+                  nextMessage.length
+                )
+                setEmojiOpen(false)
+              }}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
       <ActionMenu
         ariaLabel={t('chat.attachmentType')}
-        placement="top-start"
+        placement="top-end"
         disabled={toolsDisabled}
         menuClassName={attachmentMenuClassName}
         items={[
@@ -434,49 +548,12 @@ export function ChatComposer({
           </button>
         )}
       />
-      {mentionMenu}
-      <textarea
-        ref={inputRef}
-        className="textarea chat-composer-input"
-        placeholder={placeholder}
-        value={message}
-        disabled={disabled}
-        rows={1}
-        onChange={event =>
-          onMessageChange(
-            event.target.value,
-            event.target.selectionStart,
-            event.target.selectionEnd
-          )
-        }
-        onSelect={event =>
-          onSelectionChange?.(
-            event.currentTarget.selectionStart,
-            event.currentTarget.selectionEnd
-          )
-        }
-        onKeyUp={event =>
-          onSelectionChange?.(
-            event.currentTarget.selectionStart,
-            event.currentTarget.selectionEnd
-          )
-        }
-        onCompositionStart={() => onCompositionChange?.(true)}
-        onCompositionEnd={event => {
-          onCompositionChange?.(false)
-          onSelectionChange?.(
-            event.currentTarget.selectionStart,
-            event.currentTarget.selectionEnd
-          )
-        }}
-        onKeyDown={handleKeyDown}
-      />
       <button
         type="button"
         className={
           isSendingMessage
-            ? 'btn btn-circle btn-primary send-btn btn-loading'
-            : 'btn btn-circle btn-primary send-btn'
+            ? 'btn btn-primary send-btn btn-loading'
+            : 'btn btn-primary send-btn'
         }
         onClick={onSend}
         disabled={sendDisabled}
@@ -487,7 +564,7 @@ export function ChatComposer({
         {isSendingMessage ? (
           <Loader size={18} className="ui-spinner" />
         ) : (
-          <ArrowRight size={18} />
+          t('chat.sendShort')
         )}
       </button>
     </div>

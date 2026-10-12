@@ -157,7 +157,7 @@ All notable changes to MostBox are documented in this file.
 
 - Restored the compact chat page and refined the join-chat dialog copy and layout.
 - Made chat IDs case-insensitive with lowercase canonicalization and 26-character high-entropy defaults.
-- Moved the Android package from `mobile/android` to `mobile/app` and updated the app icon.
+- Moved the Android package from `app/android` to `mobile` and updated the app icon.
 
 ### Removed
 

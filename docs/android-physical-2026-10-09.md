@@ -6,7 +6,7 @@
 
 - Redmi K30S Ultra（ADB 型号 M2007J3SC），Android 12，ARM64。
 - MostBox 0.5.3，versionCode 503；本地 release APK，不是商店发版。
-- `npm run build` 成功，APK 为 `mobile/app/dist/mostbox-android-0.5.3-release.apk`。
+- `npm run build` 成功，APK 为 `app/dist/mostbox-android-0.5.3-release.apk`。
 - APK SHA-256：`6f7302a24b030c3c3cf6f0f372b71b89421971a1d755a091c8c7fbc4884c7d00`。
 - heap growth limit 256MiB，最大 heap 512MiB。节点显示在线；既有频道和文件记录仍在。
 - 手机与桌面使用当前网络及公共 Hyperswarm 发现；没有注入复制连接或中继。未执行 Wi-Fi / 蜂窝切换，不能据此覆盖其他 NAT 环境。

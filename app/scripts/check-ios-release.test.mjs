@@ -52,7 +52,7 @@ const packageLock = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package-lock.json'), 'utf8')
 )
 const rootVersion = JSON.parse(
-  fs.readFileSync(path.resolve(projectDir, '..', '..', 'package.json'), 'utf8')
+  fs.readFileSync(path.resolve(projectDir, '..', 'package.json'), 'utf8')
 ).version
 const iconMetadata = readPngMetadata(
   fs.readFileSync(path.resolve(projectDir, expo.icon))

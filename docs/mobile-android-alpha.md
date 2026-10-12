@@ -18,7 +18,7 @@
 先运行移动端测试和内部 APK 构建：
 
 ```bash
-cd mobile/app
+cd app
 npm test
 npm run typecheck
 npm run bundle:android
@@ -26,7 +26,7 @@ npm run bundle:ios
 npm run build
 ```
 
-内部 APK 位于 `mobile/app/dist/`，用于真机功能回归。Google Play 候选包必须使用独立 upload key 运行 `npm run build:play` 生成 `.aab`，不得上传 debug 签名 APK。
+内部 APK 位于 `app/dist/`，用于真机功能回归。Google Play 候选包必须使用独立 upload key 运行 `npm run build:play` 生成 `.aab`，不得上传 debug 签名 APK。
 
 安装后确认默认进入“聊天”页，底部显示“聊天 / 文件 / 传输”三个入口；节点状态和本机/远程连接从右上角进入，并最终显示当前连接状态。
 

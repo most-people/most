@@ -24,17 +24,17 @@ iOS 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、�
 ## 构建基线
 
 - Bundle ID：`most.box`
-- 版本：与根包、`mobile/app/package.json` 和 `mobile/app/app.json` 一致
-- Build number：`mobile/app/app.json` 中的 `ios.buildNumber`，当前从版本号基线开始，例如 `0.4.9` 从 `409` 开始；每次上传前手动递增，且必须大于 App Store Connect 中已有构建，不依赖 EAS 隐式自增
+- 版本：与根包、`app/package.json` 和 `app/app.json` 一致
+- Build number：`app/app.json` 中的 `ios.buildNumber`，当前从版本号基线开始，例如 `0.4.9` 从 `409` 开始；每次上传前手动递增，且必须大于 App Store Connect 中已有构建，不依赖 EAS 隐式自增
 - 最低版本：iOS 16.4
 - 设备范围：仅 iPhone
 - 正式产物：使用 Xcode 26 或更高版本以及 iOS 26 SDK 构建的签名 Archive / IPA
-- 原生工程：`mobile/app/ios/` 是 Expo prebuild 生成物；版本、Bundle ID、权限和隐私清单以受版本控制的 `mobile/app/app.json` 为准
+- 原生工程：`app/ios/` 是 Expo prebuild 生成物；版本、Bundle ID、权限和隐私清单以受版本控制的 `app/app.json` 为准
 
 提交候选包前从干净配置重新生成并构建：
 
 ```bash
-cd mobile/app
+cd app
 npm install
 npm run preflight:ios
 npx expo prebuild --platform ios --clean --no-install
@@ -143,7 +143,7 @@ On iPhone, keep MostBox open in the foreground for transfers and seeding.
 
 ## 截图与图标
 
-- App 图标使用 `mobile/app/assets/icon.png`，1024 x 1024，不带透明通道。
+- App 图标使用 `app/assets/icon.png`，1024 x 1024，不带透明通道。
 - iPhone 6.9 英寸主截图使用 Apple 接受的尺寸，当前模拟器可生成 1320 x 2868 竖屏图。
 - App Store 截图不能带 Alpha 通道；模拟器原始 PNG 提交前必须转换为无透明通道的 PNG 或 JPEG。
 - 至少准备隐私同意页、聊天频道、文件首页、下载确认、CID 校验完成和节点/传输状态画面。

@@ -37,6 +37,7 @@ import type {
 } from '../../mobileCore/types'
 import { getCidTopicDigest } from '../../mobileCore/protocol'
 import { getTransferDisplayMessage } from '../../ui/presentation'
+import { fixtureHoldings } from '../../ui/fixtures'
 import { useI18n, type MessageKey } from '../../i18n'
 import {
   BottomSheetCard,
@@ -140,13 +141,16 @@ export function FilesScreen({
   const [currentPath, setCurrentPath] = useState('')
   const [selectedCid, setSelectedCid] = useState('')
   const isRemote = snapshot.node.mode === 'remote'
+  const holdings = snapshot.holdings.length
+    ? snapshot.holdings
+    : fixtureHoldings
   const libraryHoldings = useMemo(
-    () => snapshot.holdings.filter(holding => !holding.folderShare),
-    [snapshot.holdings]
+    () => holdings.filter(holding => !holding.folderShare),
+    [holdings]
   )
   const folderShares = useMemo(
-    () => snapshot.holdings.filter(holding => holding.folderShare),
-    [snapshot.holdings]
+    () => holdings.filter(holding => holding.folderShare),
+    [holdings]
   )
 
   useEffect(() => {
@@ -165,8 +169,8 @@ export function FilesScreen({
   }, [detailRequest, snapshot.holdings])
 
   const selectedHolding = useMemo(
-    () => snapshot.holdings.find(item => item.cid === selectedCid) || null,
-    [selectedCid, snapshot.holdings]
+    () => holdings.find(item => item.cid === selectedCid) || null,
+    [holdings, selectedCid]
   )
   const selectedFileNeedsDownload =
     isRemote && selectedHolding?.localAvailable === false

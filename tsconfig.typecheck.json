@@ -7,6 +7,6 @@
     "src/routeTree.gen.ts",
     "src/routes",
     "src/typecheck-stubs",
-    "mobile"
+    "app"
   ]
 }

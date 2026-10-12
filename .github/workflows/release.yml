@@ -256,7 +256,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: mobile/app/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -268,13 +268,13 @@ jobs:
         uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android dependencies
-        run: npm ci --prefix mobile/app
+        run: npm ci --prefix app
 
       - name: Run Android tests
-        run: npm test --prefix mobile/app
+        run: npm test --prefix app
 
       - name: Typecheck Android package
-        run: npm run typecheck --prefix mobile/app
+        run: npm run typecheck --prefix app
 
       - name: Prepare Android release signing
         shell: bash
@@ -289,7 +289,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/mostbox-app-signing.keystore"
 
       - name: Build Android APK
-        run: npm run build:release --prefix mobile/app
+        run: npm run build:release --prefix app
         env:
           MOST_ANDROID_RELEASE_VERSION: ${{ github.ref_name }}
           MOSTBOX_ANDROID_KEYSTORE: ${{ runner.temp }}/mostbox-app-signing.keystore
@@ -300,8 +300,8 @@ jobs:
       - name: Upload Android assets
         run: |
           shopt -s nullglob
-          assets=(mobile/app/dist/mostbox-android-*-release.apk)
-          checksums=(mobile/app/dist/mostbox-android-*-release.apk.sha256.txt)
+          assets=(app/dist/mostbox-android-*-release.apk)
+          checksums=(app/dist/mostbox-android-*-release.apk.sha256.txt)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No Android APK assets found"
             exit 1

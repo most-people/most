@@ -77,8 +77,8 @@ adb shell dumpsys package most.box | Select-String 'versionName|versionCode'
 Android 候选包文件名和哈希：
 
 ```powershell
-Get-ChildItem mobile\app\dist\mostbox-android-0.5.0-*
-Get-FileHash -Algorithm SHA256 mobile\app\dist\mostbox-android-0.5.0-release.aab
+Get-ChildItem app\dist\mostbox-android-0.5.0-*
+Get-FileHash -Algorithm SHA256 app\dist\mostbox-android-0.5.0-release.aab
 ```
 
 已归档 Google Play AAB SHA-256：`B475E8048E765777EA9225A0C9C207F2E48C0504783B8E3262F8EE686E1DAA4A`。该记录证明候选 AAB 曾经完成构建和审计。2026-08-21 在仓库、Android 原生构建输出、Downloads 和 Desktop 中未找到对应 `.aab`；提交前必须找回原文件并核对哈希，或使用同一 upload key 重新构建、重新审计并归档新哈希。本地同名 Release APK 是调试签名，仅供测试，不能作为商店或备案候选包。

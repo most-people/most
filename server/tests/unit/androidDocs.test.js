@@ -12,19 +12,19 @@ function readJson(relativePath) {
 
 const androidDocs = [
   ['README.md', '../../../README.md'],
-  ['mobile/app/README.md', '../../../mobile/app/README.md'],
+  ['app/README.md', '../../../app/README.md'],
   ['docs/mobile-android-alpha.md', '../../../docs/mobile-android-alpha.md'],
 ]
 
 describe('Android command documentation', () => {
   it('keeps Android dev/test/build scripts in the mobile package', () => {
     const rootPackage = readJson('../../../package.json')
-    const mobilePackage = readJson('../../../mobile/app/package.json')
+    const mobilePackage = readJson('../../../app/package.json')
 
     for (const scriptName of ['start', 'test', 'build', 'build:release']) {
       assert.ok(
         mobilePackage.scripts?.[scriptName],
-        `mobile/app/package.json must define ${scriptName}`
+        `app/package.json must define ${scriptName}`
       )
     }
 
@@ -67,13 +67,13 @@ describe('Android command documentation', () => {
     }
   })
 
-  it('documents Android test and build commands from mobile/app', () => {
+  it('documents Android test and build commands from mobile', () => {
     for (const [fileName, relativePath] of androidDocs) {
       const content = readText(relativePath)
       assert.match(
         content,
-        /cd mobile\/app/,
-        `${fileName} should tell contributors to enter mobile/app`
+        /cd app/,
+        `${fileName} should tell contributors to enter mobile`
       )
       assert.match(
         content,
@@ -90,18 +90,18 @@ describe('Android command documentation', () => {
 
   it('requires persistent signing for GitHub Android release APKs', () => {
     const workflow = readText('../../../.github/workflows/release.yml')
-    const mobilePackage = readJson('../../../mobile/app/package.json')
-    const buildScript = readText('../../../mobile/app/scripts/build-apk.mjs')
+    const mobilePackage = readJson('../../../app/package.json')
+    const buildScript = readText('../../../app/scripts/build-apk.mjs')
     const signatureVerifier = readText(
-      '../../../mobile/app/scripts/verify-apk-signature.mjs'
+      '../../../app/scripts/verify-apk-signature.mjs'
     )
 
     assert.strictEqual(
       mobilePackage.scripts?.['build:release'],
       'node scripts/build-apk.mjs --signed-release-apk'
     )
-    assert.match(workflow, /npm run build:release --prefix mobile\/app/)
-    assert.doesNotMatch(workflow, /run: npm run build --prefix mobile\/app/)
+    assert.match(workflow, /npm run build:release --prefix app/)
+    assert.doesNotMatch(workflow, /run: npm run build --prefix app/)
 
     for (const secretName of [
       'MOSTBOX_ANDROID_KEYSTORE_BASE64',

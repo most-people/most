@@ -84,6 +84,11 @@ export const coreMessages = {
     'zh-TW': '目前為{current}，點擊切換到{next}',
     en: '{current}. Switch to {next}',
   },
+  'common.back': {
+    'zh-CN': '返回',
+    'zh-TW': '返回',
+    en: 'Back',
+  },
   'nav.files': {
     'zh-CN': '文件',
     'zh-TW': '檔案',
@@ -103,6 +108,126 @@ export const coreMessages = {
     'zh-CN': '聊天',
     'zh-TW': '聊天',
     en: 'Chat',
+  },
+  'nav.wechat': {
+    'zh-CN': '微信',
+    'zh-TW': '微信',
+    en: 'Chats',
+  },
+  'nav.contacts': {
+    'zh-CN': '通讯录',
+    'zh-TW': '通訊錄',
+    en: 'Contacts',
+  },
+  'nav.discover': {
+    'zh-CN': '发现',
+    'zh-TW': '發現',
+    en: 'Discover',
+  },
+  'nav.me': {
+    'zh-CN': '我',
+    'zh-TW': '我',
+    en: 'Me',
+  },
+  'discover.filesTitle': {
+    'zh-CN': '文件库',
+    'zh-TW': '檔案庫',
+    en: 'File library',
+  },
+  'discover.filesBody': {
+    'zh-CN': '浏览已保存的文件和链接',
+    'zh-TW': '瀏覽已儲存的檔案和連結',
+    en: 'Browse saved files and links',
+  },
+  'discover.nodeTitle': {
+    'zh-CN': '节点与做种',
+    'zh-TW': '節點與做種',
+    en: 'Nodes and seeding',
+  },
+  'discover.nodeBody': {
+    'zh-CN': '查看在线节点和 CID 状态',
+    'zh-TW': '查看在線節點和 CID 狀態',
+    en: 'View online nodes and CID status',
+  },
+  'contacts.searchA11y': {
+    'zh-CN': '搜索联系人和频道',
+    'zh-TW': '搜尋聯絡人和頻道',
+    en: 'Search contacts and channels',
+  },
+  'contacts.searchPlaceholder': {
+    'zh-CN': '搜索',
+    'zh-TW': '搜尋',
+    en: 'Search',
+  },
+  'contacts.newFriends': {
+    'zh-CN': '新的朋友',
+    'zh-TW': '新的朋友',
+    en: 'New friends',
+  },
+  'contacts.myChannels': {
+    'zh-CN': '我的频道',
+    'zh-TW': '我的頻道',
+    en: 'My channels',
+  },
+  'contacts.recentlyActive': {
+    'zh-CN': '最近活跃',
+    'zh-TW': '最近活躍',
+    en: 'Recently active',
+  },
+  'contacts.channelMembers': {
+    'zh-CN': '频道成员',
+    'zh-TW': '頻道成員',
+    en: 'Channel members',
+  },
+  'contacts.empty': {
+    'zh-CN': '没有匹配的联系人或频道',
+    'zh-TW': '沒有符合的聯絡人或頻道',
+    en: 'No matching contacts or channels',
+  },
+  'me.defaultName': {
+    'zh-CN': 'MostBox 用户',
+    'zh-TW': 'MostBox 使用者',
+    en: 'MostBox user',
+  },
+  'me.localIdentity': {
+    'zh-CN': '本地身份 · 点击查看详情',
+    'zh-TW': '本機身分 · 點擊查看詳情',
+    en: 'Local identity · Tap for details',
+  },
+  'me.filesTitle': {
+    'zh-CN': '文件库',
+    'zh-TW': '檔案庫',
+    en: 'File library',
+  },
+  'me.seedCount': {
+    'zh-CN': '{count} 个做种文件',
+    'zh-TW': '{count} 個做種檔案',
+    en: '{count} seeded files',
+  },
+  'me.nodeTitle': {
+    'zh-CN': '节点与做种',
+    'zh-TW': '節點與做種',
+    en: 'Node and seeding',
+  },
+  'me.nodeReady': {
+    'zh-CN': '节点运行中',
+    'zh-TW': '節點運行中',
+    en: 'Node is running',
+  },
+  'me.nodeOffline': {
+    'zh-CN': '节点未连接',
+    'zh-TW': '節點未連線',
+    en: 'Node is offline',
+  },
+  'me.about': {
+    'zh-CN': '关于 MostBox',
+    'zh-TW': '關於 MostBox',
+    en: 'About MostBox',
+  },
+  'chat.openHint': {
+    'zh-CN': '点击进入聊天',
+    'zh-TW': '點擊進入聊天',
+    en: 'Tap to open chat',
   },
   'core.error.seedUnavailable': {
     'zh-CN': '暂未发现在线种子，请稍后重试。',

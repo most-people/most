@@ -60,7 +60,7 @@ npm run format:check
 移动端：
 
 ```bash
-cd mobile/app
+cd app
 npm run typecheck
 npm test
 npm run bundle:android
@@ -75,13 +75,13 @@ npm run build
 - 移动本地可用性：保留 holding 和 Hyperdrive entry，清除实际 blob；重启后状态为 error、`localAvailable: false`，不恢复种子 topic，不返回 `alreadyExists / completed`，也不能导出。重新发布同一内容后恢复完整副本和默认做种。零字节文件仍算有效完整内容。
 - 缓存路径：导出时校验路径中的内容是否属于该 CID；路径内容被替换后，从 `/<cid>` 重建正确副本，不覆盖用户原路径。
 
-UnixFS 的 `protons-runtime` 7.x / 8.x 整数编码补丁由根项目和移动子包的 `postinstall` 自动应用。使用 `--ignore-scripts` 安装后，必须分别运行 `npm run postinstall` 和 `npm --prefix mobile/app run postinstall`，再计算 CID 或生成 Bare bundle。升级该依赖时必须重新验收补丁和黄金样本。
+UnixFS 的 `protons-runtime` 7.x / 8.x 整数编码补丁由根项目和移动子包的 `postinstall` 自动应用。使用 `--ignore-scripts` 安装后，必须分别运行 `npm run postinstall` 和 `npm --prefix app run postinstall`，再计算 CID 或生成 Bare bundle。升级该依赖时必须重新验收补丁和黄金样本。
 
 大文件专用回归需安装两个包的依赖，并预留至少 20GiB 临时磁盘空间：
 
 ```bash
 npm ci
-npm ci --prefix mobile/app
+npm ci --prefix app
 npm run test:large-files
 ```
 
@@ -89,7 +89,7 @@ npm run test:large-files
 
 ## 移动文件体验回归
 
-- Android 系统保存使用 `mobile/app/modules/most-file-export` 本地原生模块，需要重新构建 APK；Expo Go 或仅更新 JS 不包含该模块。
+- Android 系统保存使用 `app/modules/most-file-export` 本地原生模块，需要重新构建 APK；Expo Go 或仅更新 JS 不包含该模块。
 - 在 192MiB heap growth limit 的模拟器上，把已校验的 32MiB holding 保存到系统目录；读取输出并对比完整字节数与 SHA-256。再在 ARM64 真机上验证 256MiB 和 2GiB 以上文件，并记录内存峰值。
 - 同名保存生成新文件，原文件保持可读，成功提示显示实际输出名称。取消选择目录不创建输出，也不提示保存成功。
 - 复制或输出复读校验失败不能提示成功；新建的不完整输出应删除，无法删除时明确提示用户检查残留文件。另验空间不足、目录权限撤销和异常文档提供者。
@@ -99,7 +99,7 @@ npm run test:large-files
 原生流复制的 JVM 回归可在生成 Android 项目后运行：
 
 ```powershell
-cd mobile/app/android
+cd app/android
 ./gradlew.bat :most-file-export:testReleaseUnitTest
 ```
 

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { MostBoxEngine } from '../server/src/index.js'
 import { calculateCid } from '../server/src/core/cid.js'
-import { MobileP2PCore } from '../mobile/app/backend/mobile-core.mjs'
+import { MobileP2PCore } from '../app/backend/mobile-core.mjs'
 
 const FILE_SIZE = 2112 * 1024 * 1024
 const EXPECTED_CID =

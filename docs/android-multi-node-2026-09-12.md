@@ -13,7 +13,7 @@
 - 服务器代码基于当前 `origin/pre` 的 `ff85cc7d3b2c08dd4df59f4a749cf2a753aee265`，并包含本轮孤立 holding 删除修复；`origin/main` 为较早的 `1b8d9a9`。
 - 两台服务器共用本机构建的 npm 包；正式 release 为 `/opt/mostbox/releases/0.5.2-fix-20260912/node_modules/most-box`，保留旧 release 和原数据目录。
 - npm 包 SHA-256：`1030a7d197bb5fb9dafff2000d6069e41430408dc9c7810519bcbe66948a1766`。
-- Android 安装包：`mobile/app/dist/mostbox-android-0.5.2-release.apk`，包含本轮频道规范化、远程 multipart 发布和 Hermes CID fallback 修复。
+- Android 安装包：`app/dist/mostbox-android-0.5.2-release.apk`，包含本轮频道规范化、远程 multipart 发布和 Hermes CID fallback 修复。
 - APK SHA-256：`a47bdf7a780def5e9792fb9feb8d21f73c932a161488ebe5274a25cec63d6a98`。
 - NAS 配置与 metadata 备份：`/opt/mostbox/backups/20260912-211351`。
 - 公网服务器配置与 metadata 备份：`/opt/mostbox/backups/pre-0.5.2-ff85cc7-20260912211520`。
@@ -73,7 +73,7 @@ verifier 在 `pullByCid` 成功后重新打开本地 Hyperdrive 内容流并调�
 
 ## 证据和收尾
 
-本机归档目录：`mobile/app/dist/multi-node-20260912/`（构建输出，不纳入 Git）。
+本机归档目录：`app/dist/multi-node-20260912/`（构建输出，不纳入 Git）。
 
 | 证据                                                             | 内容                                               |
 | ---------------------------------------------------------------- | -------------------------------------------------- |
