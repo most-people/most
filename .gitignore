@@ -59,8 +59,8 @@ mobile/app/web-dist/
 # Test temp directories
 server/tests/temp-write-test-*/
 
-
 # Logs
+.codex-logs/
 *.log
 server-error.log
 server.log
@@ -69,4 +69,4 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-dist
+dist/

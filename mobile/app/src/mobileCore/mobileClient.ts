@@ -34,10 +34,7 @@ import {
   saveMobileIdentity,
   saveRemoteNodes,
 } from '../remoteNode/storage'
-import {
-  hasActiveTransfers,
-  startLocalOrPreferred,
-} from './nodeSelection'
+import { hasActiveTransfers, startLocalOrPreferred } from './nodeSelection'
 
 const LOCAL_DAEMON_CONFIG: RemoteNodeConfig = {
   url: 'http://localhost:1976',

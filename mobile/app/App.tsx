@@ -113,7 +113,6 @@ import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
 import { PRODUCT_PROFILE } from './src/product/productProfile'
-import { cleanupLegacyKnowledgeData } from './src/legacyKnowledgeCleanup'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
@@ -361,9 +360,6 @@ function MostBoxApp() {
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
-    void cleanupLegacyKnowledgeData().catch(error => {
-      console.warn('[legacy-cleanup] failed:', error)
-    })
     void core
       .start()
       .catch(showCoreStartError)

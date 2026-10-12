@@ -6,7 +6,6 @@ import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
-import { cleanupLegacyKnowledgeData } from '~/lib/legacyKnowledgeCleanup'
 
 export default function AppGlobals() {
   const pathname = useLocation({ select: location => location.pathname })
@@ -19,9 +18,6 @@ export default function AppGlobals() {
   const removeToast = useAppStore(s => s.removeToast)
 
   useEffect(() => {
-    void cleanupLegacyKnowledgeData().catch(error => {
-      console.warn('[legacy-cleanup] failed:', error)
-    })
     initializeLocalData()
     initializeUser()
     checkBackend()

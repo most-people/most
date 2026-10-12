@@ -17,7 +17,6 @@
     "electron/afterPack.cjs",
     "electron/deepLink.js",
     "electron/main.js",
-    "electron/legacyKnowledgeCleanup.js",
     "electron/preload.cjs",
     "electron/security.js",
     "electron/updateChecker.js",

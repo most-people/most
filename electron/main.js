@@ -20,7 +20,6 @@ import {
 } from './updateChecker.js'
 import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
 import { isSafeExternalUrl, isTrustedAppUrl } from './security.js'
-import { cleanupLegacyKnowledgeData } from './legacyKnowledgeCleanup.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -204,10 +203,6 @@ async function startServer() {
   process.env.ELECTRON_APP = 'true'
 
   const { main } = await import('../server/index.js')
-  void cleanupLegacyKnowledgeData({
-    documentsPath: app.getPath('documents'),
-    userDataPath: app.getPath('userData'),
-  })
   engine = await main()
 }
 
