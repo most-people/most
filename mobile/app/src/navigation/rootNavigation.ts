@@ -4,18 +4,20 @@ const WEB_TAB_PATHS = {
   chat: '/chat',
   files: '/file',
   transfers: '/transfer',
+  node: '/dot',
 } as const
 
-export function getRootTabPath(tab: Exclude<RootTab, 'node'>) {
+export function getRootTabPath(tab: RootTab) {
   return WEB_TAB_PATHS[tab]
 }
 
 export function getRootTabFromPathname(
   pathname: string,
-  fallback: Exclude<RootTab, 'node'> = 'chat'
-): Exclude<RootTab, 'node'> {
+  fallback: RootTab = 'chat'
+): RootTab {
   if (pathname === WEB_TAB_PATHS.files) return 'files'
   if (pathname === WEB_TAB_PATHS.transfers) return 'transfers'
+  if (pathname === WEB_TAB_PATHS.node) return 'node'
   if (pathname === WEB_TAB_PATHS.chat) return 'chat'
   return fallback
 }

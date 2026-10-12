@@ -481,33 +481,37 @@ export function ChatScreen({
               {t('chat.join')}
             </MostButton>
           </View>
-          <FlatList
-            data={channels}
-            keyExtractor={item => item}
-            contentContainerStyle={styles.channelList}
-            ListEmptyComponent={
-              <View style={styles.emptyInline}>
-                <Text style={styles.emptyBody}>{t('chat.chooseChannel')}</Text>
-              </View>
-            }
-            renderItem={({ item }) => (
-              <Pressable
-                onPress={() => void openChannel(item)}
-                style={({ pressed }) => [
-                  styles.channelRow,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <View style={styles.channelAvatar}>
-                  <MessageCircle size={18} color={theme.colors.accent} />
+          <View style={styles.channelListCard}>
+            <FlatList
+              data={channels}
+              keyExtractor={item => item}
+              contentContainerStyle={styles.channelList}
+              ListEmptyComponent={
+                <View style={styles.emptyInline}>
+                  <Text style={styles.emptyBody}>
+                    {t('chat.chooseChannel')}
+                  </Text>
                 </View>
-                <View style={styles.channelRowText}>
-                  <Text style={styles.channelText}>#{item}</Text>
-                </View>
-                <Text style={styles.channelChevron}>›</Text>
-              </Pressable>
-            )}
-          />
+              }
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => void openChannel(item)}
+                  style={({ pressed }) => [
+                    styles.channelRow,
+                    pressed ? styles.pressed : null,
+                  ]}
+                >
+                  <View style={styles.channelAvatar}>
+                    <MessageCircle size={18} color={theme.colors.accent} />
+                  </View>
+                  <View style={styles.channelRowText}>
+                    <Text style={styles.channelText}>#{item}</Text>
+                  </View>
+                  <Text style={styles.channelChevron}>›</Text>
+                </Pressable>
+              )}
+            />
+          </View>
         </>
       ) : (
         <>
@@ -716,20 +720,29 @@ export function ChatScreen({
 function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
   const { colors, radii } = theme
   return StyleSheet.create({
-    container: { flex: 1, padding: 14, gap: 10 },
+    container: { flex: 1, padding: 16, gap: 12 },
     detailContainer: { padding: 0, gap: 0 },
-    joinRow: { flexDirection: 'row', gap: 8 },
+    joinRow: { flexDirection: 'row', gap: 10 },
     channelInput: { flex: 1 },
     channelListView: { flexGrow: 0, height: 42 },
-    channelList: { gap: 8 },
+    channelListCard: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
+      flex: 1,
+      minHeight: 180,
+      overflow: 'hidden',
+      paddingHorizontal: 8,
+    },
+    channelList: { gap: 2, paddingVertical: 4 },
     channelRow: {
       alignItems: 'center',
-      borderBottomColor: colors.border,
-      borderBottomWidth: 1,
+      backgroundColor: colors.glassSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: 10,
       minHeight: 66,
-      paddingHorizontal: 6,
+      paddingHorizontal: 8,
       paddingVertical: 10,
     },
     channelAvatar: {
@@ -788,7 +801,7 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       backgroundColor: colors.accentSoft,
       borderColor: colors.accent,
     },
-    channelText: { color: colors.textSecondary },
+    channelText: { color: colors.text, fontSize: 15, fontWeight: '600' },
     channelTextActive: { color: colors.accent, fontWeight: '700' },
     messagesCard: {
       ...getGlassSurfaceStyle(theme),

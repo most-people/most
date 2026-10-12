@@ -161,12 +161,12 @@ function isChatDetailRoute() {
   )
 }
 
-function getInitialRootTab(fallback: Exclude<RootTab, 'node'>) {
+function getInitialRootTab(fallback: RootTab) {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return fallback
   return getRootTabFromPathname(window.location.pathname, fallback)
 }
 
-function updateRootTabRoute(tab: Exclude<RootTab, 'node'>, replace = false) {
+function updateRootTabRoute(tab: RootTab, replace = false) {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
   const method = replace ? 'replaceState' : 'pushState'
   window.history[method]({}, '', getRootTabPath(tab))
@@ -392,7 +392,8 @@ function MostBoxApp() {
     if (
       window.location.pathname !== '/chat' &&
       window.location.pathname !== '/file' &&
-      window.location.pathname !== '/transfer'
+      window.location.pathname !== '/transfer' &&
+      window.location.pathname !== '/dot'
     ) {
       updateRootTabRoute(defaultRootTab, true)
     }
@@ -480,13 +481,8 @@ function MostBoxApp() {
       return
     }
     if (nextTab !== 'node') setNodeRoute('status')
-    if (nextTab !== 'node') updateRootTabRoute(nextTab)
+    updateRootTabRoute(nextTab)
     setActiveTab(nextTab)
-  }
-
-  const openNodeStatus = () => {
-    setNodeRoute('status')
-    changeTab('node')
   }
 
   const markCopied = (cid: string) => {
@@ -1072,26 +1068,6 @@ function MostBoxApp() {
     ? t('p2pPing.title')
     : t(TAB_LABEL_KEYS[activeTab])
   const headerBackLabel = isNodeChild ? t('p2pPing.back') : ''
-  const statusLabel =
-    nodeStatus === 'ready'
-      ? t('app.node.online')
-      : nodeStatus === 'error'
-        ? t('app.node.error')
-        : nodeStatus === 'starting'
-          ? t('app.node.starting')
-          : t('app.node.offline')
-  const statusTextStyle =
-    nodeStatus === 'ready'
-      ? styles.statusTextReady
-      : nodeStatus === 'error'
-        ? styles.statusTextError
-        : styles.statusTextPending
-  const statusColor =
-    nodeStatus === 'ready'
-      ? theme.colors.success
-      : nodeStatus === 'error'
-        ? theme.colors.danger
-        : theme.colors.warning
   const nextThemePreference = getNextThemePreference(preference)
 
   const handleHeaderBack = () => {
@@ -1157,6 +1133,11 @@ function MostBoxApp() {
         edges={['top', 'right', 'bottom', 'left']}
         style={styles.screen}
       >
+        <View pointerEvents="none" style={styles.backgroundDecorations}>
+          <View style={styles.backgroundGlowPrimary} />
+          <View style={styles.backgroundGlowSecondary} />
+          <View style={styles.backgroundGlowTertiary} />
+        </View>
         <StatusBar
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
@@ -1179,13 +1160,18 @@ function MostBoxApp() {
                   <ChevronLeft size={22} color={theme.colors.text} />
                 </IconButton>
               ) : null}
-              <Text
-                maxFontSizeMultiplier={1.8}
-                numberOfLines={1}
-                style={styles.mainHeaderTitle}
-              >
-                {headerTitle}
-              </Text>
+              <View style={styles.headerTitleStack}>
+                <Text maxFontSizeMultiplier={1.4} style={styles.headerEyebrow}>
+                  {PRODUCT_PROFILE.displayName}
+                </Text>
+                <Text
+                  maxFontSizeMultiplier={1.8}
+                  numberOfLines={1}
+                  style={styles.mainHeaderTitle}
+                >
+                  {headerTitle}
+                </Text>
+              </View>
             </View>
             <View style={styles.headerActions}>
               <IconButton
@@ -1211,26 +1197,6 @@ function MostBoxApp() {
               >
                 <Languages size={19} color={theme.colors.textSecondary} />
               </IconButton>
-              <Pressable
-                accessibilityLabel={t('app.node.openStatus', {
-                  status: statusLabel,
-                })}
-                accessibilityRole="button"
-                onPress={openNodeStatus}
-                style={({ pressed }) => [
-                  styles.statusPill,
-                  pressed ? styles.pressablePressed : null,
-                ]}
-              >
-                <Radio size={16} color={statusColor} />
-                <Text
-                  maxFontSizeMultiplier={1.4}
-                  numberOfLines={1}
-                  style={[styles.statusText, statusTextStyle]}
-                >
-                  {statusLabel}
-                </Text>
-              </Pressable>
             </View>
           </View>
         ) : null}
@@ -1388,6 +1354,21 @@ function MostBoxApp() {
               }
               label={t('nav.transfers')}
               onPress={() => changeTab('transfers')}
+            />
+            <TabButton
+              active={activeTab === 'node'}
+              icon={
+                <Radio
+                  size={21}
+                  color={
+                    activeTab === 'node'
+                      ? theme.colors.accent
+                      : theme.colors.textSecondary
+                  }
+                />
+              }
+              label={t('nav.node')}
+              onPress={() => changeTab('node')}
             />
           </View>
         ) : null}
@@ -1709,10 +1690,10 @@ function TabButton({ active, icon, label, onPress }: TabButtonProps) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.tabButton,
+        active ? styles.tabButtonActive : null,
         pressed ? styles.pressablePressed : null,
       ]}
     >
-      {active ? <View style={styles.tabActiveIndicator} /> : null}
       {icon}
       <Text
         maxFontSizeMultiplier={1.6}
@@ -1732,6 +1713,41 @@ function createStyles(theme: MostBoxTheme) {
     screen: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    backgroundDecorations: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      overflow: 'hidden',
+    },
+    backgroundGlowPrimary: {
+      position: 'absolute',
+      width: 360,
+      height: 360,
+      top: -180,
+      right: -120,
+      borderRadius: 180,
+      backgroundColor: colors.backgroundGlowPrimary,
+    },
+    backgroundGlowSecondary: {
+      position: 'absolute',
+      width: 300,
+      height: 300,
+      top: 220,
+      left: -180,
+      borderRadius: 150,
+      backgroundColor: colors.backgroundGlowSecondary,
+    },
+    backgroundGlowTertiary: {
+      position: 'absolute',
+      width: 260,
+      height: 260,
+      bottom: -160,
+      right: -100,
+      borderRadius: 130,
+      backgroundColor: colors.backgroundGlowTertiary,
     },
     startupScreen: {
       alignItems: 'center',
@@ -1769,7 +1785,7 @@ function createStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       gap: 12,
       justifyContent: 'space-between',
-      minHeight: 56,
+      minHeight: 64,
       paddingHorizontal: 20,
       borderRadius: 0,
       borderWidth: 0,
@@ -1788,6 +1804,18 @@ function createStyles(theme: MostBoxTheme) {
       gap: 8,
       minWidth: 0,
     },
+    headerTitleStack: {
+      flex: 1,
+      gap: 1,
+      minWidth: 0,
+    },
+    headerEyebrow: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+    },
     headerIconButton: {
       height: 40,
       width: 40,
@@ -1796,32 +1824,6 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       flexDirection: 'row',
       gap: 8,
-    },
-    statusPill: {
-      alignItems: 'center',
-      backgroundColor: colors.glassSubtle,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: 6,
-      minHeight: 40,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: '600',
-      maxWidth: 92,
-    },
-    statusTextReady: {
-      color: colors.success,
-    },
-    statusTextPending: {
-      color: colors.warning,
-    },
-    statusTextError: {
-      color: colors.danger,
     },
     mainHeaderTitle: {
       color: colors.text,
@@ -1864,11 +1866,11 @@ function createStyles(theme: MostBoxTheme) {
     },
     tabBar: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
-      minHeight: 62,
+      minHeight: 70,
       flexDirection: 'row',
       alignItems: 'stretch',
       paddingHorizontal: 8,
-      paddingVertical: 5,
+      paddingVertical: 7,
       borderRadius: 0,
       borderWidth: 0,
       borderTopWidth: 1,
@@ -1877,18 +1879,15 @@ function createStyles(theme: MostBoxTheme) {
     },
     tabButton: {
       flex: 1,
-      minHeight: 48,
+      minHeight: 54,
       alignItems: 'center',
       justifyContent: 'center',
       gap: 2,
+      borderRadius: radii.medium,
+      marginHorizontal: 3,
     },
-    tabActiveIndicator: {
-      position: 'absolute',
-      top: 0,
-      width: 28,
-      height: 3,
-      borderRadius: radii.full,
-      backgroundColor: colors.accent,
+    tabButtonActive: {
+      backgroundColor: colors.accentSoft,
     },
     tabText: {
       alignSelf: 'stretch',
