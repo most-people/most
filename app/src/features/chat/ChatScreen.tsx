@@ -11,7 +11,15 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 import {
   ArrowLeft,
   Camera,
@@ -19,6 +27,7 @@ import {
   Keyboard as KeyboardIcon,
   MessageCircle,
   Minimize2,
+  MoreHorizontal,
   UserRound,
   Mic,
   MicOff,
@@ -57,6 +66,7 @@ import {
 import { useI18n } from '../../i18n'
 import {
   BottomSheetCard,
+  IconButton,
   MostButton,
   MostTextInput,
   getGlassSurfaceStyle,
@@ -64,41 +74,15 @@ import {
 import { useFeedback } from '../../ui/feedback'
 import { useMostBoxTheme } from '../../ui/theme'
 
-const FIXTURE_CHANNELS = ['产品讨论', '文件分享', '开发联调']
-const FIXTURE_CHANNEL_PREVIEWS: Record<string, string> = {
-  产品讨论: '欢迎加入产品讨论群',
-  文件分享: '可以在这里发送 most:// 链接',
-  开发联调: '第三方接入调试频道',
-}
-const FIXTURE_MESSAGES: Record<string, ChatMessage[]> = {
-  产品讨论: [
-    {
-      id: 'fixture-product-1',
-      content: '欢迎加入产品讨论群，新的消息会实时同步。',
-      author: 'fixture-product',
-      authorName: 'MostBox 小助手',
-      timestamp: '2026-10-13T08:00:00.000Z',
-    },
-  ],
-  文件分享: [
-    {
-      id: 'fixture-files-1',
-      content: '可以在这里发送 most:// 链接，下载完成后会自动继续做种。',
-      author: 'fixture-files',
-      authorName: '文件助手',
-      timestamp: '2026-10-13T08:06:00.000Z',
-    },
-  ],
-  开发联调: [
-    {
-      id: 'fixture-dev-1',
-      content: '这是第三方接入调试频道，适合验证邀请和消息协议。',
-      author: 'fixture-dev',
-      authorName: '开发联调',
-      timestamp: '2026-10-13T08:12:00.000Z',
-    },
-  ],
-}
+import {
+  getJoinedChannels,
+  type JoinedChannel,
+  getVisibleConversations,
+} from './conversationModel'
+import {
+  loadHiddenConversations,
+  saveHiddenConversations,
+} from './conversationStorage'
 
 function updateChatRoute(channel = '') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -135,6 +119,8 @@ export type ChatScreenProps = {
   snapshot: MobileCoreSnapshot
   openChannelRequest?: { channel: string; token: number } | null
   onDetailChange?: (open: boolean) => void
+  channels: JoinedChannel[]
+  onChannelsChange: Dispatch<SetStateAction<JoinedChannel[]>>
   onPublishAttachment: () => Promise<ChatAttachment | null>
   onReceiveAttachment: (attachment: ChatAttachment) => void
   onOpenAttachment: (holding: MobileHolding) => void | Promise<void>
@@ -145,6 +131,8 @@ export function ChatScreen({
   snapshot,
   openChannelRequest,
   onDetailChange,
+  onChannelsChange,
+  channels,
   onPublishAttachment,
   onReceiveAttachment,
   onOpenAttachment,
@@ -152,7 +140,7 @@ export function ChatScreen({
   const { t, formatDateTime } = useI18n()
   const theme = useMostBoxTheme()
   const styles = chatStyles(theme)
-  const { toast } = useFeedback()
+  const { alert, toast } = useFeedback()
   const bridge = client as ChatBridge
   const localMode = snapshot.node.mode !== 'remote'
   const endpoint = snapshot.node.endpoint || ''
@@ -174,7 +162,7 @@ export function ChatScreen({
   const [channelInput, setChannelInput] = useState('')
   const [channel, setChannel] = useState('')
   const [chatOpen, setChatOpen] = useState(() => Boolean(getInitialChatRoute()))
-  const [channels, setChannels] = useState<string[]>([])
+  const setChannels = onChannelsChange
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
@@ -191,9 +179,59 @@ export function ChatScreen({
     'keyboard'
   )
   const [recordingVoiceMessage, setRecordingVoiceMessage] = useState(false)
-  const visibleChannels = channels.length ? channels : FIXTURE_CHANNELS
-  const visibleMessages =
-    messages.length || !channel ? messages : FIXTURE_MESSAGES[channel] || []
+  const conversationScope = `${localMode ? snapshot.node.storagePath : endpoint}:${identity?.address || snapshot.node.userAddress || 'local'}`
+  const [hiddenState, setHiddenState] = useState<{
+    scope: string
+    channels: string[]
+  } | null>(null)
+  const hiddenChannels =
+    hiddenState?.scope === conversationScope ? hiddenState.channels : []
+  const visibleChannels =
+    hiddenState?.scope === conversationScope
+      ? getVisibleConversations(
+          channels.map(channel => channel.name),
+          hiddenChannels
+        )
+      : []
+  const visibleMessages = messages
+
+  useEffect(() => {
+    let active = true
+    void loadHiddenConversations(conversationScope).then(channels => {
+      if (active) setHiddenState({ scope: conversationScope, channels })
+    })
+    return () => {
+      active = false
+    }
+  }, [conversationScope])
+
+  useEffect(() => {
+    if (localMode) setChannels(getJoinedChannels(snapshot.channels || []))
+  }, [localMode, snapshot.channels])
+
+  const updateHiddenConversations = async (next: string[]) => {
+    await saveHiddenConversations(conversationScope, next)
+    setHiddenState({ scope: conversationScope, channels: next })
+  }
+
+  const deleteConversation = async (name: string) => {
+    try {
+      await updateHiddenConversations([...new Set([...hiddenChannels, name])])
+    } catch {
+      toast(t('chat.deleteFailed'), 'error')
+    }
+  }
+
+  const showConversationMenu = (name: string) => {
+    alert(`#${name}`, t('chat.deleteConversationHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: () => void deleteConversation(name),
+      },
+    ])
+  }
 
   useEffect(() => {
     onDetailChange?.(chatOpen)
@@ -273,6 +311,7 @@ export function ChatScreen({
   }, [voiceJoined])
 
   useEffect(() => {
+    setChannels([])
     if (!api && !localMode) return
     let active = true
     const request = localMode
@@ -281,17 +320,7 @@ export function ChatScreen({
     void request
       .then(items => {
         if (!active) return
-        const names = [
-          ...new Set(
-            items
-              .map(item =>
-                normalizeChatChannel(
-                  String(item.channelKey || item.channelId || item.name || '')
-                )
-              )
-              .filter(Boolean)
-          ),
-        ]
+        const names = getJoinedChannels(items)
         setChannels(names)
       })
       .catch(() => {})
@@ -318,6 +347,12 @@ export function ChatScreen({
         const page = localMode
           ? null
           : await api?.getHistory(normalizedName, { limit: 100 })
+        const savedHidden = await loadHiddenConversations(conversationScope)
+        const nextHidden = savedHidden.filter(name => name !== normalizedName)
+        if (savedHidden.includes(normalizedName)) {
+          await saveHiddenConversations(conversationScope, nextHidden)
+        }
+        setHiddenState({ scope: conversationScope, channels: nextHidden })
         setChannel(normalizedName)
         setMessages(localMode ? localMessages || [] : page?.messages || [])
         socketRef.current?.close()
@@ -340,9 +375,9 @@ export function ChatScreen({
           await session.subscribe(normalizedName)
         }
         setChannels(current =>
-          current.includes(normalizedName)
+          current.some(item => item.name === normalizedName)
             ? current
-            : [...current, normalizedName]
+            : [...current, { name: normalizedName, remark: '', pinned: false }]
         )
       } catch (error) {
         toast(
@@ -353,7 +388,17 @@ export function ChatScreen({
         setLoading(false)
       }
     },
-    [api, bridge, endpoint, identity, invite, localMode, t, toast]
+    [
+      api,
+      bridge,
+      endpoint,
+      identity,
+      invite,
+      localMode,
+      t,
+      toast,
+      conversationScope,
+    ]
   )
 
   const joinChannel = async () => {
@@ -619,27 +664,43 @@ export function ChatScreen({
                 </View>
               }
               renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => void openChannel(item)}
-                  style={({ pressed }) => [
-                    styles.channelRow,
-                    pressed ? styles.pressed : null,
-                  ]}
-                >
-                  <View style={styles.channelAvatar}>
-                    <MessageCircle size={18} color={theme.colors.accent} />
-                  </View>
-                  <View style={styles.channelRowText}>
-                    <Text style={styles.channelText}>#{item}</Text>
-                    <Text numberOfLines={1} style={styles.channelPreview}>
-                      {FIXTURE_CHANNEL_PREVIEWS[item] || t('chat.openHint')}
-                    </Text>
-                  </View>
-                  <View style={styles.channelMeta}>
-                    <Text style={styles.channelTime}>08:12</Text>
-                    <Text style={styles.channelChevron}>›</Text>
-                  </View>
-                </Pressable>
+                <View style={styles.channelListRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`#${item}`}
+                    onPress={() => void openChannel(item)}
+                    style={({ pressed }) => [
+                      styles.channelRow,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <View style={styles.channelAvatar}>
+                      <MessageCircle size={18} color={theme.colors.accent} />
+                    </View>
+                    <View style={styles.channelRowText}>
+                      <Text style={styles.channelText}>
+                        #
+                        {channels.find(channel => channel.name === item)
+                          ?.remark || item}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.channelPreview}>
+                        {t('chat.openHint')}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <IconButton
+                    accessibilityLabel={t('chat.conversationOptions', {
+                      channel: item,
+                    })}
+                    onPress={() => showConversationMenu(item)}
+                    variant="ghost"
+                  >
+                    <MoreHorizontal
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </IconButton>
+                </View>
               )}
             />
           </View>
@@ -656,7 +717,7 @@ export function ChatScreen({
               <ArrowLeft size={20} color={theme.colors.text} />
             </Pressable>
             <Text numberOfLines={1} style={styles.detailTitle}>
-              #{channel}
+              #{channels.find(item => item.name === channel)?.remark || channel}
             </Text>
             {channel ? (
               <View style={styles.detailActions}>
@@ -1104,10 +1165,15 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       overflow: 'hidden',
     },
     channelList: { paddingVertical: 4 },
-    channelRow: {
+    channelListRow: {
+      flexDirection: 'row',
       alignItems: 'center',
       borderBottomColor: colors.border,
       borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    channelRow: {
+      flex: 1,
+      alignItems: 'center',
       flexDirection: 'row',
       gap: 10,
       minHeight: 72,

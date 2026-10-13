@@ -297,6 +297,9 @@ export type MostBoxMobileCore = {
   subscribe: (listener: CoreListener) => () => void
   createChannel?: (input: CreateChannelInput) => Promise<MobileChannel>
   listChannels?: () => Promise<MobileChannel[]>
+  leaveChannel?: (input: LeaveChannelInput) => Promise<void>
+  setChannelRemark?: (input: SetChannelRemarkInput) => Promise<void>
+  setChannelPinned?: (input: SetChannelPinnedInput) => Promise<void>
   getChannelMessages?: (channelName: string) => Promise<MobileChannelMessage[]>
   sendChannelMessage?: (
     input: SendChannelMessageInput

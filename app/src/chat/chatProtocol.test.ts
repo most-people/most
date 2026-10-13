@@ -275,3 +275,64 @@ test('ChatApiClient preserves canonical most:// attachment metadata', async () =
   })
   assert.equal(sentBody.content, LINK)
 })
+
+test('channel management targets the canonical key through the signed remote transport', async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = []
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example/base',
+    invite: 'invite',
+    identity: null,
+    fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ url: String(input), init })
+      return new Response(JSON.stringify({ success: true }), { status: 200 })
+    }) as typeof fetch,
+  })
+  await client.setChannelRemark('room:key', 'Display name')
+  await client.setChannelPinned('room:key', true)
+  await client.leaveChannel('room:key')
+  assert.deepEqual(
+    requests.map(request => [
+      request.url,
+      request.init?.method,
+      JSON.parse(String(request.init?.body)),
+    ]),
+    [
+      [
+        'https://node.example/base/api/channels/room%3Akey/remark',
+        'PUT',
+        { remark: 'Display name' },
+      ],
+      [
+        'https://node.example/base/api/channels/room%3Akey/pin',
+        'PUT',
+        { pinned: true },
+      ],
+      [
+        'https://node.example/base/api/channels',
+        'DELETE',
+        { channelKey: 'room:key' },
+      ],
+    ]
+  )
+  for (const request of requests) {
+    assert.equal(
+      new Headers(request.init?.headers).get('x-mostbox-invite'),
+      'invite'
+    )
+  }
+})
+
+test('channel management propagates server rejection', async () => {
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    fetchImpl: (async () =>
+      new Response(JSON.stringify({ error: 'denied' }), {
+        status: 403,
+      })) as typeof fetch,
+  })
+  await assert.rejects(client.leaveChannel('room'), /denied/)
+  await assert.rejects(client.setChannelRemark('room', 'name'), /denied/)
+  await assert.rejects(client.setChannelPinned('room', true), /denied/)
+})

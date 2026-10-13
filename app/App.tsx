@@ -41,6 +41,7 @@ import {
   X,
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
+import type { JoinedChannel } from './src/features/chat/conversationModel'
 import { ContactsScreen } from './src/features/chat/ContactsScreen'
 import {
   WebFilePreview,
@@ -291,6 +292,7 @@ function MostBoxApp() {
   )
   const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
+  const [joinedChannels, setJoinedChannels] = useState<JoinedChannel[]>([])
   const [filesView, setFilesView] = useState<'contacts' | 'library'>('contacts')
   const [nodeView, setNodeView] = useState<'me' | 'status' | 'transfers'>(() =>
     Platform.OS === 'web' &&
@@ -1288,7 +1290,10 @@ function MostBoxApp() {
           >
             {filesView === 'contacts' ? (
               <ContactsScreen
+                channels={joinedChannels}
+                client={core}
                 snapshot={currentSnapshot}
+                onChannelsChange={setJoinedChannels}
                 onOpenChannel={openContactChannel}
               />
             ) : (
@@ -1329,6 +1334,8 @@ function MostBoxApp() {
             >
               <ChatScreen
                 client={core}
+                onChannelsChange={setJoinedChannels}
+                channels={joinedChannels}
                 openChannelRequest={openChannelRequest}
                 onDetailChange={setChatDetailRoute}
                 onPublishAttachment={handlePublishChatAttachment}

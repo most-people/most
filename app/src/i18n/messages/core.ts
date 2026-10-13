@@ -159,6 +159,46 @@ export const coreMessages = {
     'zh-TW': '搜尋',
     en: 'Search',
   },
+  'contacts.rename': {
+    'zh-CN': '重命名',
+    'zh-TW': '重新命名',
+    en: 'Rename',
+  },
+  'contacts.pin': {
+    'zh-CN': '置顶',
+    'zh-TW': '置頂',
+    en: 'Pin',
+  },
+  'contacts.unpin': {
+    'zh-CN': '取消置顶',
+    'zh-TW': '取消置頂',
+    en: 'Unpin',
+  },
+  'contacts.pinned': {
+    'zh-CN': '已置顶',
+    'zh-TW': '已置頂',
+    en: 'Pinned',
+  },
+  'contacts.leave': {
+    'zh-CN': '退出频道',
+    'zh-TW': '退出頻道',
+    en: 'Leave channel',
+  },
+  'contacts.leaveConfirm': {
+    'zh-CN': '退出频道 {channel}？退出后将从通讯录和聊天列表移除。',
+    'zh-TW': '退出頻道 {channel}？退出後將從通訊錄與聊天列表移除。',
+    en: 'Leave {channel}? It will be removed from Contacts and the chat list.',
+  },
+  'contacts.renamePlaceholder': {
+    'zh-CN': '输入显示名称，留空恢复原名称',
+    'zh-TW': '輸入顯示名稱，留空恢復原名稱',
+    en: 'Display name; leave empty to restore the original',
+  },
+  'contacts.actionUnavailable': {
+    'zh-CN': '当前节点不支持此操作',
+    'zh-TW': '目前節點不支援此操作',
+    en: 'This node does not support this action',
+  },
   'contacts.newFriends': {
     'zh-CN': '新的朋友',
     'zh-TW': '新的朋友',

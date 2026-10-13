@@ -92,6 +92,21 @@ export const chatMessages = {
     'zh-TW': '傳送訊息失敗',
     en: 'Could not send message',
   },
+  'chat.conversationOptions': {
+    'zh-CN': '频道 {channel} 的聊天选项',
+    'zh-TW': '頻道 {channel} 的聊天選項',
+    en: 'Conversation options for {channel}',
+  },
+  'chat.deleteConversationHint': {
+    'zh-CN': '删除此聊天列表条目，频道仍保留在通讯录。',
+    'zh-TW': '刪除此聊天列表項目，頻道仍保留在通訊錄。',
+    en: 'Remove this conversation from the chat list. The channel remains in Contacts.',
+  },
+  'chat.deleteFailed': {
+    'zh-CN': '删除聊天失败，请重试。',
+    'zh-TW': '刪除聊天失敗，請重試。',
+    en: 'Could not remove the conversation. Please try again.',
+  },
   'chat.voiceRoom': {
     'zh-CN': '语音通话',
     'zh-TW': '語音通話',

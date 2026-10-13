@@ -318,6 +318,26 @@ export class ChatApiClient {
     return values.map(asRecord)
   }
 
+  async leaveChannel(channel: string) {
+    await this.#request('DELETE', '/api/channels', { channelKey: channel })
+  }
+
+  async setChannelRemark(channel: string, remark: string) {
+    await this.#request(
+      'PUT',
+      `/api/channels/${encodeURIComponent(channel)}/remark`,
+      { remark }
+    )
+  }
+
+  async setChannelPinned(channel: string, pinned: boolean) {
+    await this.#request(
+      'PUT',
+      `/api/channels/${encodeURIComponent(channel)}/pin`,
+      { pinned }
+    )
+  }
+
   async getHistory(
     channel: string,
     options: { limit?: number; before?: string } = {}

@@ -12,6 +12,9 @@ import type {
   ExportHoldingResult,
   MobileCoreSnapshot,
   CreateChannelInput,
+  LeaveChannelInput,
+  SetChannelRemarkInput,
+  SetChannelPinnedInput,
   MobileChannel,
   MobileChannelAttachment,
   MobileChannelMessage,
@@ -451,6 +454,36 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return Array.isArray(records.channels) && records.channels.every(isChannel)
       ? records.channels
       : []
+  }
+
+  async leaveChannel(input: LeaveChannelInput): Promise<void> {
+    await this.#ensureStarted()
+    await this.#request(
+      COMMANDS.CHANNEL_LEAVE,
+      input,
+      [EVENTS.CHANNEL_LEFT],
+      30000
+    )
+  }
+
+  async setChannelRemark(input: SetChannelRemarkInput): Promise<void> {
+    await this.#ensureStarted()
+    await this.#request(
+      COMMANDS.CHANNEL_REMARK_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      30000
+    )
+  }
+
+  async setChannelPinned(input: SetChannelPinnedInput): Promise<void> {
+    await this.#ensureStarted()
+    await this.#request(
+      COMMANDS.CHANNEL_PIN_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      30000
+    )
   }
 
   async getChannelMessages(

@@ -11,6 +11,9 @@ import type {
   MostBoxMobileCore,
   PublishFileInput,
   CreateChannelInput,
+  LeaveChannelInput,
+  SetChannelRemarkInput,
+  SetChannelPinnedInput,
   MobileChannel,
   MobileChannelMessage,
   SendChannelMessageInput,
@@ -266,6 +269,30 @@ export class MobileNodeClient implements MostBoxMobileClient {
     if (!this.#active.listChannels)
       return Promise.resolve(this.#snapshot.channels || [])
     return this.#active.listChannels()
+  }
+
+  leaveChannel(input: LeaveChannelInput): Promise<void> {
+    if (!this.#active.leaveChannel)
+      return Promise.reject(
+        new Error('Channel management is unavailable on this node')
+      )
+    return this.#active.leaveChannel(input)
+  }
+
+  setChannelRemark(input: SetChannelRemarkInput): Promise<void> {
+    if (!this.#active.setChannelRemark)
+      return Promise.reject(
+        new Error('Channel management is unavailable on this node')
+      )
+    return this.#active.setChannelRemark(input)
+  }
+
+  setChannelPinned(input: SetChannelPinnedInput): Promise<void> {
+    if (!this.#active.setChannelPinned)
+      return Promise.reject(
+        new Error('Channel management is unavailable on this node')
+      )
+    return this.#active.setChannelPinned(input)
   }
 
   getChannelMessages(channelName: string): Promise<MobileChannelMessage[]> {
