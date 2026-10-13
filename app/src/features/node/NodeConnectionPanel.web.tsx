@@ -152,59 +152,71 @@ export function NodeConnectionPanel({
 
   return (
     <>
-      <View style={styles.panel}>
-        <View style={styles.heading}>
-          <View style={styles.headingIcon}>
-            {remote ? (
-              <Server size={18} color={theme.colors.accent} />
-            ) : (
-              <Smartphone size={18} color={theme.colors.accent} />
-            )}
-          </View>
-          <View style={styles.headingText}>
-            <Text maxFontSizeMultiplier={2} style={styles.title}>
-              {t('node.connection.title')}
-            </Text>
-            <Text
-              maxFontSizeMultiplier={1.8}
-              numberOfLines={2}
-              style={styles.meta}
-            >
-              {remote
-                ? node.endpoint || t('node.connection.remote')
-                : t('node.connection.local')}
-            </Text>
-          </View>
-          <View style={styles.modeBadge}>
-            <Text style={styles.modeBadgeText}>
-              {t(remote ? 'node.connection.remote' : 'node.connection.local')}
-            </Text>
-          </View>
-        </View>
-
-        {node.fallbackFrom ? (
-          <Text style={styles.warning}>{t('node.connection.fallback')}</Text>
-        ) : null}
-        {remote && !node.authenticated ? (
-          <Text style={styles.warning}>{t('node.account.required')}</Text>
-        ) : null}
-
-        <View style={styles.accountRow}>
-          <UserRound size={16} color={theme.colors.textSecondary} />
-          <Text numberOfLines={1} style={styles.accountText}>
-            {accountName
-              ? `${accountName} · ${shortAddress(accountAddress)}`
-              : t('node.account.signedOut')}
-          </Text>
+      {node.status !== 'ready' ? (
+        <View style={styles.connectPrompt}>
           <MostButton
+            icon={<Server size={16} color={theme.colors.onAccent} />}
             onPress={() => setOpen(true)}
-            style={styles.manageButton}
-            variant="ghost"
+            variant="primary"
           >
-            {t('node.connection.manage')}
+            {t('node.connection.modalTitle')}
           </MostButton>
         </View>
-      </View>
+      ) : (
+        <View style={styles.panel}>
+          <View style={styles.heading}>
+            <View style={styles.headingIcon}>
+              {remote ? (
+                <Server size={18} color={theme.colors.accent} />
+              ) : (
+                <Smartphone size={18} color={theme.colors.accent} />
+              )}
+            </View>
+            <View style={styles.headingText}>
+              <Text maxFontSizeMultiplier={2} style={styles.title}>
+                {t('node.connection.title')}
+              </Text>
+              <Text
+                maxFontSizeMultiplier={1.8}
+                numberOfLines={2}
+                style={styles.meta}
+              >
+                {remote
+                  ? node.endpoint || t('node.connection.remote')
+                  : t('node.connection.local')}
+              </Text>
+            </View>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeBadgeText}>
+                {t(remote ? 'node.connection.remote' : 'node.connection.local')}
+              </Text>
+            </View>
+          </View>
+
+          {node.fallbackFrom ? (
+            <Text style={styles.warning}>{t('node.connection.fallback')}</Text>
+          ) : null}
+          {remote && !node.authenticated ? (
+            <Text style={styles.warning}>{t('node.account.required')}</Text>
+          ) : null}
+
+          <View style={styles.accountRow}>
+            <UserRound size={16} color={theme.colors.textSecondary} />
+            <Text numberOfLines={1} style={styles.accountText}>
+              {accountName
+                ? `${accountName} · ${shortAddress(accountAddress)}`
+                : t('node.account.signedOut')}
+            </Text>
+            <MostButton
+              onPress={() => setOpen(true)}
+              style={styles.manageButton}
+              variant="ghost"
+            >
+              {t('node.connection.manage')}
+            </MostButton>
+          </View>
+        </View>
+      )}
 
       <Modal
         animationType="slide"
@@ -360,6 +372,7 @@ export function NodeConnectionPanel({
                             onPress={() => {
                               setUrl(item.url)
                               setInvite(item.invite)
+                              void connect(item.url, item.invite)
                             }}
                             style={({ pressed }) => [
                               styles.historyRow,
@@ -398,6 +411,7 @@ export function NodeConnectionPanel({
 function createConnectionStyles(theme: MostBoxTheme) {
   const { colors, radii } = theme
   return StyleSheet.create({
+    connectPrompt: { marginHorizontal: 20, marginTop: 20 },
     panel: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
       gap: 12,

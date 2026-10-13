@@ -100,7 +100,7 @@ npm start
 npm run server
 ```
 
-开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。Expo Web 在 `app/` 中运行 `npm run web`，默认访问 `http://localhost:2021`。
+开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。在根目录运行 `npm run app` 启动 Expo Web（等同于 `cd app && npm start`），默认访问 `http://localhost:2021`。
 
 ### 浏览器来源白名单
 

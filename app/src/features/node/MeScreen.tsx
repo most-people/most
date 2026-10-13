@@ -1,4 +1,10 @@
-import { ChevronRight, HardDrive, Radio, UserRound } from 'lucide-react-native'
+import {
+  ArrowDownUp,
+  ChevronRight,
+  HardDrive,
+  Radio,
+  UserRound,
+} from 'lucide-react-native'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ReactNode } from 'react'
 import { useI18n } from '../../i18n'
@@ -10,6 +16,7 @@ export type MeScreenProps = {
   username?: string
   onOpenFiles: () => void
   onOpenNode: () => void
+  onOpenTransfers: () => void
 }
 
 export function MeScreen({
@@ -17,6 +24,7 @@ export function MeScreen({
   username,
   onOpenFiles,
   onOpenNode,
+  onOpenTransfers,
 }: MeScreenProps) {
   const theme = useMostBoxTheme()
   const styles = meStyles(theme)
@@ -45,6 +53,12 @@ export function MeScreen({
           label={t('me.filesTitle')}
           meta={t('me.seedCount', { count: snapshot.holdings.length })}
           onPress={onOpenFiles}
+          styles={styles}
+        />
+        <MeRow
+          icon={<ArrowDownUp size={20} color={theme.colors.accent} />}
+          label={t('nav.transfers')}
+          onPress={onOpenTransfers}
           styles={styles}
         />
         <MeRow

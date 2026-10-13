@@ -7,16 +7,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native'
-import {
-  Ban,
-  ChevronRight,
-  CircleCheck,
-  Files,
-  Info,
-  Loader,
-  Radio,
-  RotateCcw,
-} from 'lucide-react-native'
+import { Ban, CircleCheck, Info, Loader, RotateCcw } from 'lucide-react-native'
 import type {
   MobileCoreSnapshot,
   MobileHolding,
@@ -61,8 +52,6 @@ export type TransfersScreenProps = {
   onShowTransferDetails: (transfer: MobileTransfer) => void
   onCancelDownload: (transfer: MobileTransfer) => void | Promise<void>
   onOpenHolding: (holding: MobileHolding) => void | Promise<void>
-  onOpenFiles?: () => void
-  onOpenNode?: () => void
   runtimeStatus?: TransferRuntimeStatus
 }
 
@@ -98,8 +87,6 @@ export function TransfersScreen({
   onShowTransferDetails,
   onCancelDownload,
   onOpenHolding,
-  onOpenFiles,
-  onOpenNode,
   runtimeStatus = 'active',
 }: TransfersScreenProps) {
   const { locale, t } = useI18n()
@@ -144,46 +131,6 @@ export function TransfersScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
-        <View style={styles.quickActions}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onOpenFiles}
-            style={({ pressed }) => [
-              styles.quickAction,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Files size={20} color={theme.colors.accent} />
-            <View style={styles.quickActionText}>
-              <Text style={styles.quickActionTitle}>
-                {t('discover.filesTitle')}
-              </Text>
-              <Text style={styles.quickActionBody}>
-                {t('discover.filesBody')}
-              </Text>
-            </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onOpenNode}
-            style={({ pressed }) => [
-              styles.quickAction,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Radio size={20} color={theme.colors.info} />
-            <View style={styles.quickActionText}>
-              <Text style={styles.quickActionTitle}>
-                {t('discover.nodeTitle')}
-              </Text>
-              <Text style={styles.quickActionBody}>
-                {t('discover.nodeBody')}
-              </Text>
-            </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
         <View accessibilityRole="tablist" style={styles.segmented}>
           {(['active', 'completed', 'failed'] as const).map(item => (
             <Pressable
@@ -446,19 +393,6 @@ function createStyles(theme: MostBoxTheme) {
       marginTop: 20,
       padding: 14,
     },
-    quickActions: { gap: 1 },
-    quickAction: {
-      alignItems: 'center',
-      borderBottomColor: colors.border,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
-      gap: 12,
-      minHeight: 58,
-      paddingVertical: 6,
-    },
-    quickActionText: { flex: 1, gap: 2 },
-    quickActionTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
-    quickActionBody: { color: colors.textSecondary, fontSize: 11 },
     segmented: {
       backgroundColor: colors.glassSubtle,
       borderColor: colors.border,

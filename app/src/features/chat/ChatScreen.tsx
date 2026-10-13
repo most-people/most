@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
@@ -17,6 +18,8 @@ import {
   FileText,
   Keyboard as KeyboardIcon,
   MessageCircle,
+  Minimize2,
+  UserRound,
   Mic,
   MicOff,
   PhoneCall,
@@ -490,6 +493,7 @@ export function ChatScreen({
     if (voiceJoined) {
       session.leave()
       setVoiceJoined(false)
+      setVoiceMuted(false)
       setVoiceState(
         createVoiceRoomState(channel, session.sessionId, identity?.address, {
           displayName: identity?.username,
@@ -530,17 +534,12 @@ export function ChatScreen({
   }
 
   const startVoiceCall = () => {
-    setCallSheetOpen(false)
     if (localMode) {
+      setCallSheetOpen(false)
       toast(t('chat.voiceRequiresRemote'), 'info')
       return
     }
     void toggleVoice()
-  }
-
-  const showVideoCallUnavailable = () => {
-    setCallSheetOpen(false)
-    toast(t('chat.videoUnavailable'), 'info')
   }
 
   const toggleComposerMode = () => {
@@ -661,35 +660,15 @@ export function ChatScreen({
             </Text>
             {channel ? (
               <View style={styles.detailActions}>
-                {voiceJoined ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      voiceMuted ? t('chat.voiceUnmute') : t('chat.voiceMute')
-                    }
-                    onPress={toggleVoiceMute}
-                    style={styles.detailActionButton}
-                  >
-                    {voiceMuted ? (
-                      <MicOff size={18} color={theme.colors.warning} />
-                    ) : (
-                      <Mic size={18} color={theme.colors.accent} />
-                    )}
-                  </Pressable>
-                ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('chat.callOptions')}
+                  accessibilityLabel={t('chat.voiceRoom')}
                   onPress={() => setCallSheetOpen(true)}
                   style={styles.detailActionButton}
                 >
-                  {voiceJoined ? (
-                    <PhoneOff size={18} color={theme.colors.danger} />
-                  ) : (
-                    <PhoneCall size={19} color={theme.colors.accent} />
-                  )}
+                  <PhoneCall size={19} color={theme.colors.accent} />
                 </Pressable>
-                {voiceState ? (
+                {voiceJoined && voiceState ? (
                   <Text style={styles.detailActionCount}>
                     {Object.keys(voiceState.participants).length}
                   </Text>
@@ -699,6 +678,19 @@ export function ChatScreen({
               <View style={styles.detailHeaderSpacer} />
             )}
           </View>
+          {voiceJoined ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('chat.voiceReturn')}
+              onPress={() => setCallSheetOpen(true)}
+              style={styles.voiceBanner}
+            >
+              <PhoneCall size={16} color={theme.colors.accent} />
+              <Text style={styles.voiceBannerText}>
+                {t('chat.voiceReturn')}
+              </Text>
+            </Pressable>
+          ) : null}
           {voiceError ? (
             <Text
               style={[
@@ -735,6 +727,7 @@ export function ChatScreen({
               }
               contentContainerStyle={styles.messages}
               renderItem={({ item }) => {
+                const mine = item.author === identity?.address
                 const attachment = getMessageAttachment(item)
                 const state = attachment
                   ? getAttachmentState(
@@ -756,14 +749,16 @@ export function ChatScreen({
                 })
                 return (
                   <View
-                    style={[
-                      styles.message,
-                      item.author === identity?.address
-                        ? styles.messageMine
-                        : null,
-                    ]}
+                    style={[styles.message, mine ? styles.messageMine : null]}
                   >
-                    <Text style={styles.author}>{item.authorName}</Text>
+                    <Text
+                      style={[
+                        styles.author,
+                        mine ? styles.messageMineMeta : null,
+                      ]}
+                    >
+                      {item.authorName}
+                    </Text>
                     {attachment ? (
                       <Pressable
                         accessibilityRole="button"
@@ -776,25 +771,52 @@ export function ChatScreen({
                         }}
                         style={styles.attachmentButton}
                       >
-                        <Text style={styles.attachmentName}>
+                        <Text
+                          style={[
+                            styles.attachmentName,
+                            mine ? styles.messageMineText : null,
+                          ]}
+                        >
                           {t('chat.attachmentLabel', {
                             fileName: attachment.fileName,
                           })}
                         </Text>
                         {typeof attachment.size === 'number' ? (
-                          <Text style={styles.attachmentDetails}>
+                          <Text
+                            style={[
+                              styles.attachmentDetails,
+                              mine ? styles.messageMineMeta : null,
+                            ]}
+                          >
                             {formatAttachmentSize(attachment.size)}
                           </Text>
                         ) : null}
-                        <Text style={styles.attachmentAction}>
+                        <Text
+                          style={[
+                            styles.attachmentAction,
+                            mine ? styles.messageMineText : null,
+                          ]}
+                        >
                           {actionLabel}
                         </Text>
                       </Pressable>
                     ) : (
-                      <Text style={styles.content}>{item.content}</Text>
+                      <Text
+                        style={[
+                          styles.content,
+                          mine ? styles.messageMineText : null,
+                        ]}
+                      >
+                        {item.content}
+                      </Text>
                     )}
                     {item.timestamp ? (
-                      <Text style={styles.timestamp}>
+                      <Text
+                        style={[
+                          styles.timestamp,
+                          mine ? styles.messageMineMeta : null,
+                        ]}
+                      >
                         {formatDateTime(item.timestamp)}
                       </Text>
                     ) : null}
@@ -906,65 +928,93 @@ export function ChatScreen({
           <Modal
             animationType="slide"
             onRequestClose={() => setCallSheetOpen(false)}
-            transparent
             visible={callSheetOpen}
           >
-            <View style={styles.sheetOverlay}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('common.close')}
-                onPress={() => setCallSheetOpen(false)}
-                style={styles.sheetBackdrop}
-              />
-              <BottomSheetCard style={styles.sheetCard}>
-                <Text style={styles.sheetTitle}>{t('chat.callTitle')}</Text>
-                <View style={styles.callOptions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')
-                    }
-                    disabled={localMode || voiceConnecting}
-                    onPress={startVoiceCall}
-                    style={({ pressed }) => [
-                      styles.callOption,
-                      localMode ? styles.disabled : null,
-                      pressed ? styles.pressed : null,
-                    ]}
-                  >
-                    <View style={styles.callOptionIcon}>
-                      <PhoneCall size={22} color={theme.colors.accent} />
-                    </View>
-                    <Text style={styles.callOptionLabel}>
-                      {voiceJoined ? t('chat.voiceLeave') : t('chat.voiceJoin')}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('chat.videoCall')}
-                    onPress={showVideoCallUnavailable}
-                    style={({ pressed }) => [
-                      styles.callOption,
-                      pressed ? styles.pressed : null,
-                    ]}
-                  >
-                    <View style={styles.callOptionIcon}>
-                      <Camera size={22} color={theme.colors.info} />
-                    </View>
-                    <Text style={styles.callOptionLabel}>
-                      {t('chat.videoCall')}
-                    </Text>
-                  </Pressable>
-                </View>
-                <MostButton
+            <SafeAreaView style={styles.voiceScreen}>
+              <View style={styles.voiceHeader}>
+                <Text style={styles.voiceTitle}>
+                  {t('chat.voiceRoom')} · #{channel}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.voiceMinimize')}
                   onPress={() => setCallSheetOpen(false)}
-                  style={styles.sheetCancel}
-                  variant="ghost"
+                  style={styles.backButton}
                 >
-                  {t('common.cancel')}
-                </MostButton>
-              </BottomSheetCard>
-            </View>
+                  <Minimize2 size={22} color={theme.colors.text} />
+                </Pressable>
+              </View>
+              <Text style={styles.voiceHint}>{t('chat.voiceHint')}</Text>
+              {voiceError ? (
+                <Text style={styles.voiceError}>{voiceError}</Text>
+              ) : null}
+              <FlatList
+                data={Object.values(voiceState?.participants || {}).filter(
+                  participant => voiceJoined || !participant.local
+                )}
+                keyExtractor={participant => participant.sessionId}
+                contentContainerStyle={styles.voiceMembers}
+                ListEmptyComponent={
+                  <Text style={styles.voiceHint}>{t('chat.voiceEmpty')}</Text>
+                }
+                renderItem={({ item }) => (
+                  <View style={styles.voiceMember}>
+                    <View style={styles.voiceAvatar}>
+                      <UserRound size={28} color={theme.colors.accent} />
+                    </View>
+                    <Text style={styles.voiceMemberName}>
+                      {item.displayName || item.address}
+                    </Text>
+                    {item.micMuted ? (
+                      <MicOff size={20} color={theme.colors.warning} />
+                    ) : (
+                      <Mic size={20} color={theme.colors.accent} />
+                    )}
+                  </View>
+                )}
+              />
+              <View style={styles.voiceControls}>
+                {voiceJoined ? (
+                  <>
+                    <MostButton
+                      icon={
+                        voiceMuted ? (
+                          <MicOff size={22} color={theme.colors.text} />
+                        ) : (
+                          <Mic size={22} color={theme.colors.text} />
+                        )
+                      }
+                      onPress={toggleVoiceMute}
+                    >
+                      {voiceMuted ? t('chat.voiceUnmute') : t('chat.voiceMute')}
+                    </MostButton>
+                    <MostButton
+                      icon={
+                        <PhoneOff size={22} color={theme.colors.onAccent} />
+                      }
+                      onPress={() => {
+                        void toggleVoice()
+                        setCallSheetOpen(false)
+                      }}
+                      variant="danger"
+                    >
+                      {t('chat.voiceLeave')}
+                    </MostButton>
+                  </>
+                ) : (
+                  <MostButton
+                    disabled={voiceConnecting}
+                    icon={<PhoneCall size={22} color={theme.colors.onAccent} />}
+                    onPress={startVoiceCall}
+                    variant="primary"
+                  >
+                    {voiceConnecting
+                      ? t('chat.voiceConnecting')
+                      : t('chat.voiceJoin')}
+                  </MostButton>
+                )}
+              </View>
+            </SafeAreaView>
           </Modal>
           <Modal
             animationType="slide"
@@ -1147,6 +1197,8 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       paddingVertical: 8,
     },
     messageMine: { alignSelf: 'flex-end', backgroundColor: '#95ec69' },
+    messageMineText: { color: '#152515' },
+    messageMineMeta: { color: '#36552c' },
     author: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
     attachmentName: {
       color: colors.text,
@@ -1228,6 +1280,8 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     },
     sheetBackdrop: StyleSheet.absoluteFill,
     sheetCard: {
+      width: '100%',
+      maxWidth: '100%',
       borderTopLeftRadius: radii.large,
       borderTopRightRadius: radii.large,
       gap: 14,
@@ -1241,26 +1295,50 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       fontWeight: '700',
       textAlign: 'center',
     },
-    callOptions: {
+    voiceScreen: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: 20,
+    },
+    voiceHeader: {
       flexDirection: 'row',
-      gap: 12,
-      justifyContent: 'center',
-    },
-    callOption: {
       alignItems: 'center',
-      gap: 8,
-      minWidth: 108,
-      paddingVertical: 8,
+      paddingVertical: 12,
     },
-    callOptionIcon: {
-      alignItems: 'center',
+    voiceTitle: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: '700',
+    },
+    voiceHint: {
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: 16,
+    },
+    voiceMembers: { flexGrow: 1, gap: 16, paddingVertical: 24 },
+    voiceMember: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    voiceAvatar: {
       backgroundColor: colors.accentSoft,
-      borderRadius: radii.full,
-      height: 52,
-      justifyContent: 'center',
-      width: 52,
+      borderRadius: radii.large,
+      padding: 18,
     },
-    callOptionLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
+    voiceMemberName: { flex: 1, color: colors.text, fontSize: 16 },
+    voiceControls: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 24,
+      paddingVertical: 32,
+    },
+    voiceBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.accentSoft,
+      padding: 12,
+    },
+    voiceBannerText: { color: colors.accent, fontSize: 13 },
     actionOptions: { gap: 1 },
     actionOption: {
       alignItems: 'center',

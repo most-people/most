@@ -1,10 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  ChevronRight,
-  MessageCircle,
-  Search,
-  UserPlus,
-} from 'lucide-react-native'
+import { ChevronRight, MessageCircle, Search } from 'lucide-react-native'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ReactNode } from 'react'
 import type { MobileCoreSnapshot } from '../../mobileCore/types'
@@ -51,16 +46,6 @@ export function ContactsScreen({
           placeholder={t('contacts.searchPlaceholder')}
           style={styles.searchInput}
           value={query}
-        />
-      </View>
-
-      <View style={styles.group}>
-        <ContactRow
-          icon={<UserPlus size={20} color={theme.colors.accent} />}
-          label={t('contacts.newFriends')}
-          disabled
-          onPress={() => undefined}
-          styles={styles}
         />
       </View>
 
@@ -135,15 +120,20 @@ function contactsStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     searchBox: {
       alignItems: 'center',
       backgroundColor: colors.surfaceSubtle,
-      borderColor: colors.border,
       borderRadius: 8,
-      borderWidth: 1,
+      marginBottom: 20,
       flexDirection: 'row',
       gap: 8,
       minHeight: 44,
       paddingHorizontal: 12,
     } as const,
-    searchInput: { flex: 1, minHeight: 40, paddingVertical: 4 } as const,
+    searchInput: {
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      flex: 1,
+      minHeight: 40,
+      paddingVertical: 4,
+    } as const,
     group: {
       backgroundColor: colors.surface,
       borderColor: colors.border,

@@ -141,7 +141,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.contacts',
-  transfers: 'nav.discover',
+  explore: 'nav.discover',
   chat: 'nav.wechat',
   node: 'nav.me',
 }
@@ -292,7 +292,13 @@ function MostBoxApp() {
   const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [filesView, setFilesView] = useState<'contacts' | 'library'>('contacts')
-  const [nodeView, setNodeView] = useState<'me' | 'status'>('me')
+  const [nodeView, setNodeView] = useState<'me' | 'status' | 'transfers'>(() =>
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/transfer'
+      ? 'transfers'
+      : 'me'
+  )
   const [openChannelRequest, setOpenChannelRequest] = useState<{
     channel: string
     token: number
@@ -327,7 +333,7 @@ function MostBoxApp() {
     string | null
   >(null)
   const [reselectTokens, setReselectTokens] = useState<Record<RootTab, number>>(
-    { files: 0, transfers: 0, chat: 0, node: 0 }
+    { files: 0, explore: 0, chat: 0, node: 0 }
   )
 
   if (!coreRef.current) {
@@ -361,15 +367,11 @@ function MostBoxApp() {
     appVisibility,
     transferRuntimePolicy
   )
-  const showCoreStartError = useEffectEvent((error: unknown) => {
-    alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
-  })
-
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
     void core
       .start()
-      .catch(showCoreStartError)
+      .catch(error => console.warn('MostBox node startup failed', error))
       .finally(() => setStartupComplete(true))
 
     return () => {
@@ -387,6 +389,13 @@ function MostBoxApp() {
         defaultRootTab
       )
       setActiveTab(nextTab)
+      setNodeView(current =>
+        window.location.pathname === '/transfer'
+          ? 'transfers'
+          : current === 'transfers'
+            ? 'me'
+            : current
+      )
       setNodeRoute('status')
       setChatDetailRoute(isChatDetailRoute())
     }
@@ -396,6 +405,7 @@ function MostBoxApp() {
       window.location.pathname !== '/chat' &&
       window.location.pathname !== '/file' &&
       window.location.pathname !== '/transfer' &&
+      window.location.pathname !== '/explore' &&
       window.location.pathname !== '/dot'
     ) {
       updateRootTabRoute(defaultRootTab, true)
@@ -416,7 +426,9 @@ function MostBoxApp() {
             : 'inactive'
       )
       if (state === 'active') {
-        void core.start().catch(showCoreStartError)
+        void core
+          .start()
+          .catch(error => console.warn('MostBox node startup failed', error))
       }
     })
     return () => subscription.remove()
@@ -496,6 +508,20 @@ function MostBoxApp() {
     setActiveTab('files')
   }
 
+  const openTransfers = () => {
+    setNodeView('transfers')
+    setActiveTab('node')
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/transfer')
+      window.dispatchEvent(new Event('most-route-change'))
+    }
+  }
+
+  const closeTransfers = () => {
+    setNodeView('me')
+    updateRootTabRoute('node')
+  }
+
   const openNodeStatus = () => {
     setNodeView('status')
     updateRootTabRoute('node')
@@ -546,7 +572,7 @@ function MostBoxApp() {
     try {
       await core.start()
     } catch (error) {
-      alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
+      toast(getFriendlyCoreError(error, locale), 'error')
     }
   }
 
@@ -670,6 +696,7 @@ function MostBoxApp() {
     const action = getRootBackAction({
       activeTab,
       downloadModalOpen,
+      transfersOpen: activeTab === 'node' && nodeView === 'transfers',
       filesLibraryOpen: activeTab === 'files' && filesView === 'library',
       languageModalOpen,
       nodeRoute,
@@ -684,6 +711,10 @@ function MostBoxApp() {
     }
     if (action === 'closeFilesLibrary') {
       setFilesView('contacts')
+      return true
+    }
+    if (action === 'closeTransfers') {
+      closeTransfers()
       return true
     }
     if (action === 'closeNodeChild') {
@@ -1095,17 +1126,25 @@ function MostBoxApp() {
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
   const isFilesLibrary = activeTab === 'files' && filesView === 'library'
   const isChatDetail = activeTab === 'chat' && chatDetailRoute
-  const isSecondaryPage = isNodeChild || isFilesLibrary
-  const hideTabBar = isNodeChild || isChatDetail || isFilesLibrary
-  const headerTitle = isNodeChild
-    ? t('p2pPing.title')
-    : isFilesLibrary
-      ? t('nav.files')
-      : t(TAB_LABEL_KEYS[activeTab])
-  const headerBackLabel = isNodeChild || isFilesLibrary ? t('common.back') : ''
+  const isTransfersPage = activeTab === 'node' && nodeView === 'transfers'
+  const isSecondaryPage = isNodeChild || isFilesLibrary || isTransfersPage
+  const hideTabBar =
+    isNodeChild || isChatDetail || isFilesLibrary || isTransfersPage
+  const headerTitle = isTransfersPage
+    ? t('nav.transfers')
+    : isNodeChild
+      ? t('p2pPing.title')
+      : isFilesLibrary
+        ? t('nav.files')
+        : t(TAB_LABEL_KEYS[activeTab])
+  const headerBackLabel = isSecondaryPage ? t('common.back') : ''
   const nextThemePreference = getNextThemePreference(preference)
 
   const handleHeaderBack = () => {
+    if (isTransfersPage) {
+      closeTransfers()
+      return
+    }
     if (isNodeChild) {
       setNodeRoute('status')
       return
@@ -1278,24 +1317,9 @@ function MostBoxApp() {
           <View
             style={[
               styles.tabPanel,
-              activeTab !== 'transfers' ? styles.tabPanelHidden : null,
+              activeTab !== 'explore' ? styles.tabPanelHidden : null,
             ]}
-          >
-            <TransfersScreen
-              cancellingCid={cancellingTransferCid}
-              isReady={isReady}
-              reselectToken={reselectTokens.transfers}
-              retryingTransferId={retryingTransferId}
-              snapshot={currentSnapshot}
-              runtimeStatus={transferRuntimeStatus}
-              onCancelDownload={handleCancelTransfer}
-              onOpenFiles={openFileLibrary}
-              onOpenNode={openNodeStatus}
-              onOpenHolding={showHoldingDetails}
-              onRetryTransfer={handleRetryTransfer}
-              onShowTransferDetails={handleShowTransferDetails}
-            />
-          </View>
+          />
           {PRODUCT_PROFILE.features.chat ? (
             <View
               style={[
@@ -1339,6 +1363,20 @@ function MostBoxApp() {
                 username={currentSnapshot.node.username}
                 onOpenFiles={openFileLibrary}
                 onOpenNode={openNodeStatus}
+                onOpenTransfers={openTransfers}
+              />
+            ) : nodeView === 'transfers' ? (
+              <TransfersScreen
+                cancellingCid={cancellingTransferCid}
+                isReady={isReady}
+                reselectToken={reselectTokens.node}
+                retryingTransferId={retryingTransferId}
+                snapshot={currentSnapshot}
+                runtimeStatus={transferRuntimeStatus}
+                onCancelDownload={handleCancelTransfer}
+                onOpenHolding={showHoldingDetails}
+                onRetryTransfer={handleRetryTransfer}
+                onShowTransferDetails={handleShowTransferDetails}
               />
             ) : nodeRoute === 'p2pPing' ? (
               <P2PPingScreen
@@ -1398,19 +1436,19 @@ function MostBoxApp() {
               onPress={() => changeTab('files')}
             />
             <TabButton
-              active={activeTab === 'transfers'}
+              active={activeTab === 'explore'}
               icon={
                 <Compass
                   size={21}
                   color={
-                    activeTab === 'transfers'
+                    activeTab === 'explore'
                       ? theme.colors.accent
                       : theme.colors.textSecondary
                   }
                 />
               }
               label={t('nav.discover')}
-              onPress={() => changeTab('transfers')}
+              onPress={() => changeTab('explore')}
             />
             <TabButton
               active={activeTab === 'node'}

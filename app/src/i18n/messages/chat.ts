@@ -92,6 +92,26 @@ export const chatMessages = {
     'zh-TW': '傳送訊息失敗',
     en: 'Could not send message',
   },
+  'chat.voiceRoom': {
+    'zh-CN': '语音通话',
+    'zh-TW': '語音通話',
+    en: 'Voice call',
+  },
+  'chat.voiceMinimize': {
+    'zh-CN': '最小化',
+    'zh-TW': '最小化',
+    en: 'Minimize',
+  },
+  'chat.voiceReturn': {
+    'zh-CN': '返回语音通话',
+    'zh-TW': '返回語音通話',
+    en: 'Return to voice call',
+  },
+  'chat.voiceEmpty': {
+    'zh-CN': '暂无其他成员加入',
+    'zh-TW': '暫無其他成員加入',
+    en: 'No other participants have joined',
+  },
   'chat.voiceTitle': {
     'zh-CN': '语音信令',
     'zh-TW': '語音信令',
@@ -103,9 +123,9 @@ export const chatMessages = {
     en: 'Join voice',
   },
   'chat.voiceLeave': {
-    'zh-CN': '离开语音',
-    'zh-TW': '離開語音',
-    en: 'Leave voice',
+    'zh-CN': '挂断',
+    'zh-TW': '掛斷',
+    en: 'Hang up',
   },
   'chat.voiceMute': {
     'zh-CN': '切换静音',
