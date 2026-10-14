@@ -45,6 +45,35 @@ export function applyIosNetworkPolicy(infoPlist, allowsArbitraryLoads) {
   )
 }
 
+export function applyIosMediaPermissions(infoPlist, permissions = {}) {
+  let result = infoPlist
+  for (const key of [
+    'NSCameraUsageDescription',
+    'NSPhotoLibraryUsageDescription',
+    'NSMicrophoneUsageDescription',
+  ]) {
+    const description = permissions[key]
+    if (typeof description !== 'string' || !description.trim()) continue
+    const escaped = description
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    if (result.includes(`<key>${key}</key>`)) {
+      result = replacePlistString(result, key, escaped)
+    } else {
+      const closing = /<\/dict>(\s*<\/plist>\s*)$/
+      if (!closing.test(result))
+        throw new Error('Unable to add media permissions to iOS Info.plist')
+      result = result.replace(
+        closing,
+        (_match, suffix) =>
+          `  <key>${key}</key>\n  <string>${escaped}</string>\n</dict>${suffix}`
+      )
+    }
+  }
+  return result
+}
+
 export function syncNativeIosProject({
   version = appJson.version,
   buildNumber = appJson.ios?.buildNumber,
@@ -63,10 +92,14 @@ export function syncNativeIosProject({
     version,
     buildNumber
   )
-  const nextInfoPlist = applyIosNetworkPolicy(
+  const networkInfoPlist = applyIosNetworkPolicy(
     versionedInfoPlist,
     appJson.ios?.infoPlist?.NSAppTransportSecurity?.NSAllowsArbitraryLoads ===
       true
+  )
+  const nextInfoPlist = applyIosMediaPermissions(
+    networkInfoPlist,
+    appJson.ios?.infoPlist
   )
   if (nextInfoPlist !== infoPlist) {
     fs.writeFileSync(infoPlistPath, nextInfoPlist)

@@ -559,6 +559,15 @@ export function formatChannelForResponse(channel, peerCount = 0) {
 }
 
 export function normalizeChannelMessage(input = {}, options = {}) {
+  const clientMessageId =
+    typeof input.clientMessageId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.clientMessageId.trim()
+    )
+      ? input.clientMessageId.trim().toLowerCase()
+      : ''
+  if (options.requireClientMessageId && !clientMessageId)
+    throw new Error('Invalid clientMessageId')
   const content = String(input.content || '').trim()
   if (!content) throw new Error('Channel message content is required')
   if (content.length > MAX_CHANNEL_MESSAGE_LENGTH) {
@@ -582,6 +591,7 @@ export function normalizeChannelMessage(input = {}, options = {}) {
       authorName: String(input.authorName || DIAGNOSTIC_AUTHOR_NAME).trim(),
       content,
       timestamp: Number(options.timestamp || input.timestamp || Date.now()),
+      ...(clientMessageId ? { clientMessageId } : {}),
     }
   }
 
@@ -591,6 +601,7 @@ export function normalizeChannelMessage(input = {}, options = {}) {
     authorName: String(input.authorName || DIAGNOSTIC_AUTHOR_NAME).trim(),
     content,
     timestamp: Number(options.timestamp || input.timestamp || Date.now()),
+    ...(clientMessageId ? { clientMessageId } : {}),
     ...(attachment ? { attachment } : {}),
   }
 }
@@ -606,7 +617,11 @@ export function sortChannelMessages(
   for (const message of messages) {
     if (!message || message.type !== 'message') continue
     const attachmentLink = message.attachment?.link || ''
-    const key = `${message._coreKey || ''}:${message.author}:${message.timestamp}:${message.content}:${attachmentLink}`
+    const author =
+      normalizeChannelPresenceAddress(message.author) || message.author
+    const key = message.clientMessageId
+      ? `client:${author}:${message.clientMessageId}`
+      : `${message._coreKey || ''}:${message.author}:${message.timestamp}:${message.content}:${attachmentLink}`
     if (seen.has(key)) continue
     seen.add(key)
     unique.push(message)

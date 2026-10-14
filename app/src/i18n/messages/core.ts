@@ -1,4 +1,50 @@
 export const coreMessages = {
+  'me.aboutVersion': {
+    'zh-CN': '版本 {version}',
+    'zh-TW': '版本 {version}',
+    en: 'Version {version}',
+  },
+  'me.aboutChat': {
+    'zh-CN': '去中心化聊天与文件传输',
+    'zh-TW': '去中心化聊天與檔案傳輸',
+    en: 'Decentralized chat and file transfer',
+  },
+  'me.aboutFiles': {
+    'zh-CN': '点对点文件分享',
+    'zh-TW': '點對點檔案分享',
+    en: 'Peer-to-peer file sharing',
+  },
+  'me.aboutAvailability': {
+    'zh-CN':
+      '文件发布或下载成功后默认继续做种。文件可用性取决于在线种子，请自行保存重要数据。',
+    'zh-TW':
+      '檔案發布或下載成功後預設繼續做種。檔案可用性取決於在線種子，請自行保存重要資料。',
+    en: 'Published and downloaded files continue seeding by default. Availability depends on online seeds. Keep your own copies of important data.',
+  },
+  'me.aboutChatBoundary': {
+    'zh-CN':
+      '当前聊天使用 P2P 频道，支持照片和语音消息。实时语音通话尚未提供；不承诺端到端加密或永久在线。',
+    'zh-TW':
+      '目前聊天使用 P2P 頻道，支援照片和語音訊息。即時語音通話尚未提供；不承諾端對端加密或永久在線。',
+    en: 'Chat uses P2P channels with photo and voice messages. Live voice calls are not available. End-to-end encryption and permanent availability are not promised.',
+  },
+  'me.aboutMobileBackground': {
+    'zh-CN':
+      '本机节点可能被手机系统在后台暂停或清理。持续传输时请保持应用在前台；重新打开会恢复节点和已保存文件的做种。',
+    'zh-TW':
+      '本機節點可能被手機系統在背景暫停或清理。持續傳輸時請保持應用程式在前景；重新開啟會恢復節點和已保存檔案的做種。',
+    en: 'The phone may suspend or close the local node in the background. Keep the app open for continuous transfers. Reopening restores the node and seeding of saved files.',
+  },
+  'me.theme': {
+    'zh-CN': '主题',
+    'zh-TW': '主題',
+    en: 'Theme',
+  },
+  'me.avatar': {
+    'zh-CN': '地址头像',
+    'zh-TW': '地址頭像',
+    en: 'Address avatar',
+  },
   'common.ok': {
     'zh-CN': '确定',
     'zh-TW': '確定',

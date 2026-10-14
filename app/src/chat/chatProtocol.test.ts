@@ -2,9 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   ChatApiClient,
+  ChatRequestTimeoutError,
+  getChatErrorMessage,
   buildChannelSubscribeFrame,
   buildChatMessagePayload,
   createClientMessageId,
+  getChatMessageTimestamp,
+  isOwnChatMessage,
   mergeChatMessages,
   normalizeChatChannel,
   normalizeChatAttachment,
@@ -15,6 +19,51 @@ import {
 const CID = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const LINK = `most://${CID}?filename=photo.png`
 const AUTHOR = '0x1111111111111111111111111111111111111111'
+
+test('own Ethereum authors match checksum and lower-case addresses without changing other identifiers', () => {
+  const address = '0x2Fd13F1a54488cFF329b7a4997351CA0847C08Cc'
+  assert.equal(
+    isOwnChatMessage({ author: address.toLowerCase() }, address),
+    true
+  )
+  assert.equal(isOwnChatMessage({ author: AUTHOR }, address), false)
+  assert.equal(isOwnChatMessage({ author: 'Android' }, 'Android'), true)
+  assert.equal(isOwnChatMessage({ author: 'Android' }, 'android'), false)
+  assert.equal(isOwnChatMessage({ author: '' }, ''), false)
+})
+
+test('local send acknowledgements and writer history merge without duplicate bubbles', () => {
+  const message = {
+    author: AUTHOR,
+    authorName: 'Alice',
+    timestamp: 100,
+    content: 'hello',
+  }
+  assert.equal(
+    mergeChatMessages(
+      [message],
+      [{ ...message, _coreKey: 'writer', _index: 0 }]
+    ).length,
+    1
+  )
+})
+
+test('history timestamps accept ISO strings and ignore invalid values when sorting', () => {
+  const message = { author: AUTHOR, authorName: 'Alice', content: 'hello' }
+  const iso = { ...message, id: 'iso', timestamp: '2026-10-14T00:00:00.000Z' }
+  const newer = {
+    ...message,
+    id: 'number',
+    timestamp: Date.parse('2026-10-14T00:01:00.000Z'),
+  }
+  assert.equal(getChatMessageTimestamp(iso), Date.parse(iso.timestamp))
+  assert.deepEqual(
+    mergeChatMessages([newer, iso]).map(item => item.id),
+    ['iso', 'number']
+  )
+  assert.equal(getChatMessageTimestamp({ ...message, timestamp: 'invalid' }), 0)
+  assert.equal(getChatMessageTimestamp({ ...message, timestamp: Infinity }), 0)
+})
 
 test('normalizes channel IDs consistently for local and remote chat', () => {
   assert.equal(normalizeChatChannel(' #ABC '), 'abc')
@@ -142,6 +191,69 @@ test('parses subscribe acknowledgements and channel message WebSocket frames', (
   assert.equal(
     JSON.parse(buildChannelSubscribeFrame('ROOM')).data.channel,
     'ROOM'
+  )
+})
+
+test('invalid peer retry ids do not collapse distinct legacy history or live messages', () => {
+  for (const invalid of ['not-a-uuid', 123, { id: 'untrusted' }]) {
+    const originals = [1, 2].map(timestamp => ({
+      content: `legacy-${timestamp}`,
+      author: AUTHOR,
+      authorName: 'Alice',
+      timestamp,
+      clientMessageId: invalid,
+    }))
+    const history = parseChatHistoryResponse({ messages: originals }).messages
+    assert.equal(mergeChatMessages(history).length, 2)
+    assert.ok(
+      history.every(message => !Object.hasOwn(message, 'clientMessageId'))
+    )
+    const event = parseChatWebSocketMessage(
+      JSON.stringify({
+        event: 'channel:message',
+        data: { channel: 'room', message: originals[1] },
+      })
+    )
+    assert.ok(event?.event === 'channel:message')
+    assert.equal(Object.hasOwn(event.message, 'clientMessageId'), false)
+    assert.equal(mergeChatMessages(history, [event.message]).length, 2)
+  }
+  const id = '550E8400-E29B-41D4-A716-446655440000'
+  const valid = parseChatHistoryResponse({
+    messages: [
+      {
+        content: 'valid retry',
+        author: AUTHOR,
+        authorName: 'Alice',
+        clientMessageId: id,
+      },
+    ],
+  }).messages
+  assert.equal(valid[0].clientMessageId, id.toLowerCase())
+  assert.equal(mergeChatMessages(valid, valid).length, 1)
+})
+
+test('merges retries across checksum Ethereum authors without conflating other identifiers', () => {
+  const original = {
+    content: 'one message',
+    author: '0x2Fd13F1a54488cFF329b7a4997351CA0847C08Cc',
+    authorName: 'Android',
+    clientMessageId: '550e8400-e29b-41d4-a716-446655440000',
+    timestamp: 1,
+  }
+  assert.equal(
+    mergeChatMessages(
+      [original],
+      [{ ...original, author: original.author.toLowerCase() }]
+    ).length,
+    1
+  )
+  assert.equal(
+    mergeChatMessages(
+      [{ ...original, author: 'Alice' }],
+      [{ ...original, author: 'alice' }]
+    ).length,
+    2
   )
 })
 
@@ -335,4 +447,101 @@ test('channel management propagates server rejection', async () => {
   await assert.rejects(client.leaveChannel('room'), /denied/)
   await assert.rejects(client.setChannelRemark('room', 'name'), /denied/)
   await assert.rejects(client.setChannelPinned('room', true), /denied/)
+})
+
+test('a stalled chat request aborts after 30 seconds and reports a retryable timeout', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let signal: AbortSignal | null = null
+  let started: () => void = () => {}
+  const ready = new Promise<void>(resolve => {
+    started = resolve
+  })
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      signal = init?.signal || null
+      started()
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+          once: true,
+        })
+      })
+    }) as typeof fetch,
+  })
+  const rejected = assert.rejects(client.listChannels(), error => {
+    assert.ok(error instanceof ChatRequestTimeoutError)
+    assert.equal(getChatErrorMessage(error, '失败', '请重试'), '请重试')
+    return true
+  })
+  await ready
+  context.mock.timers.tick(29_999)
+  assert.equal((signal as AbortSignal | null)?.aborted, false)
+  context.mock.timers.tick(1)
+  await rejected
+  assert.equal((signal as AbortSignal | null)?.aborted, true)
+})
+
+test('completed chat requests clear their deadline and preserve server errors', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  const signals: AbortSignal[] = []
+  let rejected = false
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.signal) signals.push(init.signal)
+      return rejected
+        ? new Response(JSON.stringify({ error: 'denied' }), { status: 403 })
+        : new Response(JSON.stringify({ channels: [] }), { status: 200 })
+    }) as typeof fetch,
+  })
+  await client.listChannels()
+  rejected = true
+  await assert.rejects(client.listChannels(), /denied/)
+  context.mock.timers.tick(30_000)
+  assert.equal(signals.length, 2)
+  assert.ok(signals.every(signal => !signal.aborted))
+  assert.equal(
+    getChatErrorMessage(new Error('denied'), '失败', '请重试'),
+    'denied'
+  )
+})
+
+test('the chat deadline also covers a response body that stalls after its headers arrive', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let headersReady: () => void = () => {}
+  const ready = new Promise<void>(resolve => {
+    headersReady = resolve
+  })
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            init?.signal?.addEventListener(
+              'abort',
+              () => controller.error(new Error('aborted body')),
+              { once: true }
+            )
+          },
+        })
+      )
+      headersReady()
+      return response
+    }) as typeof fetch,
+  })
+  const rejected = assert.rejects(
+    client.listChannels(),
+    ChatRequestTimeoutError
+  )
+  await ready
+  await Promise.resolve()
+  context.mock.timers.tick(30_000)
+  await rejected
 })

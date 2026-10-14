@@ -1,9 +1,12 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { MessageCircle, MoreHorizontal, Search } from 'lucide-react-native'
+import { MessageCircle, MoreHorizontal, Search, X } from 'lucide-react-native'
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -12,7 +15,11 @@ import type {
   MobileCoreSnapshot,
   MostBoxMobileClient,
 } from '../../mobileCore/types'
-import { ChatApiClient } from '../../chat/chatProtocol'
+import {
+  ChatApiClient,
+  ChatRequestTimeoutError,
+  normalizeChatChannel,
+} from '../../chat/chatProtocol'
 import {
   BottomSheetCard,
   IconButton,
@@ -24,6 +31,7 @@ import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import { useI18n } from '../../i18n'
 import { useMostBoxTheme } from '../../ui/theme'
 import { getJoinedChannels, type JoinedChannel } from './conversationModel'
+import * as Clipboard from 'expo-clipboard'
 
 export type ContactsScreenProps = {
   channels: JoinedChannel[]
@@ -61,7 +69,7 @@ export function ContactsScreen({
   const filtered = getJoinedChannels(channels).filter(channel =>
     `${channel.name} ${channel.remark}`
       .toLocaleLowerCase()
-      .includes(query.trim().toLocaleLowerCase())
+      .includes(normalizeChatChannel(query))
   )
 
   const run = async (action: () => Promise<void>) => {
@@ -70,7 +78,10 @@ export function ContactsScreen({
     try {
       await action()
     } catch (nextError) {
-      const message = getFriendlyRemoteConnectionError(nextError, locale)
+      const message =
+        nextError instanceof ChatRequestTimeoutError
+          ? t('chat.requestTimedOut')
+          : getFriendlyRemoteConnectionError(nextError, locale)
       setError(message)
       if (!renaming) toast(message, 'error')
     } finally {
@@ -132,6 +143,27 @@ export function ContactsScreen({
   const showMenu = (channel: JoinedChannel) => {
     alert(`#${channel.remark || channel.name}`, undefined, [
       {
+        text: t('chat.copyChannelName'),
+        onPress: () => {
+          void Clipboard.setStringAsync(`#${channel.name}`)
+            .then(() => toast(t('chat.copied'), 'success'))
+            .catch(() => toast(t('app.clipboard.failed'), 'error'))
+        },
+      },
+      ...(Platform.OS !== 'web'
+        ? [
+            {
+              text: t('chat.shareChannel'),
+              onPress: () => {
+                void Share.share({
+                  message: `#${channel.name}`,
+                  title: `MostBox · #${channel.name}`,
+                }).catch(() => toast(t('chat.channelShareFailed'), 'error'))
+              },
+            },
+          ]
+        : []),
+      {
         text: t('contacts.rename'),
         onPress: () => {
           setError('')
@@ -183,6 +215,15 @@ export function ContactsScreen({
             style={styles.searchInput}
             value={query}
           />
+          {query ? (
+            <IconButton
+              accessibilityLabel={t('chat.clearSearch')}
+              onPress={() => setQuery('')}
+              variant="ghost"
+            >
+              <X size={18} color={theme.colors.textMuted} />
+            </IconButton>
+          ) : null}
         </View>
         <Text style={styles.groupTitle}>{t('contacts.myChannels')}</Text>
         <View style={styles.group}>
@@ -228,7 +269,10 @@ export function ContactsScreen({
         visible={Boolean(renaming)}
         onRequestClose={() => !working && setRenaming(null)}
       >
-        <View style={styles.renameOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.renameOverlay}
+        >
           <BottomSheetCard style={styles.renameCard}>
             <Text style={styles.label}>{t('contacts.rename')}</Text>
             <Text style={styles.meta}>#{renaming?.name}</Text>
@@ -254,7 +298,7 @@ export function ContactsScreen({
               {t('common.cancel')}
             </MostButton>
           </BottomSheetCard>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   )

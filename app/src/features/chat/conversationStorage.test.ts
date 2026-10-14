@@ -3,6 +3,8 @@ import test from 'node:test'
 import {
   loadHiddenConversations,
   saveHiddenConversations,
+  loadConversationState,
+  saveConversationState,
 } from './conversationStorage.web'
 
 test('hidden conversations persist across reloads, remain scoped to the node and account, and can be restored', async () => {
@@ -21,10 +23,35 @@ test('hidden conversations persist across reloads, remain scoped to the node and
     assert.deepEqual(await loadHiddenConversations('node-a:alice'), ['8848'])
     assert.deepEqual(await loadHiddenConversations('node-b:bob'), ['other'])
     assert.deepEqual(await loadHiddenConversations('node-a:bob'), [])
+    await saveConversationState('node-a:alice', {
+      drafts: { team: 'Unsent' },
+      readAt: { team: 123 },
+    })
+    await saveConversationState('node-b:bob', {
+      drafts: { other: 'Other account' },
+      readAt: { other: 456 },
+    })
+    assert.deepEqual(await loadConversationState('node-a:alice'), {
+      drafts: { team: 'Unsent' },
+      readAt: { team: 123 },
+    })
+    assert.deepEqual(await loadConversationState('node-a:bob'), {
+      drafts: {},
+      readAt: {},
+    })
+    assert.deepEqual(await loadHiddenConversations('node-a:alice'), ['8848'])
     await saveHiddenConversations('node-a:alice', [])
     assert.deepEqual(await loadHiddenConversations('node-a:alice'), [])
+    assert.equal(
+      (await loadConversationState('node-a:alice')).drafts.team,
+      'Unsent'
+    )
     values.set('mostbox.hidden-conversations.v1', 'invalid json')
     assert.deepEqual(await loadHiddenConversations('node-b:bob'), [])
+    assert.deepEqual(await loadConversationState('node-b:bob'), {
+      drafts: {},
+      readAt: {},
+    })
     await saveHiddenConversations('node-b:bob', ['other'])
     assert.deepEqual(await loadHiddenConversations('node-b:bob'), ['other'])
   } finally {

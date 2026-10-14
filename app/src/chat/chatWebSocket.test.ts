@@ -101,3 +101,70 @@ test('rejects empty channel names', async () => {
   await assert.rejects(() => session.subscribe('  '), /channel is required/)
   session.close()
 })
+
+test('closing during authentication prevents an abandoned session from opening a socket', async () => {
+  let creations = 0
+  const session = new ChatWebSocketSession({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    webSocketFactory: () => {
+      creations += 1
+      return new FakeSocket()
+    },
+  })
+  const connecting = session.connect()
+  const rejected = assert.rejects(connecting, /session closed/)
+  session.close()
+  await rejected
+  assert.equal(creations, 0)
+  assert.equal(session.connected, false)
+})
+
+test('stale socket events after close cannot deliver messages or start reconnects', async () => {
+  const sockets: FakeSocket[] = []
+  const events: unknown[] = []
+  const session = new ChatWebSocketSession({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    reconnectBaseDelayMs: 1,
+    onEvent: event => events.push(event),
+    webSocketFactory: () => {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      return socket
+    },
+  })
+  const connecting = session.connect()
+  await new Promise(resolve => setTimeout(resolve, 0))
+  sockets[0].open()
+  await connecting
+  session.close()
+  sockets[0].message(
+    JSON.stringify({ event: 'channel:subscribed', data: { channel: 'old' } })
+  )
+  sockets[0].onerror?.()
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.deepEqual(events, [])
+  assert.equal(sockets.length, 1)
+})
+
+test('a connection that never opens times out and closes the failed socket', async () => {
+  const socket = new FakeSocket()
+  const session = new ChatWebSocketSession({
+    baseUrl: 'https://node.example',
+    invite: '',
+    identity: null,
+    connectionTimeoutMs: 5,
+    reconnectBaseDelayMs: 1000,
+    webSocketFactory: () => socket,
+  })
+  try {
+    await assert.rejects(session.connect(), /connection timed out/)
+    assert.equal(socket.readyState, 3)
+    assert.equal(session.connected, false)
+  } finally {
+    session.close()
+  }
+})

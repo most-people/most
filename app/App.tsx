@@ -19,7 +19,9 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
+import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import type { VoiceRecording } from './src/features/chat/voiceRecordingSession'
 import * as IntentLauncher from 'expo-intent-launcher'
 import * as Sharing from 'expo-sharing'
 import { saveFileToDirectory } from './src/files/nativeFileExport'
@@ -28,14 +30,11 @@ import {
   Check,
   ChevronLeft,
   Compass,
-  Languages,
+  HardDrive,
   ListChecks,
   Loader,
-  Monitor,
-  Moon,
   MessageCircle,
   ShieldCheck,
-  Sun,
   UserRound,
   Users,
   X,
@@ -43,6 +42,7 @@ import {
 import { FilesScreen } from './src/features/files/FilesScreen'
 import type { JoinedChannel } from './src/features/chat/conversationModel'
 import { ContactsScreen } from './src/features/chat/ContactsScreen'
+import { DiscoverScreen } from './src/features/discover/DiscoverScreen'
 import {
   WebFilePreview,
   type WebFilePreviewFile,
@@ -61,6 +61,7 @@ import {
 } from './src/navigation/rootNavigation'
 import { NodeScreen } from './src/features/node/NodeScreen'
 import { MeScreen } from './src/features/node/MeScreen'
+import { AboutMostBox } from './src/features/node/AboutMostBox'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
@@ -70,6 +71,7 @@ import {
   type TransferRuntimePlatform,
 } from './src/features/transfers/transferModel'
 import { ChatScreen } from './src/features/chat/ChatScreen'
+import { useChatNotificationPreference } from './src/features/chat/useChatNotificationPreference'
 import { formatAttachmentSize } from './src/features/chat/attachmentModel'
 import type { ChatAttachment } from './src/chat/chatProtocol'
 import {
@@ -82,13 +84,10 @@ import {
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import {
   darkTheme,
-  getNextThemePreference,
   lightTheme,
   ThemeProvider,
   type MostBoxTheme,
-  type ThemePreference,
   useMostBoxTheme,
-  useThemePreference,
 } from './src/ui/theme'
 import {
   parseIncomingMostLink,
@@ -146,12 +145,6 @@ const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   chat: 'nav.wechat',
   node: 'nav.me',
 }
-
-const THEME_LABEL_KEYS = {
-  dark: 'common.theme.dark',
-  light: 'common.theme.light',
-  system: 'common.theme.system',
-} as const satisfies Record<ThemePreference, MessageKey>
 
 function isChatDetailRoute() {
   return (
@@ -274,7 +267,6 @@ export default function App() {
 function MostBoxApp() {
   const { locale, setLocale, t } = useI18n()
   const { alert, toast } = useFeedback()
-  const { cyclePreference, preference } = useThemePreference()
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -293,7 +285,12 @@ function MostBoxApp() {
   const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [joinedChannels, setJoinedChannels] = useState<JoinedChannel[]>([])
-  const [filesView, setFilesView] = useState<'contacts' | 'library'>('contacts')
+  const [filesView, setFilesView] = useState<'contacts' | 'library'>(
+    PRODUCT_PROFILE.features.chat ? 'contacts' : 'library'
+  )
+  const [joinChannelRequest, setJoinChannelRequest] = useState(0)
+  const [chatUnread, setChatUnread] = useState(0)
+  const chatNotifications = useChatNotificationPreference()
   const [nodeView, setNodeView] = useState<'me' | 'status' | 'transfers'>(() =>
     Platform.OS === 'web' &&
     typeof window !== 'undefined' &&
@@ -320,6 +317,7 @@ function MostBoxApp() {
   } | null>(null)
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [downloadLinkInput, setDownloadLinkInput] = useState('')
   const [downloadIntent, setDownloadIntent] = useState<IncomingMostLink | null>(
     null
@@ -498,7 +496,8 @@ function MostBoxApp() {
       return
     }
     if (nextTab !== 'node') setNodeRoute('status')
-    if (nextTab === 'files') setFilesView('contacts')
+    if (nextTab === 'files')
+      setFilesView(PRODUCT_PROFILE.features.chat ? 'contacts' : 'library')
     if (nextTab === 'node') setNodeView('me')
     updateRootTabRoute(nextTab)
     setActiveTab(nextTab)
@@ -587,46 +586,98 @@ function MostBoxApp() {
 
   const handleCancelP2PPing = (id?: string) => core.cancelP2PPing({ id })
 
-  const publishPickedFile = async (targetPath = '') => {
+  const publishPickedFile = async (
+    targetPath = '',
+    source: 'file' | 'photos' | 'camera' = 'file'
+  ) => {
     if (!guardReady()) return
 
     setPublishing(true)
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
-        multiple: false,
-        type: '*/*',
-      })
-      if (result.canceled) return null
-
-      const file = result.assets[0]
-      if (!file) return null
-      const policyErrorKey = getStoreFilePolicyErrorKey(
-        file.name,
-        file.mimeType
-      )
-      if (policyErrorKey) {
-        alert(t('app.file.unsupported'), t(policyErrorKey))
-        return null
+      let file: DocumentPickerAsset | undefined
+      if (source === 'file') {
+        const result = await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: '*/*',
+        })
+        if (result.canceled) return null
+        file = result.assets[0]
+      } else {
+        if (source === 'camera') {
+          const permission = await ImagePicker.requestCameraPermissionsAsync()
+          if (!permission.granted) {
+            alert(
+              t('chat.cameraPermissionTitle'),
+              t('chat.cameraPermissionBody')
+            )
+            return null
+          }
+        }
+        const options: ImagePicker.ImagePickerOptions = {
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 1,
+          exif: false,
+        }
+        const result =
+          source === 'camera'
+            ? await ImagePicker.launchCameraAsync(options)
+            : await ImagePicker.launchImageLibraryAsync(options)
+        if (result.canceled || !result.assets[0]) return null
+        const asset = result.assets[0]
+        const uriName = asset.uri.split('/').pop()?.split('?')[0] || ''
+        file = {
+          uri: asset.uri,
+          name:
+            asset.fileName ||
+            asset.file?.name ||
+            uriName ||
+            `photo-${Date.now()}.jpg`,
+          size: asset.fileSize,
+          lastModified: asset.file?.lastModified || Date.now(),
+          mimeType:
+            asset.mimeType ||
+            asset.file?.type ||
+            getMimeType(asset.fileName || uriName),
+          file: asset.file,
+        }
       }
-      const normalizedTargetPath = normalizeFileDisplayPath(targetPath)
-      const publishName = normalizedTargetPath
-        ? `${normalizedTargetPath}/${file.name}`
-        : file.name
-
-      const transfer = await core.publishFile({
-        uri: file.uri,
-        name: publishName,
-        size: file.size || 0,
-        mimeType: file.mimeType,
-        contentBytes: await readDevCidBytes(file),
-        webFile: file.file,
-      })
-
-      if (!transfer.link) throw new Error(t('app.file.linkMissing'))
-      return { file, link: transfer.link, transfer }
+      if (!file) return null
+      return await publishFileAsset(file, targetPath)
     } finally {
       setPublishing(false)
+    }
+  }
+
+  const publishFileAsset = async (
+    file: DocumentPickerAsset,
+    targetPath = ''
+  ) => {
+    const policyErrorKey = getStoreFilePolicyErrorKey(file.name, file.mimeType)
+    if (policyErrorKey) {
+      alert(t('app.file.unsupported'), t(policyErrorKey))
+      return null
+    }
+    const normalizedTargetPath = normalizeFileDisplayPath(targetPath)
+    const publishName = normalizedTargetPath
+      ? `${normalizedTargetPath}/${file.name}`
+      : file.name
+
+    const transfer = await core.publishFile({
+      uri: file.uri,
+      name: publishName,
+      size: file.size || 0,
+      mimeType: file.mimeType,
+      contentBytes: await readDevCidBytes(file),
+      webFile: file.file,
+    })
+
+    if (!transfer.link) throw new Error(t('app.file.linkMissing'))
+    return {
+      file: { ...file, name: parseMostLink(transfer.link).fileName },
+      link: transfer.link,
+      transfer,
     }
   }
 
@@ -662,23 +713,83 @@ function MostBoxApp() {
     }
   }
 
-  const handlePublishChatAttachment =
-    async (): Promise<ChatAttachment | null> => {
-      const result = await publishPickedFile()
-      if (!result) return null
-      const cid = result.transfer.cid || parseMostLink(result.link).cid
-      const mimeType = result.file.mimeType || undefined
+  const handlePublishChatAttachment = async (
+    source: 'file' | 'photos' | 'camera' = 'file'
+  ): Promise<ChatAttachment | null> => {
+    const result = await publishPickedFile('', source)
+    if (!result) return null
+    const cid = result.transfer.cid || parseMostLink(result.link).cid
+    const mimeType = result.file.mimeType || undefined
+    return {
+      kind: mimeType?.startsWith('image/') ? 'image' : 'file',
+      cid,
+      fileName: result.file.name,
+      link: result.link,
+      ...(mimeType ? { mimeType } : {}),
+      ...(typeof result.file.size === 'number'
+        ? { size: result.file.size }
+        : {}),
+    }
+  }
+
+  const handlePublishVoiceMessage = async (
+    recording: VoiceRecording
+  ): Promise<ChatAttachment> => {
+    if (!isReady)
+      throw new Error(
+        t(
+          isNodeOnline && isRemote
+            ? 'node.account.required'
+            : 'app.core.notReadyBody'
+        )
+      )
+    setPublishing(true)
+    try {
+      let file: DocumentPickerAsset
+      if (Platform.OS === 'web') {
+        const blob = await (await fetch(recording.uri)).blob()
+        const extension = blob.type.includes('mp4')
+          ? 'm4a'
+          : blob.type.includes('ogg')
+            ? 'ogg'
+            : 'webm'
+        const webFile = new File([blob], `voice-${Date.now()}.${extension}`, {
+          type: blob.type,
+        })
+        file = {
+          uri: recording.uri,
+          name: webFile.name,
+          size: webFile.size,
+          mimeType: webFile.type,
+          lastModified: webFile.lastModified,
+          file: webFile,
+        }
+      } else {
+        const info = await FileSystem.getInfoAsync(recording.uri)
+        if (!info.exists || info.isDirectory)
+          throw new Error(t('chat.voiceRecordingFailed'))
+        file = {
+          uri: recording.uri,
+          name: `voice-${Date.now()}.m4a`,
+          size: info.size,
+          mimeType: 'audio/mp4',
+          lastModified: Date.now(),
+        }
+      }
+      const result = await publishFileAsset(file)
+      if (!result) throw new Error(t('chat.attachmentFailed'))
       return {
-        kind: mimeType?.startsWith('image/') ? 'image' : 'file',
-        cid,
+        kind: 'audio',
+        cid: result.transfer.cid || parseMostLink(result.link).cid,
         fileName: result.file.name,
         link: result.link,
-        ...(mimeType ? { mimeType } : {}),
-        ...(typeof result.file.size === 'number'
-          ? { size: result.file.size }
-          : {}),
+        mimeType: file.mimeType,
+        size: file.size,
       }
+    } finally {
+      setPublishing(false)
     }
+  }
 
   const openDownloadModal = () => {
     setDownloadLinkInput('')
@@ -699,7 +810,10 @@ function MostBoxApp() {
       activeTab,
       downloadModalOpen,
       transfersOpen: activeTab === 'node' && nodeView === 'transfers',
-      filesLibraryOpen: activeTab === 'files' && filesView === 'library',
+      filesLibraryOpen:
+        PRODUCT_PROFILE.features.chat &&
+        activeTab === 'files' &&
+        filesView === 'library',
       languageModalOpen,
       nodeRoute,
     })
@@ -1126,7 +1240,10 @@ function MostBoxApp() {
   }
 
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
-  const isFilesLibrary = activeTab === 'files' && filesView === 'library'
+  const isFilesLibrary =
+    PRODUCT_PROFILE.features.chat &&
+    activeTab === 'files' &&
+    filesView === 'library'
   const isChatDetail = activeTab === 'chat' && chatDetailRoute
   const isTransfersPage = activeTab === 'node' && nodeView === 'transfers'
   const isSecondaryPage = isNodeChild || isFilesLibrary || isTransfersPage
@@ -1140,7 +1257,6 @@ function MostBoxApp() {
         ? t('nav.files')
         : t(TAB_LABEL_KEYS[activeTab])
   const headerBackLabel = isSecondaryPage ? t('common.back') : ''
-  const nextThemePreference = getNextThemePreference(preference)
 
   const handleHeaderBack = () => {
     if (isTransfersPage) {
@@ -1222,7 +1338,7 @@ function MostBoxApp() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        {!isChatDetail ? (
+        {isSecondaryPage ? (
           <View
             style={[
               styles.header,
@@ -1252,31 +1368,6 @@ function MostBoxApp() {
                   {headerTitle}
                 </Text>
               </View>
-            </View>
-            <View style={styles.headerActions}>
-              <IconButton
-                accessibilityLabel={t('common.theme.switch', {
-                  current: t(THEME_LABEL_KEYS[preference]),
-                  next: t(THEME_LABEL_KEYS[nextThemePreference]),
-                })}
-                onPress={cyclePreference}
-                style={styles.headerIconButton}
-              >
-                {preference === 'dark' ? (
-                  <Moon size={18} color={theme.colors.info} />
-                ) : preference === 'light' ? (
-                  <Sun size={19} color={theme.colors.warning} />
-                ) : (
-                  <Monitor size={18} color={theme.colors.textSecondary} />
-                )}
-              </IconButton>
-              <IconButton
-                accessibilityLabel={t('common.language.choose')}
-                onPress={openLanguageMenu}
-                style={styles.headerIconButton}
-              >
-                <Languages size={19} color={theme.colors.textSecondary} />
-              </IconButton>
             </View>
           </View>
         ) : null}
@@ -1324,7 +1415,19 @@ function MostBoxApp() {
               styles.tabPanel,
               activeTab !== 'explore' ? styles.tabPanelHidden : null,
             ]}
-          />
+          >
+            <DiscoverScreen
+              reselectToken={reselectTokens.explore}
+              onJoinChannel={() => {
+                changeTab('chat')
+                setJoinChannelRequest(current => current + 1)
+              }}
+              onReceiveFile={openDownloadModal}
+              onOpenFiles={openFileLibrary}
+              onOpenTransfers={openTransfers}
+              onOpenNode={openNodeStatus}
+            />
+          </View>
           {PRODUCT_PROFILE.features.chat ? (
             <View
               style={[
@@ -1334,11 +1437,21 @@ function MostBoxApp() {
             >
               <ChatScreen
                 client={core}
+                active={activeTab === 'chat'}
+                joinRequest={joinChannelRequest}
+                onUnreadChange={setChatUnread}
+                notificationsEnabled={
+                  chatNotifications.enabled &&
+                  chatNotifications.permissionAllowed
+                }
+                onOpenNotification={openContactChannel}
                 onChannelsChange={setJoinedChannels}
                 channels={joinedChannels}
                 openChannelRequest={openChannelRequest}
                 onDetailChange={setChatDetailRoute}
                 onPublishAttachment={handlePublishChatAttachment}
+                onPublishVoiceMessage={handlePublishVoiceMessage}
+                onSaveAttachment={handleSaveHolding}
                 onReceiveAttachment={attachment => {
                   const inspection = inspectReceiveLink(attachment.link)
                   if (inspection.kind === 'blocked') {
@@ -1371,6 +1484,34 @@ function MostBoxApp() {
                 onOpenFiles={openFileLibrary}
                 onOpenNode={openNodeStatus}
                 onOpenTransfers={openTransfers}
+                onOpenLanguage={openLanguageMenu}
+                onOpenAbout={() => setAboutOpen(true)}
+                notificationsEnabled={chatNotifications.enabled}
+                notificationPermissionAllowed={
+                  chatNotifications.permissionAllowed
+                }
+                notificationsDisabled={
+                  !chatNotifications.ready || chatNotifications.working
+                }
+                onToggleNotifications={() => {
+                  if (chatNotifications.enabled) {
+                    void chatNotifications.toggle()
+                  } else {
+                    alert(
+                      t('chat.notifications.title'),
+                      t('chat.notifications.hint'),
+                      [
+                        { text: t('common.cancel'), style: 'cancel' },
+                        {
+                          text: t('chat.notifications.enable'),
+                          onPress: () => {
+                            void chatNotifications.toggle()
+                          },
+                        },
+                      ]
+                    )
+                  }
+                }}
               />
             ) : nodeView === 'transfers' ? (
               <TransfersScreen
@@ -1408,11 +1549,20 @@ function MostBoxApp() {
           </View>
         </View>
 
+        <AboutMostBox
+          visible={aboutOpen}
+          onClose={() => setAboutOpen(false)}
+          onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
+          onOpenTerms={() => openExternalUrl(TERMS_URL)}
+          onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+        />
+
         {!hideTabBar ? (
           <View style={styles.tabBar}>
             {PRODUCT_PROFILE.features.chat ? (
               <TabButton
                 active={activeTab === 'chat'}
+                unread={chatUnread}
                 icon={
                   <MessageCircle
                     size={21}
@@ -1430,16 +1580,29 @@ function MostBoxApp() {
             <TabButton
               active={activeTab === 'files'}
               icon={
-                <Users
-                  size={21}
-                  color={
-                    activeTab === 'files'
-                      ? theme.colors.accent
-                      : theme.colors.textSecondary
-                  }
-                />
+                PRODUCT_PROFILE.features.chat ? (
+                  <Users
+                    size={21}
+                    color={
+                      activeTab === 'files'
+                        ? theme.colors.accent
+                        : theme.colors.textSecondary
+                    }
+                  />
+                ) : (
+                  <HardDrive
+                    size={21}
+                    color={
+                      activeTab === 'files'
+                        ? theme.colors.accent
+                        : theme.colors.textSecondary
+                    }
+                  />
+                )
               }
-              label={t('nav.contacts')}
+              label={t(
+                PRODUCT_PROFILE.features.chat ? 'nav.contacts' : 'nav.files'
+              )}
               onPress={() => changeTab('files')}
             />
             <TabButton
@@ -1776,18 +1939,31 @@ function MostBoxApp() {
 
 type TabButtonProps = {
   active: boolean
+  unread?: number
   icon: React.ReactNode
   label: string
   onPress: () => void
 }
 
-function TabButton({ active, icon, label, onPress }: TabButtonProps) {
+function TabButton({
+  active,
+  icon,
+  label,
+  unread = 0,
+  onPress,
+}: TabButtonProps) {
+  const { t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
 
   return (
     <Pressable
       accessibilityRole="tab"
+      accessibilityLabel={
+        unread
+          ? `${label}, ${t('chat.unreadCount', { count: unread > 99 ? '99+' : unread })}`
+          : label
+      }
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed }) => [
@@ -1796,7 +1972,16 @@ function TabButton({ active, icon, label, onPress }: TabButtonProps) {
         pressed ? styles.pressablePressed : null,
       ]}
     >
-      {icon}
+      <View style={styles.tabIcon}>
+        {icon}
+        {unread > 0 ? (
+          <View style={styles.tabBadge}>
+            <Text style={styles.tabBadgeText}>
+              {unread > 99 ? '99+' : unread}
+            </Text>
+          </View>
+        ) : null}
+      </View>
       <Text
         maxFontSizeMultiplier={1.6}
         numberOfLines={1}
@@ -1991,6 +2176,20 @@ function createStyles(theme: MostBoxTheme) {
     tabButtonActive: {
       backgroundColor: 'transparent',
     },
+    tabIcon: { position: 'relative' },
+    tabBadge: {
+      position: 'absolute',
+      top: -7,
+      left: 15,
+      minWidth: 17,
+      height: 17,
+      paddingHorizontal: 4,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.danger,
+    },
+    tabBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
     tabText: {
       alignSelf: 'stretch',
       color: colors.textSecondary,

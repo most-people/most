@@ -326,8 +326,40 @@ function syncAndroidManifestPolicy() {
   writeIfChanged(androidManifestPath, nextAndroidManifest)
 }
 
-function resolveAndroidManifestPolicy(expoConfig) {
+export function resolveAndroidManifestPolicy(
+  expoConfig,
+  profile = productProfile
+) {
   const androidConfig = { ...(expoConfig.android || {}) }
+  if (!profile.features.voice) {
+    androidConfig.permissions = (androidConfig.permissions || []).filter(
+      permission =>
+        permission !== 'RECORD_AUDIO' &&
+        permission !== 'android.permission.RECORD_AUDIO'
+    )
+    androidConfig.blockedPermissions = [
+      ...new Set([
+        ...(androidConfig.blockedPermissions || []),
+        'android.permission.RECORD_AUDIO',
+      ]),
+    ]
+  }
+  if (!profile.features.chat) {
+    androidConfig.permissions = (androidConfig.permissions || []).filter(
+      permission =>
+        permission !== 'CAMERA' &&
+        permission !== 'android.permission.CAMERA' &&
+        permission !== 'POST_NOTIFICATIONS' &&
+        permission !== 'android.permission.POST_NOTIFICATIONS'
+    )
+    androidConfig.blockedPermissions = [
+      ...new Set([
+        ...(androidConfig.blockedPermissions || []),
+        'android.permission.CAMERA',
+        'android.permission.POST_NOTIFICATIONS',
+      ]),
+    ]
+  }
   const buildProperties = resolveExpoBuildProperties(expoConfig)
   const usesCleartextTraffic = buildProperties?.android?.usesCleartextTraffic
 
@@ -355,6 +387,33 @@ export function applyAndroidManifestPolicy(androidManifest, androidConfig) {
   const blockedPermissions = Array.isArray(androidConfig.blockedPermissions)
     ? androidConfig.blockedPermissions
     : []
+
+  for (const permission of androidConfig.permissions || []) {
+    const name = String(permission).includes('.')
+      ? String(permission)
+      : `android.permission.${permission}`
+    if (blockedPermissions.includes(name)) continue
+    const escaped = escapeRegExp(name)
+    // Existing projects are synchronized without running Expo prebuild again.
+    // A newly enabled permission must replace an earlier removal declaration.
+    nextAndroidManifest = nextAndroidManifest.replace(
+      new RegExp(
+        `\\s*<uses-permission\\s+[^>]*android:name=["']${escaped}["'][^>]*tools:node=["']remove["'][^>]*/>`,
+        'g'
+      ),
+      ''
+    )
+    if (
+      !new RegExp(
+        `<uses-permission\\s+[^>]*android:name=["']${escaped}["']`
+      ).test(nextAndroidManifest)
+    ) {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /(<manifest\b[^>]*>)/,
+        `$1\n  <uses-permission android:name="${name}"/>`
+      )
+    }
+  }
 
   for (const permission of blockedPermissions) {
     const escapedPermission = escapeRegExp(String(permission))

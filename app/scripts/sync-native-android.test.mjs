@@ -13,6 +13,7 @@ import {
   removePlayReleaseSigningConfig,
   repairMissingReleaseGradleConfig,
   resolveProductProfile,
+  resolveAndroidManifestPolicy,
   resolveVersionCode,
 } from './sync-native-android.mjs'
 import {
@@ -21,6 +22,44 @@ import {
 } from './bundle-bare.mjs'
 
 describe('Android native project synchronization', () => {
+  it('keeps optional media permissions available in Most and blocked in 墨盒', () => {
+    const config = {
+      android: {
+        permissions: [
+          'INTERNET',
+          'CAMERA',
+          'RECORD_AUDIO',
+          'POST_NOTIFICATIONS',
+        ],
+        blockedPermissions: ['android.permission.READ_EXTERNAL_STORAGE'],
+      },
+    }
+    const most = resolveAndroidManifestPolicy(
+      config,
+      resolveProductProfile('most')
+    )
+    assert.deepEqual(most.permissions, config.android.permissions)
+    const inkbox = resolveAndroidManifestPolicy(
+      config,
+      resolveProductProfile('inkbox')
+    )
+    assert.deepEqual(inkbox.permissions, ['INTERNET'])
+    assert.ok(inkbox.blockedPermissions.includes('android.permission.CAMERA'))
+    assert.ok(
+      inkbox.blockedPermissions.includes('android.permission.RECORD_AUDIO')
+    )
+    assert.ok(
+      inkbox.blockedPermissions.includes(
+        'android.permission.POST_NOTIFICATIONS'
+      )
+    )
+    const manifest =
+      '<manifest><uses-permission android:name="android.permission.CAMERA"/><uses-permission android:name="android.permission.RECORD_AUDIO"/><application/></manifest>'
+    const result = applyAndroidManifestPolicy(manifest, inkbox)
+    assert.match(result, /CAMERA" tools:node="remove"/)
+    assert.match(result, /RECORD_AUDIO" tools:node="remove"/)
+    assert.match(result, /POST_NOTIFICATIONS" tools:node="remove"/)
+  })
   it('resolves shared Most and 墨盒 build profiles', () => {
     assert.equal(resolveProductProfile('most').appName, 'MostBox')
     assert.equal(resolveProductProfile('most').androidPackage, 'most.box')
@@ -286,5 +325,22 @@ describe('Android native project synchronization', () => {
     assert.doesNotMatch(result, /READ_EXTERNAL_STORAGE[^>]*maxSdkVersion/)
     assert.match(result, /android:allowBackup="false"/)
     assert.match(result, /android:usesCleartextTraffic="true"/)
+  })
+
+  it('enables a newly declared microphone permission in an existing native project', () => {
+    const manifest =
+      '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/><application/></manifest>'
+    const config = {
+      permissions: ['RECORD_AUDIO', 'READ_EXTERNAL_STORAGE'],
+      blockedPermissions: ['android.permission.READ_EXTERNAL_STORAGE'],
+    }
+    const result = applyAndroidManifestPolicy(manifest, config)
+    assert.match(
+      result,
+      /<uses-permission android:name="android.permission.RECORD_AUDIO"\/>/
+    )
+    assert.doesNotMatch(result, /RECORD_AUDIO[^>]*tools:node/)
+    assert.match(result, /READ_EXTERNAL_STORAGE" tools:node="remove"/)
+    assert.equal(applyAndroidManifestPolicy(result, config), result)
   })
 })

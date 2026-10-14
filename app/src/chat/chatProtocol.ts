@@ -41,6 +41,16 @@ export type ChatHistoryPage = {
   nextCursor: string | null
 }
 
+export function isOwnChatMessage(
+  message: Pick<ChatMessage, 'author'>,
+  ownAddress: string
+) {
+  if (!ownAddress) return false
+  return /^0x[0-9a-f]{40}$/i.test(ownAddress)
+    ? message.author.toLowerCase() === ownAddress.toLowerCase()
+    : message.author === ownAddress
+}
+
 export type ChatWebSocketEvent =
   | { event: 'channel:subscribed'; channel: string }
   | { event: 'channel:message'; channel: string; message: ChatMessage }
@@ -67,6 +77,27 @@ export type ChatMessageInput = {
 
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const CHAT_REQUEST_TIMEOUT_MS = 30_000
+
+export class ChatRequestTimeoutError extends Error {
+  constructor() {
+    super('Chat request timed out. Please retry.')
+    this.name = 'ChatRequestTimeoutError'
+  }
+}
+
+export function getChatErrorMessage(
+  error: unknown,
+  fallback: string,
+  timeoutMessage: string
+) {
+  return error instanceof ChatRequestTimeoutError
+    ? timeoutMessage
+    : error instanceof Error && error.message
+      ? error.message
+      : fallback
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -179,8 +210,10 @@ export function normalizeChatMessage(value: unknown): ChatMessage | null {
     return null
   }
   const clientMessageId = readString(record, 'clientMessageId')
+  const fields = { ...record }
+  delete fields.clientMessageId
   return {
-    ...record,
+    ...fields,
     content,
     author,
     authorName,
@@ -233,22 +266,33 @@ export function buildChannelUnsubscribeFrame(channel: string) {
   return JSON.stringify({ event: 'channel:unsubscribe', data: { channel } })
 }
 
-function messageKey(message: ChatMessage) {
-  if (message.clientMessageId)
-    return `client:${message.author}:${message.clientMessageId}`
+export function getChatMessageKey(message: ChatMessage) {
+  if (message.clientMessageId) {
+    const author = /^0x[0-9a-f]{40}$/i.test(message.author)
+      ? message.author.toLowerCase()
+      : message.author
+    return `client:${author}:${message.clientMessageId}`
+  }
   if (message.id) return `id:${message.id}`
   return `legacy:${message.author}:${message.timestamp || ''}:${message.content}`
+}
+
+export function getChatMessageTimestamp(message: ChatMessage) {
+  const value = message.timestamp
+  const timestamp =
+    typeof value === 'number' ? value : Number(value) || Date.parse(value || '')
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
 }
 
 /** Merge history, HTTP responses and live events without duplicating retries. */
 export function mergeChatMessages(...groups: ChatMessage[][]) {
   const merged = new Map<string, ChatMessage>()
   for (const group of groups) {
-    for (const message of group) merged.set(messageKey(message), message)
+    for (const message of group) merged.set(getChatMessageKey(message), message)
   }
   return [...merged.values()].sort((left, right) => {
-    const a = Number(left.timestamp) || 0
-    const b = Number(right.timestamp) || 0
+    const a = getChatMessageTimestamp(left)
+    const b = getChatMessageTimestamp(right)
     return a - b
   })
 }
@@ -276,24 +320,42 @@ export class ChatApiClient {
       path,
     })
     if (body) headers['Content-Type'] = 'application/json'
-    const response = await (this.#options.fetchImpl || fetch)(
-      buildRemoteApiUrl(this.#options.baseUrl, path),
-      { method, headers, body: body ? JSON.stringify(body) : undefined }
-    )
-    const text = await response.text()
-    let payload: unknown = {}
+    const controller = new AbortController()
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, CHAT_REQUEST_TIMEOUT_MS)
     try {
-      payload = text ? JSON.parse(text) : {}
-    } catch {}
-    if (!response.ok) {
-      const record = asRecord(payload)
-      const error = new Error(
-        readString(record, 'error') || `HTTP ${response.status}`
-      ) as Error & { code?: string }
-      error.code = readString(record, 'code') || `HTTP_${response.status}`
+      const response = await (this.#options.fetchImpl || fetch)(
+        buildRemoteApiUrl(this.#options.baseUrl, path),
+        {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        }
+      )
+      const text = await response.text()
+      let payload: unknown = {}
+      try {
+        payload = text ? JSON.parse(text) : {}
+      } catch {}
+      if (!response.ok) {
+        const record = asRecord(payload)
+        const error = new Error(
+          readString(record, 'error') || `HTTP ${response.status}`
+        ) as Error & { code?: string }
+        error.code = readString(record, 'code') || `HTTP_${response.status}`
+        throw error
+      }
+      return payload
+    } catch (error) {
+      if (timedOut) throw new ChatRequestTimeoutError()
       throw error
+    } finally {
+      clearTimeout(timer)
     }
-    return payload
   }
 
   async createOrJoinChannel(input: {

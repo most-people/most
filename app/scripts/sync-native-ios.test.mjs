@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 
 import {
   applyIosNetworkPolicy,
+  applyIosMediaPermissions,
   applyIosVersionInfo,
 } from './sync-native-ios.mjs'
 
@@ -45,5 +46,31 @@ describe('iOS native project synchronization', () => {
     assert.match(enabled, /<key>NSAllowsArbitraryLoads<\/key>\s*<true\/>/)
     assert.equal(applyIosNetworkPolicy(enabled, true), enabled)
     assert.throws(() => applyIosNetworkPolicy('<plist/>', true))
+  })
+
+  it('adds media permission descriptions to an existing project without changing nested dictionaries', () => {
+    const descriptions = {
+      NSCameraUsageDescription: 'Camera & photos <selected>',
+      NSPhotoLibraryUsageDescription: 'Select a photo',
+    }
+    const result = applyIosMediaPermissions(staleInfoPlist, descriptions)
+    assert.match(
+      result,
+      /<\/dict>\s*<key>NSCameraUsageDescription<\/key>\s*<string>Camera &amp; photos &lt;selected&gt;<\/string>/
+    )
+    assert.match(
+      result,
+      /<key>NSPhotoLibraryUsageDescription<\/key>\s*<string>Select a photo<\/string>\s*<\/dict>\s*<\/plist>/
+    )
+    assert.equal(applyIosMediaPermissions(result, descriptions), result)
+    const updated = applyIosMediaPermissions(result, {
+      NSCameraUsageDescription: 'Take a photo',
+    })
+    assert.match(
+      updated,
+      /<key>NSCameraUsageDescription<\/key>\s*<string>Take a photo<\/string>/
+    )
+    assert.equal((updated.match(/NSCameraUsageDescription/g) || []).length, 1)
+    assert.throws(() => applyIosMediaPermissions('<plist/>', descriptions))
   })
 })

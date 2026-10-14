@@ -147,6 +147,7 @@ export type MobileChannel = {
 }
 
 export type MobileChannelMessage = {
+  clientMessageId?: string
   type?: string
   author: string
   authorName: string
@@ -265,6 +266,7 @@ export type LeaveChannelResult = {
   snapshot: MobileCoreSnapshot
 }
 export type SendChannelMessageInput = {
+  clientMessageId?: string
   channelName: string
   content: string
   author?: string
@@ -300,7 +302,10 @@ export type MostBoxMobileCore = {
   leaveChannel?: (input: LeaveChannelInput) => Promise<void>
   setChannelRemark?: (input: SetChannelRemarkInput) => Promise<void>
   setChannelPinned?: (input: SetChannelPinnedInput) => Promise<void>
-  getChannelMessages?: (channelName: string) => Promise<MobileChannelMessage[]>
+  getChannelMessages?: (
+    channelName: string,
+    options?: { limit?: number; offset?: number }
+  ) => Promise<MobileChannelMessage[]>
   sendChannelMessage?: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>

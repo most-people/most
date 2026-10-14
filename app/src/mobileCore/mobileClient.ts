@@ -295,9 +295,12 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#active.setChannelPinned(input)
   }
 
-  getChannelMessages(channelName: string): Promise<MobileChannelMessage[]> {
+  getChannelMessages(
+    channelName: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<MobileChannelMessage[]> {
     if (!this.#active.getChannelMessages) return Promise.resolve([])
-    return this.#active.getChannelMessages(channelName)
+    return this.#active.getChannelMessages(channelName, options)
   }
 
   sendChannelMessage(

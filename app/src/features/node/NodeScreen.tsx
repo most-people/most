@@ -155,6 +155,7 @@ export function NodeScreen({
 
   return (
     <ScrollView
+      keyboardShouldPersistTaps="handled"
       ref={scrollRef}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}

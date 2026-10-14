@@ -487,13 +487,14 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
   }
 
   async getChannelMessages(
-    channelName: string
+    channelName: string,
+    options: { limit?: number; offset?: number } = {}
   ): Promise<MobileChannelMessage[]> {
     await this.#ensureStarted()
     return extractChannelMessages(
       await this.#request(
         COMMANDS.CHANNEL_MESSAGES,
-        { channelName },
+        { channelName, ...options },
         [EVENTS.CHANNEL_STATUS],
         30000
       )

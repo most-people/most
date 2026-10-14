@@ -1,5 +1,7 @@
 import {
   ActivityIndicator,
+  AppState,
+  BackHandler,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -10,7 +12,8 @@ import {
   Text,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import * as Clipboard from 'expo-clipboard'
 import {
   useCallback,
   useEffect,
@@ -23,6 +26,7 @@ import {
 import {
   ArrowLeft,
   Camera,
+  Image as ImageIcon,
   FileText,
   Keyboard as KeyboardIcon,
   MessageCircle,
@@ -34,10 +38,16 @@ import {
   PhoneCall,
   PhoneOff,
   Plus,
+  Search,
   Smile,
+  X,
 } from 'lucide-react-native'
 import {
   ChatApiClient,
+  createClientMessageId,
+  getChatErrorMessage,
+  getChatMessageKey,
+  isOwnChatMessage,
   mergeChatMessages,
   normalizeChatChannel,
   type ChatAttachment,
@@ -76,13 +86,25 @@ import { useMostBoxTheme } from '../../ui/theme'
 
 import {
   getJoinedChannels,
+  getConversationDraft,
+  getConversationSummaries,
+  getRemainingHiddenConversations,
+  markConversationRead,
+  setConversationDraft,
   type JoinedChannel,
-  getVisibleConversations,
 } from './conversationModel'
 import {
   loadHiddenConversations,
   saveHiddenConversations,
 } from './conversationStorage'
+import { useConversationState } from './useConversationState'
+import { PRODUCT_PROFILE } from '../../product/productProfile'
+import { ChatImagePreview } from './ChatImagePreview'
+import { VoiceMessageRecorder } from './VoiceMessageRecorder'
+import { VoiceAudioPlayer } from './VoiceAudioPlayer'
+import type { VoiceRecording } from './voiceRecordingSession'
+import { useChatNotifications } from './useChatNotifications'
+import { ChannelShareSheet } from './ChannelShareSheet'
 
 function updateChatRoute(channel = '') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -108,7 +130,6 @@ type ChatBridge = MostBoxMobileCore & {
     Array<{ channelKey?: string; channelId?: string; name?: string }>
   >
   createChannel?: (input: { name: string; type?: string }) => Promise<unknown>
-  getChannelMessages?: (name: string) => Promise<MobileChannelMessage[]>
   sendChannelMessage?: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>
@@ -119,11 +140,20 @@ export type ChatScreenProps = {
   snapshot: MobileCoreSnapshot
   openChannelRequest?: { channel: string; token: number } | null
   onDetailChange?: (open: boolean) => void
+  active?: boolean
+  joinRequest?: number
+  onUnreadChange?: (count: number) => void
+  notificationsEnabled: boolean
+  onOpenNotification: (channel: string) => void
   channels: JoinedChannel[]
   onChannelsChange: Dispatch<SetStateAction<JoinedChannel[]>>
-  onPublishAttachment: () => Promise<ChatAttachment | null>
+  onPublishAttachment: (
+    source?: 'file' | 'photos' | 'camera'
+  ) => Promise<ChatAttachment | null>
   onReceiveAttachment: (attachment: ChatAttachment) => void
+  onPublishVoiceMessage: (recording: VoiceRecording) => Promise<ChatAttachment>
   onOpenAttachment: (holding: MobileHolding) => void | Promise<void>
+  onSaveAttachment: (holding: MobileHolding) => void | Promise<void>
 }
 
 export function ChatScreen({
@@ -131,13 +161,21 @@ export function ChatScreen({
   snapshot,
   openChannelRequest,
   onDetailChange,
+  active = true,
+  joinRequest = 0,
+  onUnreadChange,
+  notificationsEnabled,
+  onOpenNotification,
   onChannelsChange,
   channels,
   onPublishAttachment,
+  onPublishVoiceMessage,
   onReceiveAttachment,
   onOpenAttachment,
+  onSaveAttachment,
 }: ChatScreenProps) {
-  const { t, formatDateTime } = useI18n()
+  const { t, formatDateTime, locale } = useI18n()
+  const insets = useSafeAreaInsets()
   const theme = useMostBoxTheme()
   const styles = chatStyles(theme)
   const { alert, toast } = useFeedback()
@@ -159,13 +197,41 @@ export function ChatScreen({
   const socketRef = useRef<ChatWebSocketSession | null>(null)
   const voiceSessionRef = useRef<VoiceWebSocketSession | null>(null)
   const lastOpenChannelTokenRef = useRef<number | null>(null)
+  const lastJoinRequestRef = useRef(0)
+  const loadRequestRef = useRef(0)
+  const selectedChannelRef = useRef('')
+  const messageListRef = useRef<FlatList<ChatMessage>>(null)
+  const historyCursorRef = useRef<string | null>(null)
+  const historyRequestRef = useRef(false)
+  const textAttemptsRef = useRef(
+    new Map<string, { content: string; clientMessageId: string }>()
+  )
+  const voiceAttemptRef = useRef<{
+    scope: string
+    channel: string
+    uri: string
+    clientMessageId: string
+    attachment?: ChatAttachment
+  } | null>(null)
   const [channelInput, setChannelInput] = useState('')
+  const [joinSheetOpen, setJoinSheetOpen] = useState(false)
+  const [shareRequest, setShareRequest] = useState<{
+    scope: string
+    name: string
+  } | null>(null)
   const [channel, setChannel] = useState('')
   const [chatOpen, setChatOpen] = useState(() => Boolean(getInitialChatRoute()))
   const setChannels = onChannelsChange
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [draft, setDraft] = useState('')
+  const [search, setSearch] = useState('')
+  const [foreground, setForeground] = useState(
+    AppState.currentState === 'active'
+  )
   const [loading, setLoading] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [hasOlderMessages, setHasOlderMessages] = useState(false)
+  const [nearLatest, setNearLatest] = useState(true)
+  const [chatConnected, setChatConnected] = useState(false)
   const [sending, setSending] = useState(false)
   const [voiceState, setVoiceState] = useState<VoiceRoomState | null>(null)
   const [voiceJoined, setVoiceJoined] = useState(false)
@@ -178,22 +244,264 @@ export function ChatScreen({
   const [composerMode, setComposerMode] = useState<'keyboard' | 'voice'>(
     'keyboard'
   )
-  const [recordingVoiceMessage, setRecordingVoiceMessage] = useState(false)
+  const [playingMessageKey, setPlayingMessageKey] = useState('')
+  const [voiceRecordingActive, setVoiceRecordingActive] = useState(false)
   const conversationScope = `${localMode ? snapshot.node.storagePath : endpoint}:${identity?.address || snapshot.node.userAddress || 'local'}`
+  const sharingChannel =
+    shareRequest?.scope === conversationScope
+      ? channels.find(item => item.name === shareRequest.name)
+      : undefined
+  const scopeRef = useRef(conversationScope)
+  scopeRef.current = conversationScope
+  const conversation = useConversationState(conversationScope, () =>
+    toast(t('chat.stateSaveFailed'), 'error')
+  )
+  const draft = getConversationDraft(conversation.state, channel)
+  const setDraft = (value: string) =>
+    conversation.update(state => setConversationDraft(state, channel, value))
+  const [inbox, setInbox] = useState<{
+    scope: string
+    messages: Record<string, ChatMessage[]>
+  } | null>(null)
+  const channelNames = channels
+    .map(item => item.name)
+    .sort()
+    .join('\n')
+  const inboxMessages = inbox?.scope === conversationScope ? inbox.messages : {}
+  const channelMessages = localMode
+    ? { ...inboxMessages, ...snapshot.channelMessages }
+    : inboxMessages
   const [hiddenState, setHiddenState] = useState<{
     scope: string
     channels: string[]
   } | null>(null)
   const hiddenChannels =
-    hiddenState?.scope === conversationScope ? hiddenState.channels : []
-  const visibleChannels =
     hiddenState?.scope === conversationScope
-      ? getVisibleConversations(
-          channels.map(channel => channel.name),
-          hiddenChannels
+      ? getRemainingHiddenConversations(
+          hiddenState.channels,
+          channelMessages,
+          conversation.state,
+          identity?.address || snapshot.node.userAddress || ''
         )
       : []
-  const visibleMessages = messages
+  const visibleChannels =
+    hiddenState?.scope === conversationScope
+      ? getConversationSummaries(
+          channels,
+          channelMessages,
+          conversation.state,
+          identity?.address || snapshot.node.userAddress || '',
+          hiddenChannels,
+          search
+        )
+      : []
+  const visibleMessages = useMemo(
+    () => messages.filter(message => message.type !== 'system').reverse(),
+    [messages]
+  )
+  useChatNotifications({
+    scope: conversationScope,
+    channels,
+    messages: channelMessages,
+    ownAddress: identity?.address || snapshot.node.userAddress || '',
+    hidden: hiddenChannels,
+    enabled: notificationsEnabled,
+    ready:
+      conversation.ready &&
+      hiddenState?.scope === conversationScope &&
+      snapshot.node.status === 'ready',
+    onOpen: onOpenNotification,
+  })
+  const totalUnread =
+    hiddenState?.scope === conversationScope && conversation.ready
+      ? getConversationSummaries(
+          channels,
+          channelMessages,
+          conversation.state,
+          identity?.address || snapshot.node.userAddress || '',
+          hiddenChannels
+        ).reduce((total, item) => total + item.unread, 0)
+      : 0
+  useEffect(() => {
+    onUnreadChange?.(totalUnread)
+  }, [totalUnread, onUnreadChange])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state =>
+      setForeground(state === 'active')
+    )
+    return () => subscription.remove()
+  }, [])
+
+  useEffect(() => {
+    loadRequestRef.current += 1
+    textAttemptsRef.current.clear()
+    voiceAttemptRef.current = null
+    selectedChannelRef.current = ''
+    setChannel('')
+    setMessages([])
+    setChatOpen(Boolean(getInitialChatRoute()))
+    setLoading(false)
+    setSending(false)
+    setInbox(null)
+    setJoinSheetOpen(false)
+  }, [conversationScope])
+
+  const rememberMessages = useCallback(
+    (name: string, items: ChatMessage[]) => {
+      if (scopeRef.current !== conversationScope) return
+      setInbox(current => ({
+        scope: conversationScope,
+        messages: {
+          ...(current?.scope === conversationScope ? current.messages : {}),
+          [name]: mergeChatMessages(
+            current?.scope === conversationScope &&
+              Object.hasOwn(current.messages, name)
+              ? current.messages[name]
+              : [],
+            items
+          ).slice(-100),
+        },
+      }))
+    },
+    [conversationScope]
+  )
+
+  useEffect(() => {
+    if (snapshot.node.status !== 'ready' || (!localMode && !api)) return
+    let running = true
+    const names = channelNames ? channelNames.split('\n') : []
+    const refresh = async (name: string) => {
+      try {
+        const items = localMode
+          ? await bridge.getChannelMessages?.(name)
+          : (await api?.getHistory(name, { limit: 100 }))?.messages
+        if (!running || !items) return
+        rememberMessages(name, items)
+        if (selectedChannelRef.current === name)
+          setMessages(current => mergeChatMessages(current, items))
+      } catch {
+        // Opening the channel provides visible retry feedback.
+      }
+    }
+    if (localMode) {
+      void (async () => {
+        for (const name of names) {
+          if (!running) break
+          await refresh(name)
+        }
+      })()
+      return () => {
+        running = false
+      }
+    }
+    const session = new ChatWebSocketSession({
+      baseUrl: endpoint,
+      invite,
+      identity,
+      onConnectionChange: connected => {
+        if (running && scopeRef.current === conversationScope)
+          setChatConnected(connected)
+      },
+      onEvent: event => {
+        if (!running) return
+        const name = normalizeChatChannel(event.channel)
+        if (event.event === 'channel:subscribed') void refresh(name)
+        else {
+          rememberMessages(name, [event.message])
+          if (selectedChannelRef.current === name)
+            setMessages(current => mergeChatMessages(current, [event.message]))
+        }
+      },
+    })
+    socketRef.current = session
+    for (const name of names) void session.subscribe(name).catch(() => {})
+    return () => {
+      running = false
+      session.close()
+      if (socketRef.current === session) socketRef.current = null
+    }
+  }, [
+    api,
+    bridge,
+    channelNames,
+    endpoint,
+    identity,
+    invite,
+    localMode,
+    rememberMessages,
+    snapshot.node.status,
+  ])
+
+  const connectionNotice =
+    snapshot.node.status !== 'ready' ||
+    (!localMode && channelNames && !chatConnected) ? (
+      <View style={styles.connectionNotice} accessibilityLiveRegion="polite">
+        <ActivityIndicator size="small" color={theme.colors.accent} />
+        <Text style={styles.connectionNoticeText}>
+          {t('chat.restoringConnection')}
+        </Text>
+      </View>
+    ) : null
+
+  useEffect(() => {
+    if (
+      !conversation.ready ||
+      hiddenState?.scope !== conversationScope ||
+      hiddenChannels.length === hiddenState.channels.length
+    )
+      return
+    const scope = conversationScope
+    setHiddenState(current =>
+      current === hiddenState ? { scope, channels: hiddenChannels } : current
+    )
+    void saveHiddenConversations(scope, hiddenChannels).catch(() => {
+      if (scopeRef.current === scope) toast(t('chat.deleteFailed'), 'error')
+    })
+  }, [
+    conversation.ready,
+    conversationScope,
+    hiddenState,
+    hiddenChannels,
+    t,
+    toast,
+  ])
+
+  useEffect(() => {
+    if (!conversation.ready) return
+    conversation.update(state => {
+      let next = state
+      for (const item of channels) {
+        if (!Object.hasOwn(channelMessages, item.name)) continue
+        if (
+          !Object.hasOwn(next.readAt, item.name) ||
+          (active &&
+            foreground &&
+            chatOpen &&
+            channel === item.name &&
+            nearLatest &&
+            !loading)
+        )
+          next = markConversationRead(
+            next,
+            item.name,
+            channelMessages[item.name]
+          )
+      }
+      return next
+    })
+  }, [
+    active,
+    foreground,
+    chatOpen,
+    channel,
+    channelMessages,
+    channels,
+    conversation.ready,
+    conversation.update,
+    loading,
+    nearLatest,
+  ])
 
   useEffect(() => {
     let active = true
@@ -206,24 +514,37 @@ export function ChatScreen({
   }, [conversationScope])
 
   useEffect(() => {
-    if (localMode) setChannels(getJoinedChannels(snapshot.channels || []))
-  }, [localMode, snapshot.channels])
-
-  const updateHiddenConversations = async (next: string[]) => {
-    await saveHiddenConversations(conversationScope, next)
-    setHiddenState({ scope: conversationScope, channels: next })
-  }
+    if (localMode && snapshot.node.status === 'ready')
+      setChannels(getJoinedChannels(snapshot.channels || []))
+  }, [localMode, snapshot.channels, snapshot.node.status, setChannels])
 
   const deleteConversation = async (name: string) => {
+    const scope = conversationScope
+    const history = Object.hasOwn(channelMessages, name)
+      ? channelMessages[name]
+      : []
     try {
-      await updateHiddenConversations([...new Set([...hiddenChannels, name])])
+      await saveHiddenConversations(scope, [
+        ...new Set([...hiddenChannels, name]),
+      ])
+      if (scopeRef.current !== scope) return
+      conversation.update(state => markConversationRead(state, name, history))
+      conversation.flush()
+      setHiddenState({
+        scope,
+        channels: [...new Set([...hiddenChannels, name])],
+      })
     } catch {
-      toast(t('chat.deleteFailed'), 'error')
+      if (scopeRef.current === scope) toast(t('chat.deleteFailed'), 'error')
     }
   }
 
   const showConversationMenu = (name: string) => {
     alert(`#${name}`, t('chat.deleteConversationHint'), [
+      {
+        text: t('chat.channelInfo'),
+        onPress: () => setShareRequest({ scope: conversationScope, name }),
+      },
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.delete'),
@@ -243,8 +564,12 @@ export function ChatScreen({
       const nextChannel = getInitialChatRoute()
       setChatOpen(Boolean(nextChannel))
       onDetailChange?.(Boolean(nextChannel))
-      if (channel !== nextChannel) setMessages([])
-      setChannel(nextChannel)
+      if (channel !== nextChannel) {
+        loadRequestRef.current += 1
+        selectedChannelRef.current = ''
+        setMessages([])
+        setChannel('')
+      }
     }
     window.addEventListener('popstate', onRouteChange)
     window.addEventListener('most-route-change', onRouteChange)
@@ -311,7 +636,7 @@ export function ChatScreen({
   }, [voiceJoined])
 
   useEffect(() => {
-    setChannels([])
+    if (snapshot.node.status !== 'ready') return
     if (!api && !localMode) return
     let active = true
     const request = localMode
@@ -327,65 +652,79 @@ export function ChatScreen({
     return () => {
       active = false
     }
-  }, [api, bridge, localMode])
+  }, [api, bridge, localMode, setChannels, snapshot.node.status])
 
   useEffect(() => {
     if (!localMode || !channel) return
     const items = snapshot.channelMessages?.[channel]
-    if (items) setMessages(items)
+    if (items) setMessages(current => mergeChatMessages(current, items))
   }, [channel, localMode, snapshot.channelMessages])
 
   const loadChannel = useCallback(
     async (name: string) => {
       const normalizedName = normalizeChatChannel(name)
-      if ((!api && !localMode) || !normalizedName) return
+      if ((!api && !localMode) || !normalizedName || !conversation.ready)
+        return false
+      const request = ++loadRequestRef.current
+      const isCurrent = () =>
+        request === loadRequestRef.current &&
+        scopeRef.current === conversationScope
+      selectedChannelRef.current = normalizedName
+      historyCursorRef.current = null
+      historyRequestRef.current = false
+      setLoadingHistory(false)
+      setHasOlderMessages(false)
+      setNearLatest(true)
+      setChannel(normalizedName)
+      setMessages([])
+      setChatOpen(true)
+      setActionSheetOpen(false)
+      setEmojiOpen(false)
+      setComposerMode('keyboard')
+      Keyboard.dismiss()
       setLoading(true)
       try {
         const localMessages = localMode
-          ? await bridge.getChannelMessages?.(normalizedName)
+          ? await bridge.getChannelMessages?.(normalizedName, { limit: 100 })
           : null
         const page = localMode
           ? null
           : await api?.getHistory(normalizedName, { limit: 100 })
+        if (!isCurrent()) return false
         const savedHidden = await loadHiddenConversations(conversationScope)
         const nextHidden = savedHidden.filter(name => name !== normalizedName)
         if (savedHidden.includes(normalizedName)) {
           await saveHiddenConversations(conversationScope, nextHidden)
         }
+        if (!isCurrent()) return false
         setHiddenState({ scope: conversationScope, channels: nextHidden })
         setChannel(normalizedName)
-        setMessages(localMode ? localMessages || [] : page?.messages || [])
-        socketRef.current?.close()
-        if (!localMode && api) {
-          const session = new ChatWebSocketSession({
-            baseUrl: endpoint,
-            invite,
-            identity,
-            onEvent: event => {
-              if (
-                event.event === 'channel:message' &&
-                normalizeChatChannel(event.channel) === normalizedName
-              )
-                setMessages(current =>
-                  mergeChatMessages(current, [event.message])
-                )
-            },
-          })
-          socketRef.current = session
-          await session.subscribe(normalizedName)
-        }
+        const items = localMode ? localMessages || [] : page?.messages || []
+        historyCursorRef.current = page?.nextCursor || null
+        setHasOlderMessages(
+          localMode ? items.length === 100 : Boolean(page?.nextCursor)
+        )
+        setMessages(current => mergeChatMessages(items, current))
+        rememberMessages(normalizedName, items)
         setChannels(current =>
           current.some(item => item.name === normalizedName)
             ? current
             : [...current, { name: normalizedName, remark: '', pinned: false }]
         )
+        return true
       } catch (error) {
+        if (!isCurrent()) return false
         toast(
-          error instanceof Error ? error.message : t('chat.loadFailed'),
+          getChatErrorMessage(
+            error,
+            t('chat.loadFailed'),
+            t('chat.requestTimedOut')
+          ),
           'error'
         )
+        return false
       } finally {
-        setLoading(false)
+        if (isCurrent()) setLoading(false)
       }
     },
     [
@@ -398,6 +737,9 @@ export function ChatScreen({
       t,
       toast,
       conversationScope,
+      conversation.ready,
+      rememberMessages,
+      setChannels,
     ]
   )
 
@@ -405,16 +747,22 @@ export function ChatScreen({
     const name = normalizeChatChannel(channelInput)
     if (!name || (!api && !localMode)) return
     setLoading(true)
+    const scope = conversationScope
     try {
       if (localMode) await bridge.createChannel?.({ name, type: 'public' })
       else await api?.createOrJoinChannel({ name, displayName: name })
+      if (scopeRef.current !== scope) return
       setChannelInput('')
-      await loadChannel(name)
-      setChatOpen(true)
-      updateChatRoute(name)
+      setJoinSheetOpen(false)
+      if (await loadChannel(name)) updateChatRoute(name)
     } catch (error) {
+      if (scopeRef.current !== scope) return
       toast(
-        error instanceof Error ? error.message : t('chat.joinFailed'),
+        getChatErrorMessage(
+          error,
+          t('chat.joinFailed'),
+          t('chat.requestTimedOut')
+        ),
         'error'
       )
       setLoading(false)
@@ -422,9 +770,7 @@ export function ChatScreen({
   }
 
   const openChannel = async (name: string) => {
-    await loadChannel(name)
-    setChatOpen(true)
-    updateChatRoute(normalizeChatChannel(name))
+    if (await loadChannel(name)) updateChatRoute(normalizeChatChannel(name))
   }
 
   useEffect(() => {
@@ -435,15 +781,15 @@ export function ChatScreen({
     if (
       !requestedChannel ||
       requestToken === undefined ||
+      !conversation.ready ||
       lastOpenChannelTokenRef.current === requestToken
     )
       return
     lastOpenChannelTokenRef.current = requestToken
-    void loadChannel(requestedChannel).then(() => {
-      setChatOpen(true)
-      updateChatRoute(requestedChannel)
+    void loadChannel(requestedChannel).then(opened => {
+      if (opened) updateChatRoute(requestedChannel)
     })
-  }, [loadChannel, openChannelRequest?.token])
+  }, [loadChannel, openChannelRequest?.token, conversation.ready])
 
   useEffect(() => {
     const routeChannel = getInitialChatRoute()
@@ -452,16 +798,103 @@ export function ChatScreen({
   }, [chatOpen, channel, channels.length, loadChannel])
 
   const closeChannel = () => {
+    loadRequestRef.current += 1
+    selectedChannelRef.current = ''
+    conversation.flush()
+    Keyboard.dismiss()
+    setLoading(false)
     voiceSessionRef.current?.leave()
     setVoiceJoined(false)
     setCallSheetOpen(false)
     setActionSheetOpen(false)
     setEmojiOpen(false)
+    setShareRequest(null)
     setComposerMode('keyboard')
     setChatOpen(false)
     onDetailChange?.(false)
     updateChatRoute()
   }
+
+  useEffect(() => {
+    if (!active || !joinRequest || lastJoinRequestRef.current === joinRequest)
+      return
+    lastJoinRequestRef.current = joinRequest
+    closeChannel()
+    setJoinSheetOpen(true)
+  }, [active, joinRequest, closeChannel])
+
+  const loadOlderMessages = async () => {
+    if (loading || historyRequestRef.current || !hasOlderMessages || !channel)
+      return
+    const request = loadRequestRef.current
+    const scope = conversationScope
+    const target = channel
+    historyRequestRef.current = true
+    setLoadingHistory(true)
+    try {
+      const page = localMode
+        ? null
+        : await api?.getHistory(target, {
+            limit: 100,
+            before: historyCursorRef.current || undefined,
+          })
+      const items = localMode
+        ? (await bridge.getChannelMessages?.(target, {
+            limit: 100,
+            offset: messages.length,
+          })) || []
+        : page?.messages || []
+      if (request !== loadRequestRef.current || scopeRef.current !== scope)
+        return
+      historyCursorRef.current = page?.nextCursor || null
+      setHasOlderMessages(
+        localMode ? items.length === 100 : Boolean(page?.nextCursor)
+      )
+      setMessages(current => mergeChatMessages(items, current))
+      rememberMessages(target, items)
+    } catch {
+      if (request === loadRequestRef.current && scopeRef.current === scope)
+        toast(t('chat.historyFailed'), 'error')
+    } finally {
+      if (request === loadRequestRef.current && scopeRef.current === scope) {
+        historyRequestRef.current = false
+        setLoadingHistory(false)
+      }
+    }
+  }
+
+  const jumpToLatest = () => {
+    setNearLatest(true)
+    messageListRef.current?.scrollToOffset({ offset: 0, animated: false })
+  }
+
+  const showMessageMenu = (message: ChatMessage) => {
+    const attachment = getMessageAttachment(message)
+    alert(t('chat.messageOptions'), undefined, [
+      {
+        text: t(attachment ? 'chat.copyAttachmentLink' : 'chat.copyMessage'),
+        onPress: () => {
+          void Clipboard.setStringAsync(attachment?.link || message.content)
+            .then(() => toast(t('chat.copied'), 'success'))
+            .catch(() => toast(t('app.clipboard.failed'), 'error'))
+        },
+      },
+      { text: t('common.cancel'), style: 'cancel' },
+    ])
+  }
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !active || !chatOpen) return
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (emojiOpen) setEmojiOpen(false)
+        else closeChannel()
+        return true
+      }
+    )
+    return () => subscription.remove()
+  }, [active, chatOpen, emojiOpen, conversation.flush])
 
   const send = async () => {
     const content = draft.trim()
@@ -469,65 +902,113 @@ export function ChatScreen({
       (!api && !localMode) ||
       !channel ||
       !content ||
+      sending ||
+      loading ||
       (!identity && !localMode)
     )
       return
     setSending(true)
+    const targetChannel = channel
+    const scope = conversationScope
+    const previousAttempt = textAttemptsRef.current.get(targetChannel)
+    const attempt =
+      previousAttempt?.content === content
+        ? previousAttempt
+        : { content, clientMessageId: createClientMessageId() }
+    textAttemptsRef.current.set(targetChannel, attempt)
     try {
       const message = localMode
         ? await bridge.sendChannelMessage?.({
-            channelName: channel,
+            channelName: targetChannel,
             content,
+            clientMessageId: attempt.clientMessageId,
             author: identity?.address,
             authorName: identity?.username,
           })
-        : await api?.sendMessage(channel, {
+        : await api?.sendMessage(targetChannel, {
             content,
+            clientMessageId: attempt.clientMessageId,
             author: identity?.address || '',
             authorName: identity?.username || '',
           })
       if (!message) throw new Error(t('chat.sendFailed'))
-      setMessages(current => mergeChatMessages(current, [message]))
-      setDraft('')
+      if (scopeRef.current !== scope) return
+      if (textAttemptsRef.current.get(targetChannel) === attempt)
+        textAttemptsRef.current.delete(targetChannel)
+      rememberMessages(targetChannel, [message])
+      if (selectedChannelRef.current === targetChannel) setNearLatest(true)
+      if (selectedChannelRef.current === targetChannel)
+        setMessages(current => mergeChatMessages(current, [message]))
+      conversation.update(state =>
+        getConversationDraft(state, targetChannel).trim() === content
+          ? setConversationDraft(state, targetChannel, '')
+          : state
+      )
     } catch (error) {
+      if (scopeRef.current !== scope) return
       toast(
-        error instanceof Error ? error.message : t('chat.sendFailed'),
+        getChatErrorMessage(
+          error,
+          t('chat.sendFailed'),
+          t('chat.requestTimedOut')
+        ),
         'error'
       )
     } finally {
-      setSending(false)
+      if (scopeRef.current === scope) setSending(false)
     }
   }
 
-  const sendAttachment = async () => {
-    if ((!api && !localMode) || !channel || (!identity && !localMode)) return
+  const sendAttachment = async (
+    source: 'file' | 'photos' | 'camera' = 'file'
+  ) => {
+    if (
+      (!api && !localMode) ||
+      !channel ||
+      sending ||
+      loading ||
+      (!identity && !localMode)
+    )
+      return
+    const targetChannel = channel
+    const scope = conversationScope
     setSending(true)
     try {
-      const attachment = await onPublishAttachment()
+      const attachment = await onPublishAttachment(source)
       if (!attachment) return
+      if (scopeRef.current !== scope) return
       const message = localMode
         ? await bridge.sendChannelMessage?.({
-            channelName: channel,
+            channelName: targetChannel,
             content: attachment.link,
             author: identity?.address,
             authorName: identity?.username,
             attachment,
           })
-        : await api?.sendMessage(channel, {
+        : await api?.sendMessage(targetChannel, {
             content: attachment.link,
             author: identity?.address || '',
             authorName: identity?.username || '',
             attachment,
           })
       if (!message) throw new Error(t('chat.attachmentFailed'))
-      setMessages(current => mergeChatMessages(current, [message]))
+      if (scopeRef.current !== scope) return
+      rememberMessages(targetChannel, [message])
+      if (selectedChannelRef.current === targetChannel) setNearLatest(true)
+      if (selectedChannelRef.current === targetChannel)
+        setMessages(current => mergeChatMessages(current, [message]))
     } catch (error) {
+      if (scopeRef.current !== scope) return
       toast(
-        error instanceof Error ? error.message : t('chat.attachmentFailed'),
+        getChatErrorMessage(
+          error,
+          t('chat.attachmentFailed'),
+          t('chat.requestTimedOut')
+        ),
         'error'
       )
     } finally {
-      setSending(false)
+      if (scopeRef.current === scope) setSending(false)
     }
   }
 
@@ -594,19 +1075,66 @@ export function ChatScreen({
   }
 
   const appendEmoji = (emoji: string) => {
-    setDraft(current => `${current}${emoji}`)
+    setDraft(`${draft}${emoji}`)
     setEmojiOpen(false)
   }
 
-  const startVoiceMessage = () => {
-    if (!channel || sending) return
-    setRecordingVoiceMessage(true)
-  }
-
-  const stopVoiceMessage = () => {
-    if (!recordingVoiceMessage) return
-    setRecordingVoiceMessage(false)
-    toast(t('chat.voiceMessageUnavailable'), 'info')
+  const sendVoiceMessage = async (recording: VoiceRecording) => {
+    if (!channel || sending || loading || (!localMode && !api))
+      throw new Error(t('chat.sendFailed'))
+    const targetChannel = channel
+    const scope = conversationScope
+    const previousAttempt = voiceAttemptRef.current
+    const attempt: NonNullable<typeof voiceAttemptRef.current> =
+      previousAttempt?.scope === scope &&
+      previousAttempt.channel === targetChannel &&
+      previousAttempt.uri === recording.uri
+        ? previousAttempt
+        : {
+            scope,
+            channel: targetChannel,
+            uri: recording.uri,
+            clientMessageId: createClientMessageId(),
+          }
+    voiceAttemptRef.current = attempt
+    setSending(true)
+    setPlayingMessageKey('')
+    try {
+      const attachment =
+        attempt.attachment || (await onPublishVoiceMessage(recording))
+      attempt.attachment = attachment
+      if (
+        scopeRef.current !== scope ||
+        selectedChannelRef.current !== targetChannel
+      )
+        throw new Error(t('chat.sendFailed'))
+      const message = localMode
+        ? await bridge.sendChannelMessage?.({
+            channelName: targetChannel,
+            content: attachment.link,
+            author: identity?.address,
+            authorName: identity?.username,
+            attachment,
+            clientMessageId: attempt.clientMessageId,
+          })
+        : await api?.sendMessage(targetChannel, {
+            content: attachment.link,
+            author: identity?.address || '',
+            authorName: identity?.username || '',
+            attachment,
+            clientMessageId: attempt.clientMessageId,
+          })
+      if (!message) throw new Error(t('chat.sendFailed'))
+      if (voiceAttemptRef.current === attempt) voiceAttemptRef.current = null
+      if (scopeRef.current !== scope) return
+      rememberMessages(targetChannel, [message])
+      if (selectedChannelRef.current === targetChannel) {
+        setNearLatest(true)
+        setMessages(current => mergeChatMessages(current, [message]))
+      }
+    } finally {
+      if (scopeRef.current === scope) setSending(false)
+    }
   }
 
   if (!localMode && !endpoint)
@@ -628,47 +1156,74 @@ export function ChatScreen({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'android' ? insets.top : 0}
       style={[styles.container, chatOpen ? styles.detailContainer : null]}
     >
       {!chatOpen ? (
         <>
-          <View style={styles.joinRow}>
-            <MostTextInput
-              value={channelInput}
-              onChangeText={setChannelInput}
-              onSubmitEditing={joinChannel}
-              placeholder={t('chat.channelPlaceholder')}
-              style={styles.channelInput}
-              autoCapitalize="none"
-            />
-            <MostButton
-              disabled={loading || !channelInput.trim()}
-              onPress={joinChannel}
-              variant="primary"
-              icon={<Plus size={16} color={theme.colors.onAccent} />}
+          <View style={styles.listHeader}>
+            <Text accessibilityRole="header" style={styles.listTitle}>
+              {PRODUCT_PROFILE.displayName}
+            </Text>
+            <IconButton
+              accessibilityLabel={t('chat.joinChannel')}
+              onPress={() => setJoinSheetOpen(true)}
             >
-              {t('chat.join')}
-            </MostButton>
+              <Plus size={24} color={theme.colors.text} />
+            </IconButton>
           </View>
+          <View style={styles.searchRow}>
+            <Search size={18} color={theme.colors.textMuted} />
+            <MostTextInput
+              accessibilityLabel={t('chat.search')}
+              autoCapitalize="none"
+              value={search}
+              onChangeText={setSearch}
+              placeholder={t('chat.searchPlaceholder')}
+              style={styles.searchInput}
+            />
+            {search ? (
+              <IconButton
+                accessibilityLabel={t('chat.clearSearch')}
+                onPress={() => setSearch('')}
+                variant="ghost"
+              >
+                <X size={18} color={theme.colors.textMuted} />
+              </IconButton>
+            ) : null}
+          </View>
+          {connectionNotice}
           <View style={styles.channelListCard}>
             <FlatList
               data={visibleChannels}
-              keyExtractor={item => item}
+              keyExtractor={item => item.name}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.channelList}
               ListEmptyComponent={
                 <View style={styles.emptyInline}>
                   <Text style={styles.emptyBody}>
-                    {t('chat.chooseChannel')}
+                    {t(
+                      search.trim()
+                        ? 'chat.noSearchResults'
+                        : 'chat.chooseChannel'
+                    )}
                   </Text>
                 </View>
               }
               renderItem={({ item }) => (
-                <View style={styles.channelListRow}>
+                <View
+                  style={[
+                    styles.channelListRow,
+                    item.pinned ? styles.pinnedRow : null,
+                  ]}
+                >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`#${item}`}
-                    onPress={() => void openChannel(item)}
+                    accessibilityLabel={`#${item.remark || item.name}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
+                    disabled={!conversation.ready}
+                    onPress={() => void openChannel(item.name)}
+                    onLongPress={() => showConversationMenu(item.name)}
                     style={({ pressed }) => [
                       styles.channelRow,
                       pressed ? styles.pressed : null,
@@ -676,23 +1231,49 @@ export function ChatScreen({
                   >
                     <View style={styles.channelAvatar}>
                       <MessageCircle size={18} color={theme.colors.accent} />
+                      {item.unread ? (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadBadgeText}>
+                            {item.unread > 99 ? '99+' : item.unread}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     <View style={styles.channelRowText}>
-                      <Text style={styles.channelText}>
-                        #
-                        {channels.find(channel => channel.name === item)
-                          ?.remark || item}
+                      <Text numberOfLines={1} style={styles.channelText}>
+                        #{item.remark || item.name}
                       </Text>
                       <Text numberOfLines={1} style={styles.channelPreview}>
-                        {t('chat.openHint')}
+                        {item.draft.trim() ? (
+                          <>
+                            <Text style={styles.draftLabel}>
+                              {t('chat.draftLabel')}
+                            </Text>
+                            {item.draft.replace(/\s+/g, ' ')}
+                          </>
+                        ) : item.lastMessage ? (
+                          `${item.lastMessage.authorName ? `${item.lastMessage.authorName}: ` : ''}${getMessageAttachment(item.lastMessage)?.fileName ? t('chat.attachmentLabel', { fileName: getMessageAttachment(item.lastMessage)?.fileName || '' }) : item.lastMessage.content.replace(/\s+/g, ' ')}`
+                        ) : (
+                          t('chat.openHint')
+                        )}
                       </Text>
                     </View>
+                    {item.lastMessageAt ? (
+                      <Text style={styles.channelTime}>
+                        {new Intl.DateTimeFormat(locale, {
+                          ...(new Date(item.lastMessageAt).toDateString() ===
+                          new Date().toDateString()
+                            ? { hour: '2-digit', minute: '2-digit' }
+                            : { month: 'numeric', day: 'numeric' }),
+                        }).format(item.lastMessageAt)}
+                      </Text>
+                    ) : null}
                   </Pressable>
                   <IconButton
                     accessibilityLabel={t('chat.conversationOptions', {
-                      channel: item,
+                      channel: item.remark || item.name,
                     })}
-                    onPress={() => showConversationMenu(item)}
+                    onPress={() => showConversationMenu(item.name)}
                     variant="ghost"
                   >
                     <MoreHorizontal
@@ -723,6 +1304,17 @@ export function ChatScreen({
               <View style={styles.detailActions}>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={t('chat.channelInfo')}
+                  onPress={() => {
+                    Keyboard.dismiss()
+                    setShareRequest({ scope: conversationScope, name: channel })
+                  }}
+                  style={styles.detailActionButton}
+                >
+                  <MoreHorizontal size={20} color={theme.colors.text} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
                   accessibilityLabel={t('chat.voiceRoom')}
                   onPress={() => setCallSheetOpen(true)}
                   style={styles.detailActionButton}
@@ -739,6 +1331,7 @@ export function ChatScreen({
               <View style={styles.detailHeaderSpacer} />
             )}
           </View>
+          {connectionNotice}
           {voiceJoined ? (
             <Pressable
               accessibilityRole="button"
@@ -780,15 +1373,45 @@ export function ChatScreen({
               </View>
             ) : null}
             <FlatList
+              ref={messageListRef}
+              inverted
               data={visibleMessages}
-              keyExtractor={(item, index) =>
-                item.id ||
-                item.clientMessageId ||
-                `${item.author}-${item.timestamp}-${index}`
+              keyExtractor={getChatMessageKey}
+              keyboardShouldPersistTaps="handled"
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+                autoscrollToTopThreshold: 80,
+              }}
+              onScroll={event =>
+                setNearLatest(event.nativeEvent.contentOffset.y < 80)
+              }
+              scrollEventThrottle={100}
+              onContentSizeChange={() => {
+                if (nearLatest)
+                  messageListRef.current?.scrollToOffset({
+                    offset: 0,
+                    animated: false,
+                  })
+              }}
+              ListFooterComponent={
+                hasOlderMessages ? (
+                  <MostButton
+                    disabled={loadingHistory}
+                    onPress={() => void loadOlderMessages()}
+                    variant="ghost"
+                  >
+                    {loadingHistory
+                      ? t('chat.loadingHistory')
+                      : t('chat.loadOlderMessages')}
+                  </MostButton>
+                ) : null
               }
               contentContainerStyle={styles.messages}
               renderItem={({ item }) => {
-                const mine = item.author === identity?.address
+                const mine = isOwnChatMessage(
+                  item,
+                  identity?.address || snapshot.node.userAddress || ''
+                )
                 const attachment = getMessageAttachment(item)
                 const state = attachment
                   ? getAttachmentState(
@@ -809,7 +1432,13 @@ export function ChatScreen({
                   progress: Math.round(state?.transfer?.progress || 0),
                 })
                 return (
-                  <View
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.messageActionsA11y', {
+                      author: item.authorName,
+                      content: attachment?.fileName || item.content,
+                    })}
+                    onLongPress={() => showMessageMenu(item)}
                     style={[styles.message, mine ? styles.messageMine : null]}
                   >
                     <Text
@@ -821,46 +1450,95 @@ export function ChatScreen({
                       {item.authorName}
                     </Text>
                     {attachment ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
-                        disabled={state?.status === 'running'}
-                        onPress={() => {
-                          if (state?.holding)
-                            void onOpenAttachment(state.holding)
-                          else onReceiveAttachment(attachment)
-                        }}
-                        style={styles.attachmentButton}
-                      >
-                        <Text
-                          style={[
-                            styles.attachmentName,
-                            mine ? styles.messageMineText : null,
-                          ]}
+                      attachment.kind === 'audio' && state?.holding ? (
+                        <VoiceAudioPlayer
+                          color={mine ? '#152515' : theme.colors.text}
+                          key={`${conversationScope}:${getChatMessageKey(item)}`}
+                          active={
+                            active &&
+                            foreground &&
+                            !voiceRecordingActive &&
+                            (!playingMessageKey ||
+                              playingMessageKey === getChatMessageKey(item))
+                          }
+                          onPlay={() =>
+                            setPlayingMessageKey(getChatMessageKey(item))
+                          }
+                          loadUri={async () => {
+                            const result = await client.exportHolding({
+                              cid: attachment.cid,
+                              fileName: attachment.fileName,
+                              mimeType: attachment.mimeType,
+                            })
+                            return /^(?:file:|content:|blob:|https?:)/.test(
+                              result.filePath
+                            )
+                              ? result.filePath
+                              : `file://${result.filePath}`
+                          }}
+                        />
+                      ) : (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
+                          disabled={state?.status === 'running'}
+                          onPress={() => {
+                            if (state?.holding)
+                              void onOpenAttachment(state.holding)
+                            else onReceiveAttachment(attachment)
+                          }}
+                          onLongPress={() => showMessageMenu(item)}
+                          style={styles.attachmentButton}
                         >
-                          {t('chat.attachmentLabel', {
-                            fileName: attachment.fileName,
-                          })}
-                        </Text>
-                        {typeof attachment.size === 'number' ? (
+                          {attachment.kind === 'image' && state?.holding ? (
+                            <ChatImagePreview
+                              key={`${conversationScope}:${attachment.cid}`}
+                              client={client}
+                              cid={attachment.cid}
+                              fileName={attachment.fileName}
+                              mimeType={attachment.mimeType}
+                              active={active && foreground}
+                              onLongPress={() => showMessageMenu(item)}
+                              onSave={() => {
+                                if (state.holding)
+                                  void onSaveAttachment(state.holding)
+                              }}
+                              onOpen={() => {
+                                if (state.holding)
+                                  void onOpenAttachment(state.holding)
+                              }}
+                            />
+                          ) : null}
                           <Text
                             style={[
-                              styles.attachmentDetails,
-                              mine ? styles.messageMineMeta : null,
+                              styles.attachmentName,
+                              mine ? styles.messageMineText : null,
                             ]}
                           >
-                            {formatAttachmentSize(attachment.size)}
+                            {t('chat.attachmentLabel', {
+                              fileName: attachment.fileName,
+                            })}
                           </Text>
-                        ) : null}
-                        <Text
-                          style={[
-                            styles.attachmentAction,
-                            mine ? styles.messageMineText : null,
-                          ]}
-                        >
-                          {actionLabel}
-                        </Text>
-                      </Pressable>
+                          {typeof attachment.size === 'number' ? (
+                            <Text
+                              style={[
+                                styles.attachmentDetails,
+                                mine ? styles.messageMineMeta : null,
+                              ]}
+                            >
+                              {formatAttachmentSize(attachment.size)}
+                            </Text>
+                          ) : null}
+                          <Text
+                            style={[
+                              styles.attachmentAction,
+                              mine ? styles.messageMineText : null,
+                            ]}
+                          >
+                            {actionLabel}
+                          </Text>
+                        </Pressable>
+                      )
                     ) : (
                       <Text
                         style={[
@@ -881,10 +1559,19 @@ export function ChatScreen({
                         {formatDateTime(item.timestamp)}
                       </Text>
                     ) : null}
-                  </View>
+                  </Pressable>
                 )
               }}
             />
+            {!nearLatest ? (
+              <MostButton
+                onPress={jumpToLatest}
+                variant="ghost"
+                style={styles.latestButton}
+              >
+                {t('chat.jumpToLatest')}
+              </MostButton>
+            ) : null}
             {emojiOpen ? (
               <View style={styles.emojiPanel}>
                 {['😀', '😂', '👍', '🎉', '❤️', '🙏', '😅', '🤝'].map(emoji => (
@@ -919,34 +1606,26 @@ export function ChatScreen({
               </Pressable>
               {composerMode === 'keyboard' ? (
                 <MostTextInput
+                  accessibilityLabel={t('chat.messagePlaceholder')}
                   value={draft}
                   onChangeText={setDraft}
-                  onFocus={() => setEmojiOpen(false)}
+                  onFocus={() => {
+                    setEmojiOpen(false)
+                    jumpToLatest()
+                  }}
                   placeholder={t('chat.messagePlaceholder')}
                   multiline
+                  editable={conversation.ready && !loading}
                   style={styles.draft}
                 />
               ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('chat.holdToTalk')}
-                  disabled={sending || !channel}
-                  onPressIn={startVoiceMessage}
-                  onPressOut={stopVoiceMessage}
-                  style={[
-                    styles.voiceMessageButton,
-                    recordingVoiceMessage
-                      ? styles.voiceMessageButtonActive
-                      : null,
-                    sending || !channel ? styles.disabled : null,
-                  ]}
-                >
-                  <Text style={styles.voiceMessageText}>
-                    {recordingVoiceMessage
-                      ? t('chat.releaseToSend')
-                      : t('chat.holdToTalk')}
-                  </Text>
-                </Pressable>
+                <VoiceMessageRecorder
+                  key={`${conversationScope}:${channel}`}
+                  active={active && foreground}
+                  disabled={sending || loading || !channel}
+                  onSend={sendVoiceMessage}
+                  onActivityChange={setVoiceRecordingActive}
+                />
               )}
               <Pressable
                 accessibilityRole="button"
@@ -968,22 +1647,32 @@ export function ChatScreen({
               >
                 <Plus size={23} color={theme.colors.text} />
               </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('chat.send')}
-                disabled={sending || !draft.trim() || !channel}
-                onPress={() => void send()}
-                style={[
-                  styles.sendButton,
-                  sending || !draft.trim() || !channel ? styles.disabled : null,
-                ]}
-              >
-                {sending ? (
-                  <ActivityIndicator color={theme.colors.onAccent} />
-                ) : (
-                  <Text style={styles.sendLabel}>{t('chat.sendShort')}</Text>
-                )}
-              </Pressable>
+              {composerMode === 'keyboard' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.send')}
+                  disabled={
+                    sending ||
+                    loading ||
+                    !draft.trim() ||
+                    !channel ||
+                    (!localMode && !identity)
+                  }
+                  onPress={() => void send()}
+                  style={[
+                    styles.sendButton,
+                    sending || !draft.trim() || !channel
+                      ? styles.disabled
+                      : null,
+                  ]}
+                >
+                  {sending ? (
+                    <ActivityIndicator color={theme.colors.onAccent} />
+                  ) : (
+                    <Text style={styles.sendLabel}>{t('chat.sendShort')}</Text>
+                  )}
+                </Pressable>
+              ) : null}
             </View>
           </View>
           <Modal
@@ -1115,7 +1804,7 @@ export function ChatScreen({
                     accessibilityLabel={t('chat.cameraAction')}
                     onPress={() => {
                       setActionSheetOpen(false)
-                      toast(t('chat.mediaUnavailable'), 'info')
+                      void sendAttachment('camera')
                     }}
                     style={({ pressed }) => [
                       styles.actionOption,
@@ -1125,6 +1814,23 @@ export function ChatScreen({
                     <Camera size={22} color={theme.colors.info} />
                     <Text style={styles.actionOptionLabel}>
                       {t('chat.cameraAction')}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.photosAction')}
+                    onPress={() => {
+                      setActionSheetOpen(false)
+                      void sendAttachment('photos')
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionOption,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <ImageIcon size={22} color={theme.colors.accent} />
+                    <Text style={styles.actionOptionLabel}>
+                      {t('chat.photosAction')}
                     </Text>
                   </Pressable>
                 </View>
@@ -1140,6 +1846,63 @@ export function ChatScreen({
           </Modal>
         </>
       )}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={joinSheetOpen && active}
+        onRequestClose={() => setJoinSheetOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.sheetOverlay}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            onPress={() => setJoinSheetOpen(false)}
+            style={styles.sheetBackdrop}
+          />
+          <BottomSheetCard style={styles.sheetCard}>
+            <Text accessibilityRole="header" style={styles.sheetTitle}>
+              {t('chat.joinChannel')}
+            </Text>
+            <Text style={styles.emptyBody}>{t('chat.joinChannelHint')}</Text>
+            <MostTextInput
+              accessibilityLabel={t('chat.channelPlaceholder')}
+              value={channelInput}
+              onChangeText={setChannelInput}
+              onSubmitEditing={() => {
+                if (!loading && conversation.ready) void joinChannel()
+              }}
+              placeholder={t('chat.channelPlaceholder')}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <MostButton
+              disabled={loading || !conversation.ready || !channelInput.trim()}
+              onPress={() => void joinChannel()}
+              variant="primary"
+            >
+              {loading ? (
+                <ActivityIndicator color={theme.colors.onAccent} />
+              ) : (
+                t('chat.join')
+              )}
+            </MostButton>
+            <MostButton onPress={() => setJoinSheetOpen(false)} variant="ghost">
+              {t('common.cancel')}
+            </MostButton>
+          </BottomSheetCard>
+        </KeyboardAvoidingView>
+      </Modal>
+      {active && sharingChannel ? (
+        <ChannelShareSheet
+          key={`${conversationScope}:${sharingChannel.name}`}
+          channel={sharingChannel}
+          onClose={() => setShareRequest(null)}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   )
 }
@@ -1149,7 +1912,48 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
   return StyleSheet.create({
     container: { flex: 1, paddingHorizontal: 14, paddingTop: 10 },
     detailContainer: { padding: 0 },
-    joinRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+    listHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    listTitle: { color: colors.text, fontSize: 23, fontWeight: '700' },
+    searchRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: radii.small,
+      paddingHorizontal: 12,
+      marginVertical: 8,
+    },
+    searchInput: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      minHeight: 42,
+      paddingHorizontal: 0,
+    },
+    pinnedRow: { backgroundColor: colors.surfaceSubtle },
+    draftLabel: { color: colors.danger },
+    unreadBadge: {
+      position: 'absolute',
+      top: -5,
+      right: -5,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: 9,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    unreadBadgeText: {
+      color: colors.onAccent,
+      fontSize: 10,
+      fontWeight: '700',
+    },
     channelInput: {
       backgroundColor: colors.surfaceSubtle,
       borderColor: colors.border,
@@ -1254,6 +2058,20 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       borderWidth: 0,
     },
     messages: { padding: 12, gap: 10, flexGrow: 1 },
+    latestButton: { alignSelf: 'center', marginVertical: 4 },
+    connectionNotice: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    connectionNoticeText: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
     message: {
       alignSelf: 'flex-start',
       backgroundColor: colors.surfaceSubtle,

@@ -17,6 +17,8 @@ import {
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
+  normalizeChannelMessage,
+  sortChannelMessages,
 } from './channel-protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
 
@@ -1415,6 +1417,59 @@ describe('mobile channel connection scoping', () => {
 })
 
 describe('mobile channel metadata management', () => {
+  it('loads earlier history without replacing the latest conversation preview', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-history-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'history',
+      discover: false,
+    })
+    for (let index = 0; index < 105; index += 1) {
+      await core.sendChannelMessage({
+        channelName: channel.channelKey,
+        content: `message-${index}`,
+      })
+    }
+    const recent = await core.getChannelMessages({
+      channelName: channel.channelKey,
+      limit: 100,
+    })
+    assert.equal(recent.length, 100)
+    assert.equal(recent[0].content, 'message-5')
+    assert.equal(recent.at(-1).content, 'message-104')
+    const earlier = await core.getChannelMessages({
+      channelName: channel.channelKey,
+      limit: 100,
+      offset: 100,
+    })
+    assert.deepEqual(
+      earlier.map(message => message.content),
+      ['message-0', 'message-1', 'message-2', 'message-3', 'message-4']
+    )
+    assert.equal(
+      core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
+      'message-104'
+    )
+    await core.sendChannelMessage({
+      channelName: channel.channelKey,
+      content: 'message-105',
+    })
+    assert.equal(
+      core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
+      'message-105'
+    )
+  })
+
   it('sets remark, pins, leaves, and persists metadata across restart', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-channel-meta-')
@@ -1530,6 +1585,237 @@ describe('mobile channel metadata management', () => {
         restored.channelKey
       ),
       false
+    )
+  })
+
+  it('deduplicates concurrent message retries and retains their identity after restart', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-retry-')
+    )
+    assert.ok(
+      path.resolve(storagePath).startsWith(path.resolve(os.tmpdir()) + path.sep)
+    )
+    const createCore = () =>
+      new MobileP2PCore({
+        storagePath,
+        createSwarm: createRecordingSwarmFactory([]),
+      })
+    let core = createCore()
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-retry',
+      discover: false,
+    })
+    const input = {
+      channelName: channel.channelKey,
+      content: 'one logical message',
+      author: '0x2Fd13F1a54488cFF329b7a4997351CA0847C08Cc',
+      authorName: 'Android',
+      clientMessageId: '550E8400-E29B-41D4-A716-446655440000',
+    }
+    const [first, repeated] = await Promise.all([
+      core.sendChannelMessage(input),
+      core.sendChannelMessage(input),
+    ])
+    assert.deepEqual(repeated, first)
+    assert.equal(first.clientMessageId, input.clientMessageId.toLowerCase())
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
+        .clientMessageId,
+      first.clientMessageId
+    )
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))
+        .length,
+      1
+    )
+    await core.stop()
+    core = createCore()
+    await core.start()
+    const restarted = await core.sendChannelMessage({
+      ...input,
+      author: input.author.toLowerCase(),
+    })
+    assert.deepEqual(restarted, first)
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
+        .clientMessageId,
+      first.clientMessageId
+    )
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))
+        .length,
+      1
+    )
+    await assert.rejects(
+      core.sendChannelMessage({ ...input, content: 'different content' }),
+      /already identifies another message/
+    )
+    await assert.rejects(
+      core.sendChannelMessage({ ...input, clientMessageId: 'invalid' }),
+      /Invalid clientMessageId/
+    )
+    await core.sendChannelMessage({ ...input, author: 'different-author' })
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))
+        .length,
+      2
+    )
+  })
+
+  it(
+    'saves and retries offline while another writer has missing history blocks',
+    { timeout: 5000 },
+    async t => {
+      const storagePath = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'mostbox-mobile-sparse-history-')
+      )
+      assert.ok(
+        path
+          .resolve(storagePath)
+          .startsWith(path.resolve(os.tmpdir()) + path.sep)
+      )
+      const core = new MobileP2PCore({
+        storagePath,
+        createSwarm: createRecordingSwarmFactory([]),
+      })
+      let externalStore = null
+      t.after(async () => {
+        await externalStore?.close()
+        await core.stop()
+        await fs.rm(storagePath, { recursive: true, force: true })
+      })
+      await core.start()
+      const channel = await core.createChannel({
+        name: 'android-sparse-history',
+        discover: false,
+      })
+      await core.stop()
+      const channelsPath = path.join(storagePath, CHANNELS_FILE)
+      const records = JSON.parse(await fs.readFile(channelsPath, 'utf8'))
+      externalStore = new Corestore(storagePath, {
+        primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+        unsafe: true,
+      })
+      await externalStore.ready()
+      const peerCore = externalStore
+        .namespace(`channel-${channel.channelKey}`)
+        .get({ name: 'another-writer', valueEncoding: 'json' })
+      await peerCore.ready()
+      await peerCore.append({
+        type: 'message',
+        content: 'Only the offline peer still has this body',
+        author: 'peer',
+        timestamp: Date.now(),
+      })
+      await peerCore.clear(0, peerCore.length)
+      assert.equal(peerCore.length, 1)
+      assert.equal(await peerCore.has(0), false)
+      assert.equal(await peerCore.get(0, { wait: false }), null)
+      records[0].writerCoreKeys.push(b4a.toString(peerCore.key, 'hex'))
+      await fs.writeFile(channelsPath, JSON.stringify(records))
+      await externalStore.close()
+      externalStore = null
+      await core.start()
+      const input = {
+        channelName: channel.channelKey,
+        content: 'A new offline message',
+        author: 'local',
+        clientMessageId: '550e8400-e29b-41d4-a716-446655440002',
+      }
+      const first = await core.sendChannelMessage(input)
+      const repeated = await core.sendChannelMessage(input)
+      assert.deepEqual(repeated, first)
+      assert.equal(first.clientMessageId, input.clientMessageId)
+      assert.deepEqual(core.getSnapshot().channelMessages[channel.channelKey], [
+        first,
+      ])
+    }
+  )
+
+  it('rejects a changed attachment on retry and keeps legacy sends without ids distinct', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-attachment-retry-')
+    )
+    assert.ok(
+      path.resolve(storagePath).startsWith(path.resolve(os.tmpdir()) + path.sep)
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-audio-retry',
+      discover: false,
+    })
+    const cid = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+    const link = `most://${cid}?filename=voice.m4a`
+    const input = {
+      channelName: channel.channelKey,
+      content: link,
+      clientMessageId: '550e8400-e29b-41d4-a716-446655440001',
+      attachment: {
+        kind: 'audio',
+        cid,
+        fileName: 'voice.m4a',
+        link,
+        mimeType: 'audio/mp4',
+        size: 123,
+      },
+    }
+    await core.sendChannelMessage(input)
+    await assert.rejects(
+      core.sendChannelMessage({
+        ...input,
+        attachment: { ...input.attachment, size: 456 },
+      }),
+      /already identifies another message/
+    )
+    const legacy = {
+      channelName: channel.channelKey,
+      content: 'legacy repeated text',
+    }
+    await Promise.all([
+      core.sendChannelMessage(legacy),
+      core.sendChannelMessage(legacy),
+    ])
+    assert.equal(
+      (await core.getChannelMessages({ channelName: channel.channelKey }))
+        .length,
+      3
+    )
+  })
+
+  it('preserves valid peer message ids and drops invalid ids without dropping legacy content', () => {
+    const input = {
+      content: 'peer message',
+      author: 'peer',
+      clientMessageId: '550E8400-E29B-41D4-A716-446655440000',
+      timestamp: 100,
+    }
+    const message = normalizeChannelMessage(input)
+    assert.equal(message.clientMessageId, input.clientMessageId.toLowerCase())
+    const invalid = normalizeChannelMessage({
+      ...input,
+      clientMessageId: 'bad',
+    })
+    assert.equal(Object.hasOwn(invalid, 'clientMessageId'), false)
+    assert.equal(invalid.content, input.content)
+    assert.equal(
+      sortChannelMessages([
+        { ...message, _coreKey: 'a' },
+        { ...message, _coreKey: 'b' },
+      ]).length,
+      1
     )
   })
 

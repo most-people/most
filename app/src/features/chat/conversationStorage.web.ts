@@ -1,4 +1,8 @@
-import { normalizeHiddenConversations } from './conversationModel'
+import {
+  normalizeConversationState,
+  normalizeHiddenConversations,
+  type ConversationState,
+} from './conversationModel'
 
 const KEY = 'mostbox.hidden-conversations.v1'
 
@@ -15,6 +19,10 @@ export async function saveHiddenConversations(
   scope: string,
   channels: string[]
 ) {
+  writeState(scope, normalizeHiddenConversations(channels))
+}
+
+function writeState(scope: string, value: unknown) {
   let state: Record<string, unknown> = {}
   try {
     const parsed = JSON.parse(localStorage.getItem(KEY) || '{}')
@@ -25,7 +33,23 @@ export async function saveHiddenConversations(
     KEY,
     JSON.stringify({
       ...state,
-      [scope]: normalizeHiddenConversations(channels),
+      [scope]: value,
     })
   )
+}
+
+export async function loadConversationState(scope: string) {
+  try {
+    const state = JSON.parse(localStorage.getItem(KEY) || '{}')
+    return normalizeConversationState(state?.[`state:${scope}`])
+  } catch {
+    return normalizeConversationState(null)
+  }
+}
+
+export async function saveConversationState(
+  scope: string,
+  state: ConversationState
+) {
+  writeState(`state:${scope}`, normalizeConversationState(state))
 }

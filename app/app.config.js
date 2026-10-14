@@ -29,6 +29,22 @@ export default {
     android: {
       ...baseConfig.android,
       package: profile.androidPackage,
+      permissions: (baseConfig.android.permissions || []).filter(
+        permission =>
+          (profile.features.voice ||
+            !String(permission).endsWith('RECORD_AUDIO')) &&
+          (profile.features.chat ||
+            (!String(permission).endsWith('CAMERA') &&
+              !String(permission).endsWith('POST_NOTIFICATIONS')))
+      ),
+      blockedPermissions: [
+        ...(baseConfig.android.blockedPermissions || []),
+        ...(!profile.features.voice ? ['android.permission.RECORD_AUDIO'] : []),
+        ...(!profile.features.chat ? ['android.permission.CAMERA'] : []),
+        ...(!profile.features.chat
+          ? ['android.permission.POST_NOTIFICATIONS']
+          : []),
+      ],
     },
     ios: {
       ...baseConfig.ios,

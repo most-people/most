@@ -496,6 +496,7 @@ export class MobileP2PCore {
   #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelMessageCache = new Map()
+  #channelMessageQueues = new Map()
   #channelPresenceSessions = new Map()
   #channelPresenceProfiles = new Map()
   #channelPresenceSweepTimer = null
@@ -710,6 +711,7 @@ export class MobileP2PCore {
     this.#channelCandidateCache.clear()
     this.#channelStreams.clear()
     this.#channelMessageCache.clear()
+    this.#channelMessageQueues.clear()
 
     await Promise.allSettled(
       [...this.#drives.values()].map(drive => drive.close())
@@ -921,7 +923,7 @@ export class MobileP2PCore {
       offset || 0
     )
     if (!this.#isChannelActive(channel.channelKey)) return []
-    this.#cacheChannelMessages(channel.channelKey, messages)
+    if (!offset) this.#cacheChannelMessages(channel.channelKey, messages)
     if (!this.#isChannelActive(channel.channelKey)) {
       this.#channelMessageCache.delete(channel.channelKey)
       return []
@@ -931,6 +933,31 @@ export class MobileP2PCore {
   }
 
   async sendChannelMessage(input = {}) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(input.channelName || input.name)
+    const key = channel.channelKey
+    const store = this.#store
+    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
+    const pending = previous
+      .catch(() => {})
+      .then(() => {
+        if (this.#store !== store) throw new Error('P2P core is not ready')
+        return this.#sendChannelMessage(input)
+      })
+    const completed = pending.then(
+      () => {},
+      () => {}
+    )
+    this.#channelMessageQueues.set(key, completed)
+    try {
+      return await pending
+    } finally {
+      if (this.#channelMessageQueues.get(key) === completed)
+        this.#channelMessageQueues.delete(key)
+    }
+  }
+
+  async #sendChannelMessage(input) {
     this.#ensureReady()
     const channelName = input.channelName || input.name
     const channel = this.#resolveChannel(channelName)
@@ -947,14 +974,40 @@ export class MobileP2PCore {
         author: input.author || DIAGNOSTIC_AUTHOR,
         authorName: input.authorName || DIAGNOSTIC_AUTHOR_NAME,
         attachment: input.attachment,
+        clientMessageId: input.clientMessageId,
       },
       {
         timestamp: await this.#getNextChannelMessageTimestamp(
           channel.channelKey
         ),
         requireAttachment: Boolean(input.attachment),
+        requireClientMessageId: Object.hasOwn(input, 'clientMessageId'),
       }
     )
+
+    if (message.clientMessageId) {
+      const author =
+        normalizeChannelPresenceAddress(message.author) || message.author
+      for (let index = core.length - 1; index >= 0; index--) {
+        const entry = await core.get(index)
+        if (!entry || entry.type !== 'message') continue
+        const previousAuthor =
+          normalizeChannelPresenceAddress(entry.author) || entry.author
+        if (
+          previousAuthor !== author ||
+          entry.clientMessageId !== message.clientMessageId
+        )
+          continue
+        const previous = normalizeChannelMessage(entry)
+        if (
+          previous.content !== message.content ||
+          JSON.stringify(previous.attachment || null) !==
+            JSON.stringify(message.attachment || null)
+        )
+          throw new Error('clientMessageId already identifies another message')
+        return previous
+      }
+    }
 
     await core.append(message)
     if (!this.#isChannelActive(channel.channelKey)) return message
@@ -1736,7 +1789,8 @@ export class MobileP2PCore {
       for (const [, core] of coresMap) {
         for (let i = 0; i < core.length; i++) {
           try {
-            const entry = await core.get(i)
+            // A missing peer block must not prevent this writer sending offline.
+            const entry = await core.get(i, { wait: false })
             if (entry?.type === 'message') {
               maxTimestamp = Math.max(
                 maxTimestamp,
@@ -1762,6 +1816,7 @@ export class MobileP2PCore {
           authorName: entry.authorName,
           content: entry.content,
           attachment: entry.attachment,
+          clientMessageId: entry.clientMessageId,
         },
         {
           timestamp: Number(entry.timestamp) || Date.now(),

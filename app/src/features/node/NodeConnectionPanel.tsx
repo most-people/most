@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   CheckCircle2,
   History,
@@ -68,7 +69,7 @@ export function NodeConnectionPanel({
   snapshot,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
-  const { alert, toast } = useFeedback()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
@@ -79,6 +80,7 @@ export function NodeConnectionPanel({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [working, setWorking] = useState(false)
+  const [connectionError, setConnectionError] = useState('')
 
   const history = client.getNodeHistory()
   const selectedRemote =
@@ -93,16 +95,18 @@ export function NodeConnectionPanel({
 
   useEffect(() => {
     if (!open) return
+    setConnectionError('')
     setUrl(selectedRemote?.url || node.endpoint || '')
     setInvite(selectedRemote?.invite || '')
   }, [open, node.endpoint, selectedRemote?.invite, selectedRemote?.url])
 
   const run = async (action: () => Promise<void>) => {
+    setConnectionError('')
     setWorking(true)
     try {
       await action()
     } catch (nextError) {
-      toast(getFriendlyRemoteConnectionError(nextError, locale), 'error')
+      setConnectionError(getFriendlyRemoteConnectionError(nextError, locale))
     } finally {
       setWorking(false)
     }
@@ -227,15 +231,15 @@ export function NodeConnectionPanel({
         transparent
         visible={open}
       >
-        <View style={styles.overlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboard}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.overlay}
+        >
+          <SafeAreaView edges={['top']} style={styles.modalViewport}>
             <ScrollView
               bounces={false}
               contentContainerStyle={styles.modalScroll}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
             >
               <BottomSheetCard style={styles.sheet}>
                 <View style={styles.modalHeader}>
@@ -254,6 +258,12 @@ export function NodeConnectionPanel({
                     <X size={20} color={theme.colors.textSecondary} />
                   </IconButton>
                 </View>
+
+                {connectionError ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.warning}>
+                    {connectionError}
+                  </Text>
+                ) : null}
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
@@ -404,8 +414,8 @@ export function NodeConnectionPanel({
                 ) : null}
               </BottomSheetCard>
             </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   )
@@ -464,13 +474,12 @@ function createConnectionStyles(theme: MostBoxTheme) {
       flex: 1,
       justifyContent: 'flex-end',
     },
-    keyboard: { flex: 1, justifyContent: 'flex-end' },
     modalScroll: { flexGrow: 1, justifyContent: 'flex-end' },
+    modalViewport: { flex: 1 },
     sheet: {
       gap: 18,
       width: '100%',
       maxWidth: '100%',
-      maxHeight: '92%',
       padding: 20,
     },
     modalHeader: {

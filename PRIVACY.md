@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: August 23, 2026
+Last updated: October 14, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -28,6 +28,32 @@ corresponding `most://` link or CID. Channel messages and presence information
 are replicated to peers participating in the corresponding channel. CIDs,
 `most://` links, and channel identifiers act as capabilities and should be
 shared accordingly.
+
+## Optional photos and voice messages
+
+Camera and microphone access is requested only when the user chooses to take a
+photo or record a voice message. Users can choose existing photos through the
+system picker without granting access to their entire photo library. Voice
+recording stops when the app leaves the foreground. Recorded voice messages can
+be reviewed or cancelled before sending; cancelled recordings are removed from
+the app's recording cache.
+
+Sending a photo or voice message publishes its content as a CID-addressed file
+and shares its `most://` link in the selected channel. Connected channel peers,
+remote nodes selected by the user, and people who know the link can obtain this
+content. Published and downloaded attachments are seeded like other files;
+deleting a local copy cannot remove copies already held by independent peers.
+
+## Optional message notifications
+
+Mobile users can enable silent notifications for new channel messages received
+while the app is in the background. The setting is off by default and system
+permission is requested when enabling it. Notifications identify the channel
+but do not display the message text or attachment contents. They are generated
+locally from messages received by the app; this feature does not register an
+Expo, FCM or APNs push token. Delivery is not guaranteed when the app is closed
+or suspended by the operating system. Users can disable reminders in the app
+or manage notification permissions in system settings.
 
 ## Optional Most.Box services
 

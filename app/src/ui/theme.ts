@@ -252,6 +252,7 @@ export const darkTheme: MostBoxTheme = {
 
 type ThemeContextValue = {
   preference: ThemePreference
+  setPreference: (preference: ThemePreference) => void
   cyclePreference: () => void
   theme: MostBoxTheme
 }
@@ -274,6 +275,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const setPreference = useCallback((nextPreference: ThemePreference) => {
+    setPreferenceState(nextPreference)
+    void persistThemePreference(nextPreference)
+  }, [])
+
   const cyclePreference = useCallback(() => {
     setPreferenceState(currentPreference => {
       const nextPreference = getNextThemePreference(currentPreference)
@@ -290,8 +296,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       : preference
   const theme = resolvedMode === 'dark' ? darkTheme : lightTheme
   const value = useMemo<ThemeContextValue>(
-    () => ({ preference, cyclePreference, theme }),
-    [cyclePreference, preference, theme]
+    () => ({ preference, setPreference, cyclePreference, theme }),
+    [cyclePreference, setPreference, preference, theme]
   )
 
   return createElement(ThemeContext.Provider, { value }, children)

@@ -22,9 +22,11 @@ export type ChatWebSocketSessionOptions = {
   invite: string
   identity: MobileIdentity | null
   onEvent?: (event: ChatWebSocketEvent) => void
+  onConnectionChange?: (connected: boolean) => void
   webSocketFactory?: (url: string) => ChatSocket
   reconnectBaseDelayMs?: number
   reconnectMaxDelayMs?: number
+  connectionTimeoutMs?: number
 }
 
 const OPEN = 1
@@ -38,6 +40,8 @@ export class ChatWebSocketSession {
   #connecting: Promise<void> | null = null
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null
   #reconnectAttempts = 0
+  #generation = 0
+  #cancelOpen: (() => void) | null = null
 
   constructor(options: ChatWebSocketSessionOptions) {
     this.#options = options
@@ -59,11 +63,12 @@ export class ChatWebSocketSession {
     }
     if (this.connected) return
     if (this.#connecting) return this.#connecting
-    this.#connecting = this.#open()
+    const connecting = this.#open()
+    this.#connecting = connecting
     try {
-      await this.#connecting
+      await connecting
     } finally {
-      this.#connecting = null
+      if (this.#connecting === connecting) this.#connecting = null
     }
   }
 
@@ -85,54 +90,86 @@ export class ChatWebSocketSession {
 
   close() {
     this.#started = false
+    this.#generation += 1
     if (this.#reconnectTimer) clearTimeout(this.#reconnectTimer)
     this.#reconnectTimer = null
     this.#connecting = null
     const socket = this.#socket
     this.#socket = null
+    this.#cancelOpen?.()
+    this.#cancelOpen = null
     socket?.close()
+    this.#options.onConnectionChange?.(false)
   }
 
   async #open() {
+    const generation = this.#generation
+    this.#options.onConnectionChange?.(false)
     const url = await buildAuthenticatedWebSocketUrl({
       baseUrl: this.#options.baseUrl,
       invite: this.#options.invite,
       identity: this.#options.identity,
     })
+    if (!this.#started || generation !== this.#generation)
+      throw new Error('Chat session closed before connecting')
     const factory =
       this.#options.webSocketFactory ||
       ((value: string) => new WebSocket(value) as unknown as ChatSocket)
     await new Promise<void>((resolve, reject) => {
       let settled = false
+      let retired = false
       const socket = factory(url)
       this.#socket = socket
+      const isCurrent = () =>
+        !retired &&
+        this.#started &&
+        generation === this.#generation &&
+        this.#socket === socket
+      const finish = (message: string, reconnect: boolean) => {
+        if (retired) return
+        retired = true
+        clearTimeout(timer)
+        if (this.#cancelOpen === cancel) this.#cancelOpen = null
+        if (this.#socket === socket) this.#socket = null
+        if (!settled) {
+          settled = true
+          reject(new Error(message))
+        }
+        socket.close()
+        if (reconnect && this.#started && generation === this.#generation) {
+          this.#options.onConnectionChange?.(false)
+          this.#scheduleReconnect()
+        }
+      }
+      const cancel = () =>
+        finish('Chat session closed before connecting', false)
+      const timer = setTimeout(
+        () => finish('Chat WebSocket connection timed out', true),
+        Math.max(1, this.#options.connectionTimeoutMs ?? 15_000)
+      )
+      this.#cancelOpen = cancel
       socket.onopen = () => {
+        if (!isCurrent()) return
         settled = true
+        clearTimeout(timer)
+        if (this.#cancelOpen === cancel) this.#cancelOpen = null
         this.#reconnectAttempts = 0
         for (const channel of this.#channels) {
           this.#send(buildChannelSubscribeFrame(channel))
         }
+        this.#options.onConnectionChange?.(true)
         resolve()
       }
       socket.onmessage = event => {
+        if (!isCurrent()) return
         const parsed = parseChatWebSocketMessage(String(event.data))
         if (parsed) this.#options.onEvent?.(parsed)
       }
       socket.onerror = () => {
-        if (!settled) {
-          settled = true
-          if (this.#socket === socket) this.#socket = null
-          reject(new Error('Chat WebSocket is unreachable'))
-        }
-        if (this.#started) this.#scheduleReconnect()
+        if (isCurrent()) finish('Chat WebSocket is unreachable', true)
       }
       socket.onclose = () => {
-        if (this.#socket === socket) this.#socket = null
-        if (!settled) {
-          settled = true
-          reject(new Error('Chat WebSocket closed before connecting'))
-        }
-        if (this.#started) this.#scheduleReconnect()
+        if (isCurrent()) finish('Chat WebSocket closed before connecting', true)
       }
     })
   }
