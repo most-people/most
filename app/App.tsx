@@ -1,6 +1,7 @@
 import './src/polyfills/eventTarget'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
   AppState,
   BackHandler,
   KeyboardAvoidingView,
@@ -32,7 +33,6 @@ import {
   Compass,
   HardDrive,
   ListChecks,
-  Loader,
   MessageCircle,
   ShieldCheck,
   UserRound,
@@ -1280,7 +1280,7 @@ function MostBoxApp() {
           edges={['top', 'right', 'bottom', 'left']}
           style={styles.startupScreen}
         >
-          <Loader size={28} color={theme.colors.accent} />
+          <ActivityIndicator size="large" color={theme.colors.accent} />
           <Text style={styles.startupTitle}>{t('app.node.starting')}</Text>
         </SafeAreaView>
       </SafeAreaProvider>

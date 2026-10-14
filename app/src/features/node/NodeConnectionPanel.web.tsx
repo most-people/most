@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -47,6 +49,8 @@ export type NodeConnectionPanelProps = {
   snapshot: MobileCoreSnapshot
 }
 
+type NodeOperation = 'connect' | 'local' | 'signIn' | 'signOut'
+
 function shortAddress(value: string) {
   if (value.length <= 18) return value
   return `${value.slice(0, 10)}...${value.slice(-6)}`
@@ -77,7 +81,18 @@ export function NodeConnectionPanel({
   const [invite, setInvite] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [working, setWorking] = useState(false)
+  const [operation, setOperation] = useState<NodeOperation | null>(null)
+  const workingRef = useRef(false)
+  const working = operation !== null
+  const progressMessage = t(
+    operation === 'signIn'
+      ? 'node.account.signingIn'
+      : operation === 'signOut'
+        ? 'node.account.signingOut'
+        : operation === 'local'
+          ? 'node.connection.switchingLocal'
+          : 'node.connection.connecting'
+  )
 
   const history = client.getNodeHistory()
   const selectedRemote =
@@ -96,33 +111,43 @@ export function NodeConnectionPanel({
     setInvite(selectedRemote?.invite || '')
   }, [open, node.endpoint, selectedRemote?.invite, selectedRemote?.url])
 
-  const run = async (action: () => Promise<void>) => {
-    setWorking(true)
+  const run = async (
+    nextOperation: NodeOperation,
+    action: () => Promise<void>
+  ) => {
+    if (workingRef.current) return
+    workingRef.current = true
+    setOperation(nextOperation)
+    Keyboard.dismiss()
     try {
+      await new Promise<void>(resolve =>
+        requestAnimationFrame(() => setTimeout(resolve, 0))
+      )
       await action()
     } catch (nextError) {
       toast(getFriendlyRemoteConnectionError(nextError, locale), 'error')
     } finally {
-      setWorking(false)
+      workingRef.current = false
+      setOperation(null)
     }
   }
 
   const connect = async (nextUrl = url, nextInvite = invite) => {
-    await run(async () => {
+    await run('connect', async () => {
       await client.connectRemote({ url: nextUrl, invite: nextInvite })
       setOpen(client.getSnapshot().node.authenticated !== true)
     })
   }
 
   const switchLocal = async () => {
-    await run(async () => {
+    await run('local', async () => {
       await client.switchToLocal()
       setOpen(false)
     })
   }
 
   const signIn = async () => {
-    await run(async () => {
+    await run('signIn', async () => {
       await client.signIn({ username, password })
       setUsername('')
       setPassword('')
@@ -130,7 +155,7 @@ export function NodeConnectionPanel({
   }
 
   const signOut = async () => {
-    await run(async () => {
+    await run('signOut', async () => {
       await client.signOut()
     })
   }
@@ -252,6 +277,24 @@ export function NodeConnectionPanel({
                   </IconButton>
                 </View>
 
+                {working ? (
+                  <View
+                    accessibilityLabel={progressMessage}
+                    accessibilityLiveRegion="polite"
+                    accessibilityRole="progressbar"
+                    accessibilityState={{ busy: true }}
+                    style={styles.progress}
+                  >
+                    <ActivityIndicator color={theme.colors.accent} />
+                    <View style={styles.progressText}>
+                      <Text style={styles.primaryText}>{progressMessage}</Text>
+                      <Text style={styles.secondaryText}>
+                        {t('node.connection.pleaseWait')}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
                     {t('node.account.title')}
@@ -266,11 +309,21 @@ export function NodeConnectionPanel({
                       </View>
                       <MostButton
                         disabled={working}
-                        icon={<LogOut size={16} color={theme.colors.danger} />}
+                        icon={
+                          operation === 'signOut' ? (
+                            <ActivityIndicator color={theme.colors.danger} />
+                          ) : (
+                            <LogOut size={16} color={theme.colors.danger} />
+                          )
+                        }
                         onPress={confirmSignOut}
                         variant="ghost"
                       >
-                        {t('node.account.signOut')}
+                        {t(
+                          operation === 'signOut'
+                            ? 'node.account.signingOut'
+                            : 'node.account.signOut'
+                        )}
                       </MostButton>
                     </View>
                   ) : (
@@ -294,11 +347,17 @@ export function NodeConnectionPanel({
                       />
                       <MostButton
                         disabled={working || !username.trim() || !password}
-                        icon={<LogIn size={16} color={theme.colors.onAccent} />}
+                        icon={
+                          operation === 'signIn' ? (
+                            <ActivityIndicator color={theme.colors.onAccent} />
+                          ) : (
+                            <LogIn size={16} color={theme.colors.onAccent} />
+                          )
+                        }
                         onPress={() => void signIn()}
                         variant="primary"
                       >
-                        {working
+                        {operation === 'signIn'
                           ? t('node.account.signingIn')
                           : t('node.account.signIn')}
                       </MostButton>
@@ -331,11 +390,17 @@ export function NodeConnectionPanel({
                     />
                     <MostButton
                       disabled={working || !url.trim()}
-                      icon={<Server size={16} color={theme.colors.onAccent} />}
+                      icon={
+                        operation === 'connect' ? (
+                          <ActivityIndicator color={theme.colors.onAccent} />
+                        ) : (
+                          <Server size={16} color={theme.colors.onAccent} />
+                        )
+                      }
                       onPress={() => void connect()}
                       variant="primary"
                     >
-                      {working
+                      {operation === 'connect'
                         ? t('node.connection.connecting')
                         : t('node.connection.connect')}
                     </MostButton>
@@ -343,11 +408,19 @@ export function NodeConnectionPanel({
                       <MostButton
                         disabled={working || !remote}
                         icon={
-                          <Smartphone size={16} color={theme.colors.accent} />
+                          operation === 'local' ? (
+                            <ActivityIndicator color={theme.colors.accent} />
+                          ) : (
+                            <Smartphone size={16} color={theme.colors.accent} />
+                          )
                         }
                         onPress={() => void switchLocal()}
                       >
-                        {t('node.connection.switchLocal')}
+                        {t(
+                          operation === 'local'
+                            ? 'node.connection.switchingLocal'
+                            : 'node.connection.switchLocal'
+                        )}
                       </MostButton>
                     ) : null}
                   </View>
@@ -483,6 +556,15 @@ function createConnectionStyles(theme: MostBoxTheme) {
     signedInRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     signedInText: { flex: 1, gap: 2, minWidth: 0 },
     primaryText: { color: colors.text, fontSize: 14, fontWeight: '600' },
+    progress: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: radii.small,
+      flexDirection: 'row',
+      gap: 12,
+      padding: 12,
+    },
+    progressText: { flex: 1, gap: 4 },
     secondaryText: { color: colors.textSecondary, fontSize: 12 },
     historyTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 7 },
     historyList: { gap: 7 },

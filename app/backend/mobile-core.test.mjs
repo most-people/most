@@ -185,6 +185,70 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+describe('mobile CID announcement diagnostics', () => {
+  for (const outcome of ['false', 'rejection']) {
+    it(`logs an incomplete CID announcement on ${outcome} without losing the local copy`, async t => {
+      const storagePath = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'mostbox-announce-')
+      )
+      const factory = createRecordingSwarmFactory([])
+      const core = new MobileP2PCore({
+        storagePath,
+        createSwarm: options => {
+          const swarm = factory(options)
+          const join = swarm.join.bind(swarm)
+          swarm.join = (topic, joinOptions) => {
+            const discovery = join(topic, joinOptions)
+            discovery.flushed = async () => {
+              if (outcome === 'rejection')
+                throw new Error('DHT announcement unavailable')
+              return false
+            }
+            return discovery
+          }
+          return swarm
+        },
+      })
+      t.after(async () => {
+        await core.stop()
+        assert.ok(
+          storagePath.startsWith(path.join(os.tmpdir(), 'mostbox-announce-'))
+        )
+        await fs.rm(storagePath, { recursive: true, force: true })
+      })
+      await core.start()
+      const published = await core.publishFile({
+        name: 'announcement.txt',
+        contentBase64: b4a.toString(
+          b4a.from('CID announcement diagnostic'),
+          'base64'
+        ),
+      })
+      await waitFor(
+        () =>
+          core
+            .getSnapshot()
+            .logs.some(
+              entry =>
+                entry.level === 'warn' &&
+                entry.message.includes(
+                  'CID topic announcement did not complete'
+                ) &&
+                entry.message.includes(published.holding.cid)
+            ),
+        'incomplete CID announcement warning'
+      )
+      assert.equal(core.getSnapshot().transfers[0].status, 'completed')
+      assert.equal(core.getSnapshot().holdings[0].localAvailable, true)
+      const exported = await core.exportHolding({ cid: published.holding.cid })
+      assert.equal(
+        await fs.readFile(exported.filePath, 'utf8'),
+        'CID announcement diagnostic'
+      )
+    })
+  }
+})
+
 describe('mobile durable transfer history', () => {
   it('persists a real publish and restores it in a new core instance', async t => {
     const storagePath = await fs.mkdtemp(

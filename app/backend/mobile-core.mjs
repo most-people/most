@@ -3011,10 +3011,19 @@ export class MobileP2PCore {
       error: '',
     })
 
-    discovery.flushed?.().then(
-      () => this.#emitSnapshot(),
-      () => {}
-    )
+    const warnIncompleteAnnouncement = () => {
+      if (
+        this.#discoveries.get(cid) !== record ||
+        !this.#swarm ||
+        this.#swarm.destroyed
+      )
+        return
+      this.#log('warn', `CID topic announcement did not complete: ${cid}`)
+    }
+    discovery.flushed?.().then(announced => {
+      if (announced === false) warnIncompleteAnnouncement()
+      else this.#emitSnapshot()
+    }, warnIncompleteAnnouncement)
 
     return record
   }

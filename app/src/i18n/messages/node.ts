@@ -369,6 +369,16 @@ export const nodeMessages = {
     'zh-TW': '切回本機節點',
     en: 'Switch to local node',
   },
+  'node.connection.switchingLocal': {
+    'zh-CN': '正在启动本机节点',
+    'zh-TW': '正在啟動本機節點',
+    en: 'Starting local node',
+  },
+  'node.connection.pleaseWait': {
+    'zh-CN': '请稍候，完成后会自动更新。',
+    'zh-TW': '請稍候，完成後會自動更新。',
+    en: 'Please wait. This screen will update when complete.',
+  },
   'node.connection.history': {
     'zh-CN': '历史节点',
     'zh-TW': '歷史節點',
@@ -453,6 +463,11 @@ export const nodeMessages = {
     'zh-CN': '退出登录',
     'zh-TW': '登出',
     en: 'Sign out',
+  },
+  'node.account.signingOut': {
+    'zh-CN': '正在退出登录',
+    'zh-TW': '正在登出',
+    en: 'Signing out',
   },
   'node.account.signOutConfirmTitle': {
     'zh-CN': '退出远程节点账号？',

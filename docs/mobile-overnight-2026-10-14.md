@@ -1,5 +1,7 @@
 # MostBox 移动聊天夜间开发与验收记录
 
+本文记录已验收的八小时开发结果。验收后的 loading、蜂窝复测和剩余问题研究见 [移动端后续记录](mobile-followup-2026-10-14.md)。夜间构建 33 已归档到 `.codex-logs/overnight-2026-10-14/mostbox-android-accepted33.apk`，原 SHA256 不变；`app/dist/` 现为后续构建，当前包和设备设置以后续记录为准。
+
 ## 工作窗口与目标
 
 - 用户授权：自主发现需求、决策和开发，参考已登录的微信测试账号；连续推进 8 小时，09:00 验收。
@@ -9,7 +11,7 @@
 
 ## 09:00 快速验收入口
 
-- 内部 ARM64 APK：`app/dist/mostbox-android-0.5.3-release.apk`，版本 0.5.3 / versionCode 503。这是内部验收构建，不是商店提交或正式发版。
+- 夜间内部 ARM64 APK（已归档）：`.codex-logs/overnight-2026-10-14/mostbox-android-accepted33.apk`，版本 0.5.3 / versionCode 503。这是内部验收构建，不是商店提交或正式发版。
 - 最终构建 33 已覆盖安装：67.81 MiB，SHA256 `0233ab95898dac5c5e703a0419cdf90fa064a6ed89f8dd25ef925cfc765a9eed`；校验文件与 APK 同目录。最终安装及复验状态在本文末尾记录。
 - 测试频道：`10141001`、`10141002`。保留原账号、已有频道和文件；没有清空 App 数据。
 - 最终真机四页截图：`.codex-logs/overnight-2026-10-14/acceptance-four-tabs-33.png`。手机留在本机模式聊天首页；“我”显示 23 个做种文件，提醒关闭，语言为简体中文，主题跟随系统。
