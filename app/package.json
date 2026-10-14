@@ -67,6 +67,9 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "^19.2.3",
     "bare-pack": "^2.2.1",
+    "cmake-fuzz": "0.1.0",
+    "cmake-runtime": "4.3.1",
+    "ninja-runtime": "1.13.2",
     "tsx": "4.23.5",
     "typescript": "6.0.3"
   }

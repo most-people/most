@@ -1,4 +1,5 @@
 import './src/polyfills/eventTarget'
+import { useBackgroundService } from './src/mobileCore/backgroundService'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -347,6 +348,7 @@ function MostBoxApp() {
   const isReady =
     isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
+  const backgroundService = useBackgroundService()
   const transferRuntimePolicy = getTransferRuntimePolicy({
     platform: (Platform.OS === 'android' ||
     Platform.OS === 'ios' ||
@@ -356,9 +358,8 @@ function MostBoxApp() {
       ? Platform.OS
       : 'unknown') as TransferRuntimePlatform,
     backgroundSeedingEnabled: PRODUCT_PROFILE.features.backgroundSeeding,
-    // Native foreground service/task integration is intentionally kept behind
-    // this explicit boundary until the platform modules are shipped.
-    hasNativeForegroundService: false,
+    // Claim background support only while the native service is running.
+    hasNativeForegroundService: backgroundService.running,
     nodeMode: currentSnapshot.node.mode,
     nodeReady: isReady,
   })

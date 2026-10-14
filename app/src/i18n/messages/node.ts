@@ -1,4 +1,42 @@
 export const nodeMessages = {
+  'node.background.title': {
+    'zh-CN': 'MostBox 后台传输',
+    'zh-TW': 'MostBox 背景傳輸',
+    en: 'MostBox background transfer',
+  },
+  'node.background.description': {
+    'zh-CN':
+      '开启后显示持续通知，帮助本机节点在息屏时继续传输；会增加耗电，最长保持 6 小时，系统仍可能中断。',
+    'zh-TW':
+      '開啟後顯示持續通知，協助本機節點在息屏時繼續傳輸；會增加耗電，最長保持 6 小時，系統仍可能中斷。',
+    en: 'Keeps a notification to help transfers continue with the screen off. Uses more battery, lasts up to 6 hours and may be interrupted by the system.',
+  },
+  'node.background.start': {
+    'zh-CN': '开启后台保持',
+    'zh-TW': '開啟背景保持',
+    en: 'Enable background support',
+  },
+  'node.background.stop': {
+    'zh-CN': '停止后台保持',
+    'zh-TW': '停止背景保持',
+    en: 'Stop background support',
+  },
+  'node.background.notification': {
+    'zh-CN': '本机节点继续传输文件。停止保持后，前台仍可正常做种。',
+    'zh-TW': '本機節點繼續傳輸檔案。停止保持後，前台仍可正常做種。',
+    en: 'Local file transfers continue. Foreground seeding remains available after stopping support.',
+  },
+  'node.background.permission': {
+    'zh-CN': '请允许通知后再开启后台保持。',
+    'zh-TW': '請允許通知後再開啟背景保持。',
+    en: 'Allow notifications before enabling background support.',
+  },
+  'node.background.failed': {
+    'zh-CN': '后台保持未能启动，请返回前台重试。',
+    'zh-TW': '背景保持未能啟動，請返回前台重試。',
+    en: 'Background support could not start. Open the app and retry.',
+  },
+
   'node.status.idle': {
     'zh-CN': '未启动',
     'zh-TW': '未啟動',

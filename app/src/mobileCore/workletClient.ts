@@ -1,4 +1,5 @@
 import b4a from 'b4a'
+import { stopBackgroundService } from './backgroundService'
 import { Worklet } from 'react-native-bare-kit'
 import { COMMANDS, EVENTS } from '../../rpc-commands.mjs'
 import type {
@@ -301,6 +302,7 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
   }
 
   async stop() {
+    await stopBackgroundService()
     if (!this.#worklet) {
       this.#snapshot.node.status = 'idle'
       this.#emit()

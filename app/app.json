@@ -110,7 +110,7 @@
             "deploymentTarget": "16.4"
           },
           "android": {
-            "minSdkVersion": 31,
+            "minSdkVersion": 29,
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
             "usesCleartextTraffic": true

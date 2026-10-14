@@ -37,6 +37,9 @@ export async function bundleBareCore(platform = requestedPlatform) {
     const { syncNativeAndroidProject } =
       await import('./sync-native-android.mjs')
     syncNativeAndroidProject({ syncVersionValues: false })
+    const { ensureBareAndroidRuntime } =
+      await import('./build-bare-android.mjs')
+    ensureBareAndroidRuntime(['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])
   }
 
   console.log(`[mobile] bundling Bare Worklet core for ${platform}...`)

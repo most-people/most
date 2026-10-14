@@ -1157,6 +1157,7 @@ export function ChatScreen({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      enabled={!joinSheetOpen}
       keyboardVerticalOffset={Platform.OS === 'android' ? insets.top : 0}
       style={[styles.container, chatOpen ? styles.detailContainer : null]}
     >
@@ -1853,7 +1854,8 @@ export function ChatScreen({
         onRequestClose={() => setJoinSheetOpen(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // Padding keeps the modal frame stable while the keyboard moves.
+          behavior="padding"
           style={styles.sheetOverlay}
         >
           <Pressable

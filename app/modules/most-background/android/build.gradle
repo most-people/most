@@ -1,0 +1,11 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+group = 'expo.modules.mostbackground'
+version = '1.0.0'
+android {
+  namespace 'expo.modules.mostbackground'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

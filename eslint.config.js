@@ -8,6 +8,7 @@ export default [
       '**/dist/**',
       'out/**',
       '.tmp/**',
+      '.codex-logs/**',
       '.tanstack/tmp/**',
       'app/appBundle.*.js',
       'app/web-dist/**',

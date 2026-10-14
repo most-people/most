@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { syncNativeAndroidProject } from './sync-native-android.mjs'
 import { verifyApkSigningIdentity } from './verify-apk-signature.mjs'
+import { ensureBareAndroidRuntime } from './build-bare-android.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
@@ -234,6 +235,7 @@ syncNativeAndroidProject({
   version,
   playSigningRequired: releaseSigningRequired,
 })
+ensureBareAndroidRuntime([releaseArchitecture])
 console.log('[android] bundling Bare Worklet core...')
 const bareBundleTemporary = path.join(
   projectDir,

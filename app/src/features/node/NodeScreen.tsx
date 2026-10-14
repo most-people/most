@@ -39,6 +39,7 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import { NodeConnectionPanel } from './NodeConnectionPanel'
+import { BackgroundServicePanel } from './BackgroundServicePanel'
 
 export type NodeScreenProps = {
   client: MostBoxMobileClient
@@ -161,6 +162,11 @@ export function NodeScreen({
       showsVerticalScrollIndicator={false}
     >
       <NodeConnectionPanel client={client} snapshot={snapshot} />
+      <BackgroundServicePanel
+        localReady={
+          snapshot.node.mode !== 'remote' && snapshot.node.status === 'ready'
+        }
+      />
 
       <View style={styles.section}>
         <SectionTitle
