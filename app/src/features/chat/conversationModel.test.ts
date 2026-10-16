@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  shouldShowMessageTime,
   getJoinedChannelNames,
   getJoinedChannels,
   getVisibleConversations,
@@ -284,5 +285,27 @@ test('the conversation list sorts pinned first then recent activity and searches
       ' #NEW '
     ).map(item => item.name),
     ['new']
+  )
+})
+
+test('time separators group nearby messages but retain gaps, day boundaries and missing timestamps', () => {
+  const at = (timestamp?: number | string): ChatMessage => ({
+    author: 'a',
+    authorName: 'A',
+    content: '',
+    timestamp,
+  })
+  const start = new Date(2026, 9, 16, 12).getTime()
+  assert.equal(shouldShowMessageTime(at(start)), true)
+  assert.equal(shouldShowMessageTime(at(start + 299999), at(start)), false)
+  assert.equal(shouldShowMessageTime(at(start + 300000), at(start)), true)
+  assert.equal(shouldShowMessageTime(at('invalid'), at(start)), false)
+  assert.equal(shouldShowMessageTime(at(start), at()), true)
+  assert.equal(
+    shouldShowMessageTime(
+      at(new Date(2026, 9, 17, 0, 1).getTime()),
+      at(new Date(2026, 9, 16, 23, 59).getTime())
+    ),
+    true
   )
 })

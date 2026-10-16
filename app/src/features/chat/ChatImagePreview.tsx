@@ -38,6 +38,12 @@ export function ChatImagePreview({
 }: ChatImagePreviewProps) {
   const theme = useMostBoxTheme()
   const { t } = useI18n()
+  const [dimensions, setDimensions] = useState({ width: 192, height: 160 })
+  const styles = createStyles(
+    dimensions.width,
+    dimensions.height,
+    theme.colors.textMuted
+  )
   const [fullScreen, setFullScreen] = useState(false)
   const [preview, setPreview] = useState<{ cid: string; uri: string } | null>(
     null
@@ -73,6 +79,19 @@ export function ChatImagePreview({
           releasePreview()
           return
         }
+        Image.getSize(
+          uri,
+          (width, height) => {
+            if (running && width > 0 && height > 0) {
+              const scale = Math.min(220 / width, 260 / height, 1)
+              setDimensions({
+                width: Math.round(width * scale),
+                height: Math.round(height * scale),
+              })
+            }
+          },
+          () => {}
+        )
         setPreview({ cid, uri })
       })
       .catch(() => {
@@ -95,9 +114,7 @@ export function ChatImagePreview({
         style={styles.loading}
       >
         <RotateCcw size={22} color={theme.colors.textMuted} />
-        <Text style={[styles.retry, { color: theme.colors.textMuted }]}>
-          {t('common.retry')}
-        </Text>
+        <Text style={styles.retry}>{t('common.retry')}</Text>
       </Pressable>
     )
   return preview?.cid === cid ? (
@@ -110,6 +127,7 @@ export function ChatImagePreview({
           setFullScreen(true)
         }}
         onLongPress={onLongPress}
+        style={styles.thumbnail}
       >
         <Image
           source={{ uri: preview.uri }}
@@ -172,36 +190,39 @@ export function ChatImagePreview({
   )
 }
 
-const styles = StyleSheet.create({
-  image: { width: 192, height: 160, borderRadius: 8, marginBottom: 6 },
-  loading: {
-    width: 192,
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  retry: { fontSize: 14 },
-  viewer: { flex: 1, backgroundColor: '#000' },
-  viewerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 12,
-    minHeight: 56,
-  },
-  close: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fileName: { flex: 1, color: '#fff', fontSize: 16 },
-  fullImage: { flex: 1, width: '100%' },
-  viewerActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    padding: 20,
-  },
-})
+function createStyles(width: number, height: number, color: string) {
+  return StyleSheet.create({
+    thumbnail: { maxWidth: '100%', overflow: 'hidden', borderRadius: 5 },
+    image: { width, height, maxWidth: '100%', borderRadius: 5 },
+    loading: {
+      width: 192,
+      height: 160,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    retry: { fontSize: 14, color },
+    viewer: { flex: 1, backgroundColor: '#000' },
+    viewerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      gap: 12,
+      minHeight: 56,
+    },
+    close: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fileName: { flex: 1, color: '#fff', fontSize: 16 },
+    fullImage: { flex: 1, width: '100%' },
+    viewerActions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 12,
+      padding: 20,
+    },
+  })
+}

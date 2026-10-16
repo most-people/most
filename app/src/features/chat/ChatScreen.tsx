@@ -30,6 +30,7 @@ import {
   Camera,
   Image as ImageIcon,
   FileText,
+  Volume2,
   Keyboard as KeyboardIcon,
   MessageCircle,
   Minimize2,
@@ -88,6 +89,7 @@ import { useMostBoxTheme } from '../../ui/theme'
 
 import {
   getJoinedChannels,
+  shouldShowMessageTime,
   getConversationDraft,
   getConversationSummaries,
   getRemainingHiddenConversations,
@@ -107,6 +109,7 @@ import { VoiceAudioPlayer } from './VoiceAudioPlayer'
 import type { VoiceRecording } from './voiceRecordingSession'
 import { useChatNotifications } from './useChatNotifications'
 import { ChannelShareSheet } from './ChannelShareSheet'
+import { ChatAvatar } from './ChatAvatar'
 
 function updateChatRoute(channel = '') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -1411,7 +1414,7 @@ export function ChatScreen({
                 ) : null
               }
               contentContainerStyle={styles.messages}
-              renderItem={({ item }) => {
+              renderItem={({ item, index }) => {
                 const mine = isOwnChatMessage(
                   item,
                   identity?.address || snapshot.node.userAddress || ''
@@ -1435,66 +1438,72 @@ export function ChatScreen({
                 const actionLabel = t(action, {
                   progress: Math.round(state?.transfer?.progress || 0),
                 })
+                const imageReady =
+                  attachment?.kind === 'image' && state?.holding
+                const fileCard =
+                  attachment &&
+                  !imageReady &&
+                  !(attachment.kind === 'audio' && state?.holding)
                 return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('chat.messageActionsA11y', {
-                      author: item.authorName,
-                      content: attachment?.fileName || item.content,
-                    })}
-                    onLongPress={() => showMessageMenu(item)}
-                    style={[styles.message, mine ? styles.messageMine : null]}
-                  >
-                    <Text
+                  <View>
+                    {shouldShowMessageTime(item, visibleMessages[index + 1]) ? (
+                      <Text style={styles.timestamp}>
+                        {formatDateTime(item.timestamp!)}
+                      </Text>
+                    ) : null}
+                    <View
                       style={[
-                        styles.author,
-                        mine ? styles.messageMineMeta : null,
+                        styles.messageRow,
+                        mine ? styles.messageRowMine : null,
                       ]}
                     >
-                      {item.authorName}
-                    </Text>
-                    {attachment ? (
-                      attachment.kind === 'audio' && state?.holding ? (
-                        <VoiceAudioPlayer
-                          color={mine ? '#152515' : theme.colors.text}
-                          key={`${conversationScope}:${getChatMessageKey(item)}`}
-                          active={
-                            active &&
-                            foreground &&
-                            !voiceRecordingActive &&
-                            (!playingMessageKey ||
-                              playingMessageKey === getChatMessageKey(item))
-                          }
-                          onPlay={() =>
-                            setPlayingMessageKey(getChatMessageKey(item))
-                          }
-                          loadUri={async () => {
-                            const result = await client.exportHolding({
-                              cid: attachment.cid,
-                              fileName: attachment.fileName,
-                              mimeType: attachment.mimeType,
-                            })
-                            return /^(?:file:|content:|blob:|https?:)/.test(
-                              result.filePath
-                            )
-                              ? result.filePath
-                              : `file://${result.filePath}`
-                          }}
-                        />
-                      ) : (
+                      <ChatAvatar address={item.author} avatar={item.avatar} />
+                      <View
+                        style={[
+                          styles.messageBody,
+                          mine ? styles.messageBodyMine : null,
+                        ]}
+                      >
+                        {!mine ? (
+                          <Text numberOfLines={1} style={styles.author}>
+                            {item.authorName}
+                          </Text>
+                        ) : null}
                         <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
-                          disabled={state?.status === 'running'}
-                          onPress={() => {
-                            if (state?.holding)
-                              void onOpenAttachment(state.holding)
-                            else onReceiveAttachment(attachment)
-                          }}
+                          accessible={!attachment}
+                          accessibilityRole={attachment ? undefined : 'button'}
+                          accessibilityLabel={
+                            attachment
+                              ? undefined
+                              : t('chat.messageActionsA11y', {
+                                  author: item.authorName,
+                                  content: item.content,
+                                })
+                          }
                           onLongPress={() => showMessageMenu(item)}
-                          style={styles.attachmentButton}
+                          style={[
+                            styles.message,
+                            mine ? styles.messageMine : null,
+                            fileCard ? styles.fileMessage : null,
+                            imageReady ? styles.imageMessage : null,
+                          ]}
                         >
-                          {attachment.kind === 'image' && state?.holding ? (
+                          {!imageReady ? (
+                            <View
+                              style={[
+                                styles.bubbleTail,
+                                mine
+                                  ? styles.bubbleTailMine
+                                  : styles.bubbleTailOther,
+                                fileCard
+                                  ? mine
+                                    ? styles.fileTailMine
+                                    : styles.fileTailOther
+                                  : null,
+                              ]}
+                            />
+                          ) : null}
+                          {imageReady && attachment && state.holding ? (
                             <ChatImagePreview
                               key={`${conversationScope}:${attachment.cid}`}
                               client={client}
@@ -1503,67 +1512,112 @@ export function ChatScreen({
                               mimeType={attachment.mimeType}
                               active={active && foreground}
                               onLongPress={() => showMessageMenu(item)}
-                              onSave={() => {
-                                if (state.holding)
-                                  void onSaveAttachment(state.holding)
-                              }}
-                              onOpen={() => {
-                                if (state.holding)
-                                  void onOpenAttachment(state.holding)
-                              }}
+                              onSave={() =>
+                                void onSaveAttachment(state.holding!)
+                              }
+                              onOpen={() =>
+                                void onOpenAttachment(state.holding!)
+                              }
                             />
-                          ) : null}
-                          <Text
-                            style={[
-                              styles.attachmentName,
-                              mine ? styles.messageMineText : null,
-                            ]}
-                          >
-                            {t('chat.attachmentLabel', {
-                              fileName: attachment.fileName,
-                            })}
-                          </Text>
-                          {typeof attachment.size === 'number' ? (
+                          ) : attachment ? (
+                            attachment.kind === 'audio' && state?.holding ? (
+                              <VoiceAudioPlayer
+                                mine={mine}
+                                onLongPress={() => showMessageMenu(item)}
+                                key={`${conversationScope}:${getChatMessageKey(item)}`}
+                                active={
+                                  active &&
+                                  foreground &&
+                                  !voiceRecordingActive &&
+                                  (!playingMessageKey ||
+                                    playingMessageKey ===
+                                      getChatMessageKey(item))
+                                }
+                                onPlay={() =>
+                                  setPlayingMessageKey(getChatMessageKey(item))
+                                }
+                                loadUri={async () => {
+                                  const result = await client.exportHolding({
+                                    cid: attachment.cid,
+                                    fileName: attachment.fileName,
+                                    mimeType: attachment.mimeType,
+                                  })
+                                  return /^(?:file:|content:|blob:|https?:)/.test(
+                                    result.filePath
+                                  )
+                                    ? result.filePath
+                                    : `file://${result.filePath}`
+                                }}
+                              />
+                            ) : (
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
+                                disabled={state?.status === 'running'}
+                                onPress={() => {
+                                  if (state?.holding)
+                                    void onOpenAttachment(state.holding)
+                                  else onReceiveAttachment(attachment)
+                                }}
+                                onLongPress={() => showMessageMenu(item)}
+                                style={styles.attachmentButton}
+                              >
+                                <View style={styles.fileInfo}>
+                                  <Text
+                                    numberOfLines={2}
+                                    style={styles.attachmentName}
+                                  >
+                                    {attachment.fileName}
+                                  </Text>
+                                  {typeof attachment.size === 'number' ? (
+                                    <Text style={styles.attachmentDetails}>
+                                      {formatAttachmentSize(attachment.size)}
+                                    </Text>
+                                  ) : null}
+                                  {!state?.holding ? (
+                                    <Text style={styles.attachmentAction}>
+                                      {actionLabel}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                                <View style={styles.fileIcon}>
+                                  {state?.status === 'running' ? (
+                                    <ActivityIndicator
+                                      color={theme.colors.accent}
+                                    />
+                                  ) : attachment.kind === 'image' ? (
+                                    <ImageIcon
+                                      size={30}
+                                      color={theme.colors.textSecondary}
+                                    />
+                                  ) : attachment.kind === 'audio' ? (
+                                    <Volume2
+                                      size={30}
+                                      color={theme.colors.textSecondary}
+                                    />
+                                  ) : (
+                                    <FileText
+                                      size={30}
+                                      color={theme.colors.textSecondary}
+                                    />
+                                  )}
+                                </View>
+                              </Pressable>
+                            )
+                          ) : (
                             <Text
                               style={[
-                                styles.attachmentDetails,
-                                mine ? styles.messageMineMeta : null,
+                                styles.content,
+                                mine ? styles.messageMineText : null,
                               ]}
                             >
-                              {formatAttachmentSize(attachment.size)}
+                              {item.content}
                             </Text>
-                          ) : null}
-                          <Text
-                            style={[
-                              styles.attachmentAction,
-                              mine ? styles.messageMineText : null,
-                            ]}
-                          >
-                            {actionLabel}
-                          </Text>
+                          )}
                         </Pressable>
-                      )
-                    ) : (
-                      <Text
-                        style={[
-                          styles.content,
-                          mine ? styles.messageMineText : null,
-                        ]}
-                      >
-                        {item.content}
-                      </Text>
-                    )}
-                    {item.timestamp ? (
-                      <Text
-                        style={[
-                          styles.timestamp,
-                          mine ? styles.messageMineMeta : null,
-                        ]}
-                      >
-                        {formatDateTime(item.timestamp)}
-                      </Text>
-                    ) : null}
-                  </Pressable>
+                      </View>
+                    </View>
+                  </View>
                 )
               }}
             />
@@ -2151,38 +2205,79 @@ function chatStyles(
       fontSize: 12,
       color: colors.textSecondary,
     },
+    messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    messageRowMine: { flexDirection: 'row-reverse' },
+    messageBody: {
+      maxWidth: '76%',
+      flexShrink: 1,
+      alignItems: 'flex-start',
+      gap: 4,
+    },
+    messageBodyMine: { alignItems: 'flex-end' },
     message: {
-      alignSelf: 'flex-start',
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 5,
+      maxWidth: '100%',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    messageMine: { backgroundColor: '#95ec69' },
+    messageMineText: { color: '#152515' },
+    bubbleTail: {
+      position: 'absolute',
+      top: 13,
+      width: 0,
+      height: 0,
+      borderTopWidth: 5,
+      borderBottomWidth: 5,
+      borderTopColor: 'transparent',
+      borderBottomColor: 'transparent',
+    },
+    bubbleTailOther: {
+      left: -5,
+      borderRightWidth: 6,
+      borderRightColor: colors.surfaceSubtle,
+    },
+    bubbleTailMine: {
+      right: -5,
+      borderLeftWidth: 6,
+      borderLeftColor: '#95ec69',
+    },
+    fileTailOther: { borderRightColor: colors.surfaceSolid },
+    fileTailMine: { borderLeftColor: colors.surfaceSolid },
+    author: { color: colors.textMuted, fontSize: 12, marginBottom: 1 },
+    fileMessage: { backgroundColor: colors.surfaceSolid, width: 240 },
+    imageMessage: {
+      backgroundColor: 'transparent',
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+    },
+    attachmentButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: 64,
+    },
+    fileInfo: { flex: 1, minWidth: 0 },
+    fileIcon: {
+      width: 44,
+      height: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: colors.surfaceSubtle,
       borderRadius: 4,
-      maxWidth: '86%',
-      paddingHorizontal: 10,
-      paddingVertical: 8,
     },
-    messageMine: { alignSelf: 'flex-end', backgroundColor: '#95ec69' },
-    messageMineText: { color: '#152515' },
-    messageMineMeta: { color: '#36552c' },
-    author: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-    attachmentName: {
-      color: colors.text,
-      fontSize: 13,
-      fontWeight: '600',
-      marginTop: 3,
-    },
-    attachmentButton: { paddingVertical: 7, paddingHorizontal: 3 },
-    attachmentDetails: {
-      color: colors.textSecondary,
+    attachmentName: { color: colors.text, fontSize: 15, lineHeight: 21 },
+    attachmentDetails: { color: colors.textMuted, fontSize: 12, marginTop: 5 },
+    attachmentAction: { color: colors.accent, fontSize: 12, marginTop: 5 },
+    content: { color: colors.text, fontSize: 16, lineHeight: 24 },
+    timestamp: {
+      color: colors.textMuted,
       fontSize: 12,
-      marginTop: 4,
+      textAlign: 'center',
+      marginTop: 8,
+      marginBottom: 18,
     },
-    attachmentAction: {
-      color: colors.accent,
-      fontSize: 12,
-      fontWeight: '600',
-      marginTop: 5,
-    },
-    content: { color: colors.text, fontSize: 15, marginTop: 2 },
-    timestamp: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
     composer: {
       alignItems: 'flex-end',
       borderTopColor: colors.border,

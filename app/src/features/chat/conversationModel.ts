@@ -6,6 +6,21 @@ import {
   type ChatMessage,
 } from '../../chat/chatProtocol'
 
+// Messages are rendered newest first; the separator belongs above the newer message.
+export function shouldShowMessageTime(
+  message: ChatMessage,
+  older?: ChatMessage
+) {
+  const timestamp = getChatMessageTimestamp(message)
+  if (!timestamp) return false
+  const previous = older ? getChatMessageTimestamp(older) : 0
+  return (
+    !previous ||
+    timestamp - previous >= 5 * 60 * 1000 ||
+    new Date(timestamp).toDateString() !== new Date(previous).toDateString()
+  )
+}
+
 export type JoinedChannel = { name: string; remark: string; pinned: boolean }
 
 export function getJoinedChannels(

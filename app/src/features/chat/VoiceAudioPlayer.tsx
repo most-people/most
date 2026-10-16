@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
-import { Pause, Play } from 'lucide-react-native'
+import { Pause, Volume2 } from 'lucide-react-native'
 import {
   setAudioModeAsync,
   useAudioPlayer,
@@ -14,23 +14,30 @@ type VoiceAudioPlayerProps = {
   loadUri: () => Promise<string>
   active: boolean
   onPlay?: () => void
-  color?: string
+  mine?: boolean
+  onLongPress?: () => void
 }
 
 export function VoiceAudioPlayer({
   loadUri,
   active,
   onPlay,
-  color,
+  mine = false,
+  onLongPress,
 }: VoiceAudioPlayerProps) {
   const { t } = useI18n()
   const theme = useMostBoxTheme()
-  const foreground = color || theme.colors.text
+  const foreground = mine ? '#152515' : theme.colors.text
+  const styles = createStyles(foreground, mine)
   const { toast } = useFeedback()
   const player = useAudioPlayer(null)
   const status = useAudioPlayerStatus(player)
   const [loading, setLoading] = useState(false)
   const uriRef = useRef('')
+  const loadedUriRef = useRef('')
+  const pendingUriRef = useRef<Promise<string> | null>(null)
+  const loadUriRef = useRef(loadUri)
+  loadUriRef.current = loadUri
   const mountedRef = useRef(true)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -45,6 +52,38 @@ export function VoiceAudioPlayer({
   useEffect(() => {
     if (!active) player.pause()
   }, [active, player])
+  const prepareAudio = useCallback(async () => {
+    if (!pendingUriRef.current) {
+      pendingUriRef.current = loadUriRef
+        .current()
+        .then(uri => {
+          if (!mountedRef.current) {
+            if (uri.startsWith('blob:')) URL.revokeObjectURL(uri)
+            return ''
+          }
+          uriRef.current = uri
+          return uri
+        })
+        .catch(error => {
+          pendingUriRef.current = null
+          throw error
+        })
+    }
+    const uri = await pendingUriRef.current
+    if (
+      uri &&
+      mountedRef.current &&
+      activeRef.current &&
+      loadedUriRef.current !== uri
+    ) {
+      player.replace(uri)
+      loadedUriRef.current = uri
+    }
+  }, [player])
+  // Read duration from the locally verified audio without starting playback.
+  useEffect(() => {
+    if (active) void prepareAudio().catch(() => {})
+  }, [active, prepareAudio])
   const toggle = async () => {
     if (loading) return
     if (status.playing) {
@@ -54,15 +93,7 @@ export function VoiceAudioPlayer({
     onPlay?.()
     setLoading(true)
     try {
-      if (!uriRef.current) {
-        const uri = await loadUri()
-        if (!mountedRef.current) {
-          if (uri.startsWith('blob:')) URL.revokeObjectURL(uri)
-          return
-        }
-        uriRef.current = uri
-        player.replace(uri)
-      }
+      await prepareAudio()
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
@@ -88,6 +119,7 @@ export function VoiceAudioPlayer({
         status.playing ? 'chat.pauseVoice' : 'chat.playVoice'
       )}
       onPress={() => void toggle()}
+      onLongPress={onLongPress}
       style={styles.button}
     >
       {loading ? (
@@ -95,17 +127,25 @@ export function VoiceAudioPlayer({
       ) : status.playing ? (
         <Pause size={22} color={foreground} />
       ) : (
-        <Play size={22} color={foreground} />
+        <Volume2 size={22} color={foreground} />
       )}
-      <Text style={[styles.label, { color: foreground }]}>
-        {t(status.playing ? 'chat.pauseVoice' : 'chat.playVoice')}
-        {status.duration > 0 ? ` · ${Math.ceil(status.duration)}s` : ''}
+      <Text style={styles.label}>
+        {status.duration > 0 ? `${Math.ceil(status.duration)}″` : '…'}
       </Text>
     </Pressable>
   )
 }
 
-const styles = StyleSheet.create({
-  button: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  label: { fontSize: 15 },
-})
+function createStyles(color: string, mine: boolean) {
+  return StyleSheet.create({
+    button: {
+      minHeight: 24,
+      minWidth: 80,
+      flexDirection: mine ? 'row-reverse' : 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 16,
+    },
+    label: { fontSize: 16, color },
+  })
+}
