@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   type TextInput,
@@ -110,6 +111,105 @@ import type { VoiceRecording } from './voiceRecordingSession'
 import { useChatNotifications } from './useChatNotifications'
 import { ChannelShareSheet } from './ChannelShareSheet'
 import { ChatAvatar } from './ChatAvatar'
+
+const CHAT_EMOJIS = [
+  '😀',
+  '😃',
+  '😄',
+  '😁',
+  '😆',
+  '😅',
+  '😂',
+  '🤣',
+  '😊',
+  '🙂',
+  '😉',
+  '😍',
+  '🥰',
+  '😘',
+  '😋',
+  '😎',
+  '🤔',
+  '🤭',
+  '🤫',
+  '🫡',
+  '🙃',
+  '😏',
+  '😌',
+  '😴',
+  '🥺',
+  '🥹',
+  '😢',
+  '😭',
+  '😤',
+  '😠',
+  '😡',
+  '🤯',
+  '😱',
+  '😳',
+  '😬',
+  '🙄',
+  '😮',
+  '😯',
+  '🤗',
+  '🤩',
+  '🤓',
+  '🥳',
+  '🤪',
+  '😜',
+  '😇',
+  '🤐',
+  '🤒',
+  '🤧',
+  '👍',
+  '👎',
+  '👏',
+  '🙌',
+  '🤝',
+  '🙏',
+  '💪',
+  '✌️',
+  '👌',
+  '🤞',
+  '🤟',
+  '🤘',
+  '👋',
+  '🫶',
+  '👀',
+  '💯',
+  '❤️',
+  '🧡',
+  '💛',
+  '💚',
+  '💙',
+  '💜',
+  '💕',
+  '💔',
+  '🎉',
+  '🎊',
+  '🎂',
+  '🎁',
+  '🎈',
+  '✨',
+  '🌟',
+  '🔥',
+  '🌹',
+  '🌻',
+  '🍀',
+  '🌈',
+  '☀️',
+  '🌙',
+  '🐱',
+  '🐶',
+  '🍎',
+  '🍉',
+  '🍔',
+  '🍰',
+  '☕',
+  '🍵',
+  '🍻',
+  '🥂',
+]
 
 function updateChatRoute(channel = '') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -1756,8 +1856,12 @@ export function ChatScreen({
               )}
             </View>
             {emojiOpen ? (
-              <View style={styles.emojiPanel}>
-                {['😀', '😂', '👍', '🎉', '❤️', '🙏', '😅', '🤝'].map(emoji => (
+              <ScrollView
+                style={styles.emojiPanel}
+                contentContainerStyle={styles.emojiGrid}
+                keyboardShouldPersistTaps="always"
+              >
+                {CHAT_EMOJIS.map(emoji => (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={emoji}
@@ -1768,7 +1872,7 @@ export function ChatScreen({
                     <Text style={styles.emoji}>{emoji}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </ScrollView>
             ) : null}
           </View>
           <Modal
@@ -2322,22 +2426,25 @@ function chatStyles(
       fontWeight: '600',
     },
     emojiPanel: {
-      alignItems: 'center',
       backgroundColor: colors.surface,
       borderTopColor: colors.border,
       borderTopWidth: 1,
+      alignSelf: 'stretch',
+      height: 240,
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    emojiGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-between',
-      alignSelf: 'stretch',
-      paddingHorizontal: 10,
+      paddingHorizontal: 8,
       paddingVertical: 8,
     },
     emojiButton: {
       alignItems: 'center',
-      height: 36,
+      height: 48,
       justifyContent: 'center',
-      width: 36,
+      width: 48,
     },
     emoji: { fontSize: 24 },
     sheetOverlay: {
