@@ -12,22 +12,25 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import { Copy, Share2 } from 'lucide-react-native'
 import { useI18n } from '../../i18n'
-import { BottomSheetCard, MostButton } from '../../ui/components'
+import { BottomSheetCard, MostButton, MostTextInput } from '../../ui/components'
 import { useMostBoxTheme } from '../../ui/theme'
 import type { JoinedChannel } from './conversationModel'
 
 type ChannelShareSheetProps = {
   channel: JoinedChannel
+  onSaveRemark: (remark: string) => Promise<void>
   onClose: () => void
 }
 
 export function ChannelShareSheet({
   channel,
+  onSaveRemark,
   onClose,
 }: ChannelShareSheetProps) {
   const { t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = createStyles(theme.colors)
+  const [remark, setRemark] = useState(channel.remark)
   const [working, setWorking] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -52,6 +55,19 @@ export function ChannelShareSheet({
       setWorking(false)
     }
   }
+  const saveRemark = async () => {
+    if (working) return
+    setWorking(true)
+    setError('')
+    try {
+      await onSaveRemark(remark.trim())
+      setRemark(remark.trim())
+    } catch {
+      setError(t('contacts.remarkSaveFailed'))
+    } finally {
+      setWorking(false)
+    }
+  }
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.overlay}>
@@ -60,9 +76,6 @@ export function ChannelShareSheet({
             <Text accessibilityRole="header" style={styles.title}>
               {t('chat.channelInfo')}
             </Text>
-            {channel.remark ? (
-              <Text style={styles.remark}>{channel.remark}</Text>
-            ) : null}
             <Text selectable style={styles.name}>
               {name}
             </Text>
@@ -78,6 +91,22 @@ export function ChannelShareSheet({
               </Text>
             ) : null}
             <View style={styles.actions}>
+              <Text style={styles.remark}>{t('contacts.rename')}</Text>
+              <MostTextInput
+                accessibilityLabel={t('contacts.rename')}
+                value={remark}
+                onChangeText={setRemark}
+                editable={!working}
+                placeholder={t('contacts.renamePlaceholder')}
+                onSubmitEditing={() => void saveRemark()}
+              />
+              <MostButton
+                disabled={working || remark.trim() === channel.remark}
+                onPress={() => void saveRemark()}
+                variant="primary"
+              >
+                {t('common.save')}
+              </MostButton>
               <MostButton
                 disabled={working}
                 onPress={() => void run(false)}

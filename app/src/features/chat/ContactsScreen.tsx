@@ -141,7 +141,7 @@ export function ContactsScreen({
   }
 
   const showMenu = (channel: JoinedChannel) => {
-    alert(`#${channel.remark || channel.name}`, undefined, [
+    alert(channel.remark || `#${channel.name}`, undefined, [
       {
         text: t('chat.copyChannelName'),
         onPress: () => {
@@ -239,7 +239,7 @@ export function ContactsScreen({
                 </View>
                 <View style={styles.rowText}>
                   <Text numberOfLines={1} style={styles.label}>
-                    #{channel.remark || channel.name}
+                    {channel.remark || `#${channel.name}`}
                   </Text>
                   {channel.pinned ? (
                     <Text style={styles.meta}>{t('contacts.pinned')}</Text>

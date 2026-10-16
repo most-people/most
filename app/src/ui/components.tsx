@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import {
   Pressable,
   StyleSheet,
@@ -184,7 +184,7 @@ export function IconButton({
 export function MostTextInput({
   style,
   ...props
-}: TextInputProps & { style?: StyleProp<TextStyle> }) {
+}: TextInputProps & { ref?: Ref<TextInput>; style?: StyleProp<TextStyle> }) {
   const theme = useMostBoxTheme()
   const styles = sharedStyles[theme.mode]
   return (

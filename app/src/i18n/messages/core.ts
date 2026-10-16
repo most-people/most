@@ -205,10 +205,15 @@ export const coreMessages = {
     'zh-TW': '搜尋',
     en: 'Search',
   },
+  'contacts.remarkSaveFailed': {
+    'zh-CN': '备注保存失败，请重试',
+    'zh-TW': '備註儲存失敗，請重試',
+    en: 'Could not save the remark. Please try again.',
+  },
   'contacts.rename': {
-    'zh-CN': '重命名',
-    'zh-TW': '重新命名',
-    en: 'Rename',
+    'zh-CN': '设置备注',
+    'zh-TW': '設定備註',
+    en: 'Set remark',
   },
   'contacts.pin': {
     'zh-CN': '置顶',
@@ -236,9 +241,9 @@ export const coreMessages = {
     en: 'Leave {channel}? It will be removed from Contacts and the chat list.',
   },
   'contacts.renamePlaceholder': {
-    'zh-CN': '输入显示名称，留空恢复原名称',
-    'zh-TW': '輸入顯示名稱，留空恢復原名稱',
-    en: 'Display name; leave empty to restore the original',
+    'zh-CN': '输入备注，留空显示频道 ID',
+    'zh-TW': '輸入備註，留空顯示頻道 ID',
+    en: 'Remark; leave empty to show the channel ID',
   },
   'contacts.actionUnavailable': {
     'zh-CN': '当前节点不支持此操作',

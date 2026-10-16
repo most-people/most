@@ -10,9 +10,9 @@ export const chatMessages = {
     en: 'Channel info',
   },
   'chat.copyChannelName': {
-    'zh-CN': '复制频道名称',
-    'zh-TW': '複製頻道名稱',
-    en: 'Copy channel name',
+    'zh-CN': '复制频道',
+    'zh-TW': '複製頻道',
+    en: 'Copy channel',
   },
   'chat.shareChannel': {
     'zh-CN': '分享频道',

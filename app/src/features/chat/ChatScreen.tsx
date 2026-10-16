@@ -10,6 +10,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  type TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -17,6 +18,7 @@ import * as Clipboard from 'expo-clipboard'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -177,7 +179,10 @@ export function ChatScreen({
   const { t, formatDateTime, locale } = useI18n()
   const insets = useSafeAreaInsets()
   const theme = useMostBoxTheme()
-  const styles = chatStyles(theme)
+  const [draftHeight, setDraftHeight] = useState(42)
+  const [draftWidth, setDraftWidth] = useState(0)
+  const draftInputRef = useRef<TextInput>(null)
+  const styles = chatStyles(theme, draftHeight)
   const { alert, toast } = useFeedback()
   const bridge = client as ChatBridge
   const localMode = snapshot.node.mode !== 'remote'
@@ -1074,9 +1079,19 @@ export function ChatScreen({
     setComposerMode(current => (current === 'keyboard' ? 'voice' : 'keyboard'))
   }
 
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'web' || composerMode !== 'keyboard') return
+    const input = draftInputRef.current as unknown as HTMLTextAreaElement | null
+    if (!input) return
+    // Measure from the natural height so deleting text can shrink the textarea.
+    input.style.height = 'auto'
+    const height = Math.max(42, Math.min(240, input.scrollHeight + 2))
+    input.style.height = `${height}px`
+    setDraftHeight(height)
+  }, [draft, draftWidth, composerMode, channel])
+
   const appendEmoji = (emoji: string) => {
     setDraft(`${draft}${emoji}`)
-    setEmojiOpen(false)
   }
 
   const sendVoiceMessage = async (recording: VoiceRecording) => {
@@ -1221,7 +1236,7 @@ export function ChatScreen({
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`#${item.remark || item.name}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
+                    accessibilityLabel={`${item.remark || `#${item.name}`}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
                     disabled={!conversation.ready}
                     onPress={() => void openChannel(item.name)}
                     onLongPress={() => showConversationMenu(item.name)}
@@ -1242,7 +1257,7 @@ export function ChatScreen({
                     </View>
                     <View style={styles.channelRowText}>
                       <Text numberOfLines={1} style={styles.channelText}>
-                        #{item.remark || item.name}
+                        {item.remark || `#${item.name}`}
                       </Text>
                       <Text numberOfLines={1} style={styles.channelPreview}>
                         {item.draft.trim() ? (
@@ -1299,7 +1314,8 @@ export function ChatScreen({
               <ArrowLeft size={20} color={theme.colors.text} />
             </Pressable>
             <Text numberOfLines={1} style={styles.detailTitle}>
-              #{channels.find(item => item.name === channel)?.remark || channel}
+              {channels.find(item => item.name === channel)?.remark ||
+                `#${channel}`}
             </Text>
             {channel ? (
               <View style={styles.detailActions}>
@@ -1314,19 +1330,6 @@ export function ChatScreen({
                 >
                   <MoreHorizontal size={20} color={theme.colors.text} />
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('chat.voiceRoom')}
-                  onPress={() => setCallSheetOpen(true)}
-                  style={styles.detailActionButton}
-                >
-                  <PhoneCall size={19} color={theme.colors.accent} />
-                </Pressable>
-                {voiceJoined && voiceState ? (
-                  <Text style={styles.detailActionCount}>
-                    {Object.keys(voiceState.participants).length}
-                  </Text>
-                ) : null}
               </View>
             ) : (
               <View style={styles.detailHeaderSpacer} />
@@ -1573,21 +1576,6 @@ export function ChatScreen({
                 {t('chat.jumpToLatest')}
               </MostButton>
             ) : null}
-            {emojiOpen ? (
-              <View style={styles.emojiPanel}>
-                {['😀', '😂', '👍', '🎉', '❤️', '🙏', '😅', '🤝'].map(emoji => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={emoji}
-                    key={emoji}
-                    onPress={() => appendEmoji(emoji)}
-                    style={styles.emojiButton}
-                  >
-                    <Text style={styles.emoji}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
             <View style={styles.composer}>
               <Pressable
                 accessibilityRole="button"
@@ -1607,7 +1595,23 @@ export function ChatScreen({
               </Pressable>
               {composerMode === 'keyboard' ? (
                 <MostTextInput
+                  ref={draftInputRef}
                   accessibilityLabel={t('chat.messagePlaceholder')}
+                  onLayout={event =>
+                    setDraftWidth(event.nativeEvent.layout.width)
+                  }
+                  onContentSizeChange={event => {
+                    if (Platform.OS !== 'web')
+                      setDraftHeight(
+                        Math.max(
+                          42,
+                          Math.min(
+                            240,
+                            Math.ceil(event.nativeEvent.contentSize.height) + 2
+                          )
+                        )
+                      )
+                  }}
                   value={draft}
                   onChangeText={setDraft}
                   onFocus={() => {
@@ -1616,6 +1620,8 @@ export function ChatScreen({
                   }}
                   placeholder={t('chat.messagePlaceholder')}
                   multiline
+                  numberOfLines={1}
+                  scrollEnabled={draftHeight >= 240}
                   editable={conversation.ready && !loading}
                   style={styles.draft}
                 />
@@ -1630,25 +1636,28 @@ export function ChatScreen({
               )}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t('chat.emoji')}
-                onPress={() => setEmojiOpen(current => !current)}
+                accessibilityLabel={t(
+                  emojiOpen ? 'chat.switchToKeyboard' : 'chat.emoji'
+                )}
+                onPress={() => {
+                  if (emojiOpen) {
+                    setEmojiOpen(false)
+                    draftInputRef.current?.focus()
+                  } else {
+                    Keyboard.dismiss()
+                    setComposerMode('keyboard')
+                    setEmojiOpen(true)
+                  }
+                }}
                 style={styles.composerIconButton}
               >
-                <Smile size={22} color={theme.colors.text} />
+                {emojiOpen ? (
+                  <KeyboardIcon size={22} color={theme.colors.text} />
+                ) : (
+                  <Smile size={22} color={theme.colors.text} />
+                )}
               </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('chat.moreActions')}
-                disabled={sending || !channel}
-                onPress={() => setActionSheetOpen(true)}
-                style={[
-                  styles.composerIconButton,
-                  sending || !channel ? styles.disabled : null,
-                ]}
-              >
-                <Plus size={23} color={theme.colors.text} />
-              </Pressable>
-              {composerMode === 'keyboard' ? (
+              {composerMode === 'keyboard' && draft.length > 0 ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('chat.send')}
@@ -1673,8 +1682,40 @@ export function ChatScreen({
                     <Text style={styles.sendLabel}>{t('chat.sendShort')}</Text>
                   )}
                 </Pressable>
-              ) : null}
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.moreActions')}
+                  disabled={sending || !channel}
+                  onPress={() => {
+                    Keyboard.dismiss()
+                    setEmojiOpen(false)
+                    setActionSheetOpen(true)
+                  }}
+                  style={[
+                    styles.composerIconButton,
+                    sending || !channel ? styles.disabled : null,
+                  ]}
+                >
+                  <Plus size={23} color={theme.colors.text} />
+                </Pressable>
+              )}
             </View>
+            {emojiOpen ? (
+              <View style={styles.emojiPanel}>
+                {['😀', '😂', '👍', '🎉', '❤️', '🙏', '😅', '🤝'].map(emoji => (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={emoji}
+                    key={emoji}
+                    onPress={() => appendEmoji(emoji)}
+                    style={styles.emojiButton}
+                  >
+                    <Text style={styles.emoji}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
           </View>
           <Modal
             animationType="slide"
@@ -1783,6 +1824,23 @@ export function ChatScreen({
               <BottomSheetCard style={styles.sheetCard}>
                 <Text style={styles.sheetTitle}>{t('chat.moreTitle')}</Text>
                 <View style={styles.actionOptions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('chat.voiceRoom')}
+                    onPress={() => {
+                      setActionSheetOpen(false)
+                      setCallSheetOpen(true)
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionOption,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <PhoneCall size={22} color={theme.colors.accent} />
+                    <Text style={styles.actionOptionLabel}>
+                      {t('chat.voiceRoom')}
+                    </Text>
+                  </Pressable>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('chat.attach')}
@@ -1902,6 +1960,22 @@ export function ChatScreen({
         <ChannelShareSheet
           key={`${conversationScope}:${sharingChannel.name}`}
           channel={sharingChannel}
+          onSaveRemark={async remark => {
+            const name = sharingChannel.name
+            if (localMode) {
+              if (!bridge.setChannelRemark)
+                throw new Error(t('contacts.actionUnavailable'))
+              await bridge.setChannelRemark({ channelName: name, remark })
+            } else {
+              if (!api) throw new Error(t('contacts.actionUnavailable'))
+              await api.setChannelRemark(name, remark)
+            }
+            setChannels(current =>
+              current.map(item =>
+                item.name === name ? { ...item, remark } : item
+              )
+            )
+          }}
           onClose={() => setShareRequest(null)}
         />
       ) : null}
@@ -1909,11 +1983,14 @@ export function ChatScreen({
   )
 }
 
-function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
+function chatStyles(
+  theme: ReturnType<typeof useMostBoxTheme>,
+  draftHeight: number
+) {
   const { colors, radii } = theme
   return StyleSheet.create({
     container: { flex: 1, paddingHorizontal: 14, paddingTop: 10 },
-    detailContainer: { padding: 0 },
+    detailContainer: { paddingHorizontal: 0, paddingTop: 0 },
     listHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2115,7 +2192,15 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
-    draft: { flex: 1, maxHeight: 100 },
+    draft: {
+      flex: 1,
+      minHeight: 42,
+      height: draftHeight,
+      maxHeight: 240,
+      textAlignVertical: 'top',
+      lineHeight: 22,
+      paddingVertical: 9,
+    },
     composerIconButton: {
       alignItems: 'center',
       height: 42,
@@ -2148,7 +2233,8 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       borderTopWidth: 1,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 6,
+      justifyContent: 'space-between',
+      alignSelf: 'stretch',
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
