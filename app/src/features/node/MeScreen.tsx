@@ -106,6 +106,7 @@ export function MeScreen({
         />
         <MeRow
           icon={<Radio size={20} color={theme.colors.info} />}
+          last
           label={t('me.nodeTitle')}
           meta={
             snapshot.node.status === 'ready'
@@ -136,6 +137,7 @@ export function MeScreen({
         ) : null}
         <MeRow
           icon={<Languages size={20} color={theme.colors.textSecondary} />}
+          last
           label={t('common.language.choose')}
           meta={localeNames[locale]}
           onPress={onOpenLanguage}
@@ -219,6 +221,7 @@ export function MeScreen({
         <MeRow
           icon={<UserRound size={20} color={theme.colors.textSecondary} />}
           label={t('me.about')}
+          last
           onPress={onOpenAbout}
           styles={styles}
         />
@@ -238,6 +241,7 @@ function MeRow({
   label,
   meta,
   disabled,
+  last,
   onPress,
   styles,
 }: {
@@ -245,6 +249,7 @@ function MeRow({
   label: string
   meta?: string
   disabled?: boolean
+  last?: boolean
   onPress: () => void
   styles: ReturnType<typeof meStyles>
 }) {
@@ -256,6 +261,7 @@ function MeRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
+        last ? styles.lastRow : null,
         disabled ? styles.disabled : null,
         pressed ? styles.pressed : null,
       ]}
@@ -315,6 +321,7 @@ function meStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       paddingHorizontal: 14,
     } as const,
     rowIcon: { width: 28 } as const,
+    lastRow: { borderBottomWidth: 0 } as const,
     rowText: { flex: 1, gap: 3 } as const,
     rowLabel: { color: colors.text, fontSize: 15, fontWeight: '600' } as const,
     rowMeta: { color: colors.textSecondary, fontSize: 11 } as const,

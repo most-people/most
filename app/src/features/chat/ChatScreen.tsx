@@ -978,7 +978,7 @@ export function ChatScreen({
 
   const showMessageMenu = (message: ChatMessage) => {
     const attachment = getMessageAttachment(message)
-    alert(t('chat.messageOptions'), undefined, [
+    alert(t('chat.messageOptions'), attachment?.link, [
       {
         text: t(attachment ? 'chat.copyAttachmentLink' : 'chat.copyMessage'),
         onPress: () => {

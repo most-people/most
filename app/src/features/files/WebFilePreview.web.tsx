@@ -14,6 +14,7 @@ import type {
   WebFilePreviewProps,
 } from './webFilePreviewTypes'
 import './webFilePreview.css'
+import { decodeUnknownFileText } from './textPreview'
 
 export type { WebFilePreviewFile, WebFilePreviewProps }
 
@@ -21,23 +22,33 @@ export function WebFilePreview({ file, onClose }: WebFilePreviewProps) {
   const { t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = webFilePreviewStyles[theme.mode]
-  const isText = file ? isTextMimeType(file.mimeType) : false
+  const isText = file
+    ? !/^(image|audio|video)\//.test(file.mimeType) &&
+      file.mimeType !== 'application/pdf'
+    : false
   const [textContent, setTextContent] = useState<string | null>(null)
   const [textFailed, setTextFailed] = useState(false)
+  const [textUnsupported, setTextUnsupported] = useState(false)
 
   useEffect(() => {
     setTextContent(null)
     setTextFailed(false)
+    setTextUnsupported(false)
     if (!file || !isText) return
 
     let cancelled = false
     void fetch(file.fileUri)
-      .then(response => {
+      .then(async response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        return response.text()
+        return isTextMimeType(file.mimeType)
+          ? response.text()
+          : decodeUnknownFileText(await response.arrayBuffer())
       })
       .then(content => {
-        if (!cancelled) setTextContent(content)
+        if (!cancelled) {
+          setTextUnsupported(content === null)
+          setTextContent(content)
+        }
       })
       .catch(() => {
         if (!cancelled) setTextFailed(true)
@@ -99,10 +110,16 @@ export function WebFilePreview({ file, onClose }: WebFilePreviewProps) {
       )
     }
     if (isText) {
-      if (textFailed) {
+      if (textFailed || textUnsupported) {
         return (
           <View style={styles.status}>
-            <Text style={styles.statusText}>{t('app.file.previewFailed')}</Text>
+            <Text style={styles.statusText}>
+              {t(
+                textUnsupported
+                  ? 'app.file.unsupported'
+                  : 'app.file.previewFailed'
+              )}
+            </Text>
           </View>
         )
       }
