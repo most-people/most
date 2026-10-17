@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: October 14, 2026
+Last updated: October 17, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -9,7 +9,7 @@ peer-to-peer activity private or anonymous.
 ## Local data
 
 MostBox stores node configuration, local identity material, published-file
-metadata, seeding holdings, downloaded content, notes, channel state, and user
+metadata, seeding holdings, downloaded content, channel state, and user
 preferences on the user's device. MostBox does not operate a central account
 database for the P2P file-sharing flow.
 

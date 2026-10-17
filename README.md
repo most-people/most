@@ -6,7 +6,9 @@
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [移动完整版与墨盒路线图](docs/mobile-full-app-roadmap.md) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
+[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [开发与发行路线](docs/roadmap.md) · [文档入口](docs/README.md) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
+
+当前开发顺序：先完成全功能版，再适配海外和中国大陆 APP 商店版；三个版本共享代码与协议，按发行目标管理功能和构建。
 
 MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消息，也可以发送 `most://` 文件链接；接收者从在线节点下载完整文件并重算 CID，校验通过后默认继续做种。
 
@@ -49,11 +51,11 @@ MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消�
 
 ### 方式一：桌面客户端（推荐）与 Android App
 
-前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端与 Android 商店版都提供完整 MostBox 工具箱：文件发布、`most://` 链接接收、CID 校验、持续做种、频道聊天和 Web3 工具，并可按需连接远程 MostBox 节点。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端与 Android 全功能开发版提供完整 MostBox 工具箱：文件发布、`most://` 链接接收、CID 校验、持续做种、频道聊天和 Web3 工具，并可按需连接远程 MostBox 节点。
 
-### Android
+### iOS / Android
 
-iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的 Android 商店版是完整功能应用，提供本机 Bare Worklet 节点、远程节点连接、文件传输与做种、频道聊天、Web3 工具和相关身份能力；各工具箱可以独立使用，不构成文件分享前置条件。连接远程节点时可使用节点地址、邀请码和签名身份；本机功能无需云端注册账号。远程 daemon 可以独立持续工作，本机节点的做种和下载受 Android 生命周期影响，当前保证应用在前台时持续运行，回到前台后自动恢复。Expo Web 仍是独立的自托管节点控制台。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
+iOS / Android 使用共享 React Native UI 和 Bare Worklet P2P 核心。当前先开发全功能版，包含本机与远程节点、身份、频道聊天、文件传输及独立工具；海外和中国大陆 APP 商店版在全功能版稳定后按目标渠道适配。中国大陆 Android 包名确定为 `most.red`，现有历史 `inkbox` 配置尚未迁移，不能作为新包提交。开发流程见 [Android 验收](docs/mobile-android-alpha.md)与[iOS 验收](docs/mobile-ios-feasibility.md)，功能完成情况和验证限制见[验证状态](docs/validation-status.md)。
 
 移动端工程入口以 `app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 
@@ -65,7 +67,7 @@ npm test       # 运行移动端 CID、most://、P2P Ping 和 Bare Worklet IPC �
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
 npm run build:release # 使用永久 App Signing Key 生成 GitHub Release APK
-npm run build:store # 使用永久 App Signing Key 生成应用商店 APK
+npm run build:store # 现有签名 APK 构建入口，不代表已完成商店适配
 npm run build:play # 使用独立 upload key 生成 Google Play AAB
 ```
 
@@ -86,7 +88,7 @@ npx most-box@latest
 ## 需求
 
 - 使用桌面客户端：无需单独安装 Node.js。
-- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 24。当前 TanStack Start static prerender 前端和 Electron 43 开发/打包都建议 Node.js >= 24。
+- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 24。当前 TanStack Start static prerender 前端和 Electron 44 开发/打包都建议 Node.js >= 24。
 - MostBox Web 界面只连接已有节点；在线入口或单独打开的浏览器页面不会替你启动 P2P 节点。
 - MostBox 会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
@@ -412,7 +414,7 @@ npx most-box@latest
 - **前端**: React 19, Vite, TanStack Start static prerender, TanStack Router, TypeScript, Zustand, Lucide React
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- **桌面**: Electron 43, electron-builder
+- **桌面**: Electron 44, electron-builder
 - **移动端**: Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - **测试**: Node.js built-in test runner
 

@@ -1,6 +1,6 @@
 # MostBox Mobile
 
-MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心，产品定位为 DChat：去中心化频道聊天与文件传输。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
+MostBox 的 iOS / Android 全功能开发版和共享 Bare Worklet P2P 核心，产品定位为 DChat：去中心化频道聊天与文件传输。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
 
 ## 当前状态
 
@@ -53,11 +53,11 @@ Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare 
 npm run build:web
 ```
 
-Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。生产环境由 Cloudflare Pages 直接连接 `most-people/most` 仓库，production branch 为 `pre`，Root directory 为 `mobile`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后 Pages 自动发布到 `app.most.box`，不需要 Cloudflare API Token。
+Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。生产环境由 Cloudflare Pages 直接连接 `most-people/most` 仓库，production branch 为 `pre`，Root directory 应为 `app`（后台若仍为旧值 `mobile`，需手工修改，仓库变更不会自动同步），Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后 Pages 自动发布到 `app.most.box`，不需要 Cloudflare API Token。
 
 ## 内部 APK
 
-Android 最低支持 Android 12（API 31），与 `react-native-bare-kit 0.15.0` 的原生运行时要求一致。升级 Bare Kit 前需在最低支持版本真机验证冷启动和本机节点。
+当前配置最低支持 Android 10（API 29）。`build-apk.mjs` 会调用 `build-bare-android.mjs`，按 API 29 重编译 Bare Kit 运行库；不能直接沿用上游预编译库推断兼容性。已有 arm64 Android 10 真机记录见[验证状态](../docs/validation-status.md)，升级 Bare Kit 或更换构建方式后需复测最低系统。
 
 `npm run build` 生成用于真机内测的 arm64 APK 和 SHA256：
 
@@ -102,7 +102,7 @@ npm run build:emulator
 
 该 APK 仅用于本地 x86_64 模拟器验证；真机内测和应用商店构建仍使用 arm64。
 
-## 应用商店 APK
+## APK 构建入口（商店适配阶段使用）
 
 Google Play 以外、接受 APK 的应用商店使用永久 App Signing Key 构建：
 
@@ -121,7 +121,7 @@ npm run build:store
 
 永久 App Signing Key 必须跨版本、跨应用商店保持不变；不得改用 debug key 或 Play Upload Key。
 
-## Google Play AAB
+## AAB 构建入口（商店适配阶段使用）
 
 本地 AAB 构建必须提供独立 upload key；缺少任一变量时脚本会在构建前失败，不会回退到 debug key：
 
@@ -144,11 +144,11 @@ npm run build:play
 npx eas-cli@latest build --platform android --profile android-production
 ```
 
-Play Console 填报、审核说明和素材要求见 `../docs/google-play-submission.md`。
+现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 目标包名为 `most.red`，历史 `inkbox` 包名尚未修改，不应据此提交备案。
 
 ## 验收
 
-Android 真机验收清单见 `../docs/mobile-android-alpha.md`。最高优先级回归仍是原发布者退出后，由 Android 前台种子继续向新节点传播：
+Android 真机验收清单见[Android 验收](../docs/mobile-android-alpha.md)。最高优先级回归仍是原发布者退出后，由 Android 前台种子继续向新节点传播。从仓库根目录执行：
 
 ```bash
 node scripts/android-real-p2p-seed.mjs --handoff-check
@@ -156,11 +156,11 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 ## 边界
 
-- 本机节点在应用进入后台时受系统调度限制，返回前台后恢复节点和 topic；远程节点可按 daemon 能力继续后台传输。
+- 本机节点在后台受系统调度限制，返回前台后恢复节点和 topic；Android 已有用户主动开启的后台保持服务，当前覆盖和系统边界见[验证状态](../docs/validation-status.md)。远程节点可按 daemon 能力继续后台传输。
 - 保存或分享产生的是用户可见副本；MostBox 内部 holding 副本用于 CID 校验和做种。
 - Android、iOS 和 Expo Web 均验收远程节点断线与重连、身份登录和节点切换；Web 仅额外受浏览器无法运行 Bare Worklet 的限制。
 - CID 即权限，链接泄露后无法从 P2P 网络统一撤回。
-- iOS 模拟器 Release 和无签名 `iphoneos` arm64 Release 已构建通过；正式发布仍以签名真机和内部 TestFlight 完成 P2P 闭环为准。
+- 历史 iOS 模拟器 Release 和无签名 `iphoneos` arm64 Release 曾构建通过，不能代表当前候选包；当前签名真机流程见[iOS 验收](../docs/mobile-ios-feasibility.md)。
 
 ## 协议不变量
 

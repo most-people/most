@@ -21,9 +21,15 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 当前对外定位是 **MostBox · 去中心化聊天与文件传输**。DChat 是产品方向名称；当前聊天模型沿用 P2P 频道，不承诺端到端加密、无服务器或永久在线。
 
+## 开发与发行顺序
+
+- 先开发并验证全功能版，再按上架需要适配海外 APP 商店版和中国大陆 APP 商店版；三个版本共享代码与协议核心，不默认复制三套业务工程。
+- 中国大陆 Android 包名目标为 `most.red`。当前 `inkbox` 仍是历史配置，文档目标不代表已修改构建身份或完成合规。
+- 产品范围和后续工作统一看 `docs/roadmap.md`；已有证据和未覆盖项看 `docs/validation-status.md`，不以旧日志或商店构建命令认定审核通过。
+
 ## 当前文档
 
-`docs/plan/` 中的阶段性计划已移除；代码、README 和验收文档是当前事实来源。处理相关需求时优先阅读：
+过期阶段日志、旧封版和商店表单已移除；当前文档入口为 `docs/README.md`，代码、README 和验收文档是当前事实来源。处理相关需求时优先阅读：
 
 | 需求类型                     | 优先阅读                         |
 | ---------------------------- | -------------------------------- |
@@ -79,7 +85,7 @@ MVP 成功标准：
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
-- 桌面：Electron 43, electron-builder
+- 桌面：Electron 44, electron-builder
 - 移动端：Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - 测试：Node.js built-in test runner
 
@@ -87,7 +93,7 @@ MVP 成功标准：
 
 ## 核心实现约束
 
-- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@17.0.1` 生成。
+- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@17.1.1` 生成；移动端当前使用 `17.0.1`，两端必须保持黄金 CID 一致。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
 - 下载完成后必须重算 UnixFS CID v1，只有 CID 与链接一致才保存并做种。
 - 判断“本地已有”必须确认本机可按 `/<cid>` 读到内容；只有 metadata、文件名或保存路径匹配不算本地已有。
@@ -98,7 +104,7 @@ MVP 成功标准：
 ## 常用命令
 
 ```bash
-npm start              # Vite / TanStack Start 前端，端口 3000
+npm start              # Vite / TanStack Start 前端，端口 2020
 npm run server         # 后端，默认端口 1976
 npm run serve          # 构建并由后端 serve
 npm test
