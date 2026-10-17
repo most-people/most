@@ -7,6 +7,7 @@ import {
   ListChecks,
   MessageCircle,
   Network,
+  RadioTower,
 } from 'lucide-react-native'
 import { useI18n } from '../../i18n'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
@@ -19,6 +20,7 @@ type DiscoverScreenProps = {
   onOpenFiles: () => void
   onOpenTransfers: () => void
   onOpenNode: () => void
+  onOpenP2PPing: () => void
 }
 
 export function DiscoverScreen({
@@ -28,6 +30,7 @@ export function DiscoverScreen({
   onOpenFiles,
   onOpenTransfers,
   onOpenNode,
+  onOpenP2PPing,
 }: DiscoverScreenProps) {
   const { t } = useI18n()
   const theme = useMostBoxTheme()
@@ -37,6 +40,12 @@ export function DiscoverScreen({
     if (reselectToken) scrollRef.current?.scrollTo({ y: 0, animated: true })
   }, [reselectToken])
   const actions = [
+    {
+      title: t('p2pPing.title'),
+      hint: t('p2pPing.entry'),
+      Icon: RadioTower,
+      onPress: onOpenP2PPing,
+    },
     ...(PRODUCT_PROFILE.features.chat
       ? [
           {

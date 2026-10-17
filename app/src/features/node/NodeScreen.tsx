@@ -16,7 +16,6 @@ import {
   FileText,
   HardDrive,
   Radio,
-  RadioTower,
   ShieldCheck,
 } from 'lucide-react-native'
 import { useI18n, type MessageKey } from '../../i18n'
@@ -46,7 +45,6 @@ export type NodeScreenProps = {
   reselectToken: number
   retryStartDisabled: boolean
   snapshot: MobileCoreSnapshot
-  onOpenP2PPing: () => void
   onOpenPrivacy: () => void | Promise<void>
   onOpenSupport: () => void | Promise<void>
   onOpenTerms: () => void | Promise<void>
@@ -132,7 +130,6 @@ export function NodeScreen({
   reselectToken,
   retryStartDisabled,
   snapshot,
-  onOpenP2PPing,
   onOpenPrivacy,
   onOpenSupport,
   onOpenTerms,
@@ -225,20 +222,6 @@ export function NodeScreen({
             value={t('node.metric.enabled')}
           />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onOpenP2PPing}
-          style={({ pressed }) => [
-            styles.commandRow,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <RadioTower size={18} color={theme.colors.accent} />
-          <Text maxFontSizeMultiplier={2} style={styles.commandText}>
-            {t('p2pPing.title')}
-          </Text>
-          <ChevronRight size={18} color={theme.colors.textSecondary} />
-        </Pressable>
       </View>
 
       <View style={styles.section}>

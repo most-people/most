@@ -284,7 +284,7 @@ function MostBoxApp() {
     getInitialRootTab(defaultRootTab)
   )
   const [chatDetailRoute, setChatDetailRoute] = useState(isChatDetailRoute)
-  const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
+  const [discoverRoute, setDiscoverRoute] = useState<'home' | 'p2pPing'>('home')
   const [joinedChannels, setJoinedChannels] = useState<JoinedChannel[]>([])
   const [filesView, setFilesView] = useState<'contacts' | 'library'>(
     PRODUCT_PROFILE.features.chat ? 'contacts' : 'library'
@@ -397,7 +397,7 @@ function MostBoxApp() {
             ? 'me'
             : current
       )
-      setNodeRoute('status')
+      setDiscoverRoute('home')
       setChatDetailRoute(isChatDetailRoute())
     }
     window.addEventListener('popstate', onRouteChange)
@@ -496,7 +496,7 @@ function MostBoxApp() {
       }))
       return
     }
-    if (nextTab !== 'node') setNodeRoute('status')
+    if (nextTab !== 'explore') setDiscoverRoute('home')
     if (nextTab === 'files')
       setFilesView(PRODUCT_PROFILE.features.chat ? 'contacts' : 'library')
     if (nextTab === 'node') setNodeView('me')
@@ -816,7 +816,7 @@ function MostBoxApp() {
         activeTab === 'files' &&
         filesView === 'library',
       languageModalOpen,
-      nodeRoute,
+      discoverRoute,
     })
     if (action === 'closeLanguage') {
       setLanguageModalOpen(false)
@@ -834,8 +834,8 @@ function MostBoxApp() {
       closeTransfers()
       return true
     }
-    if (action === 'closeNodeChild') {
-      setNodeRoute('status')
+    if (action === 'closeDiscoverChild') {
+      setDiscoverRoute('home')
       return true
     }
     return false
@@ -1240,19 +1240,19 @@ function MostBoxApp() {
     setLanguageModalOpen(true)
   }
 
-  const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
+  const isDiscoverChild = activeTab === 'explore' && discoverRoute === 'p2pPing'
   const isFilesLibrary =
     PRODUCT_PROFILE.features.chat &&
     activeTab === 'files' &&
     filesView === 'library'
   const isChatDetail = activeTab === 'chat' && chatDetailRoute
   const isTransfersPage = activeTab === 'node' && nodeView === 'transfers'
-  const isSecondaryPage = isNodeChild || isFilesLibrary || isTransfersPage
+  const isSecondaryPage = isDiscoverChild || isFilesLibrary || isTransfersPage
   const hideTabBar =
-    isNodeChild || isChatDetail || isFilesLibrary || isTransfersPage
+    isDiscoverChild || isChatDetail || isFilesLibrary || isTransfersPage
   const headerTitle = isTransfersPage
     ? t('nav.transfers')
-    : isNodeChild
+    : isDiscoverChild
       ? t('p2pPing.title')
       : isFilesLibrary
         ? t('nav.files')
@@ -1264,8 +1264,8 @@ function MostBoxApp() {
       closeTransfers()
       return
     }
-    if (isNodeChild) {
-      setNodeRoute('status')
+    if (isDiscoverChild) {
+      setDiscoverRoute('home')
       return
     }
     if (isFilesLibrary) {
@@ -1417,17 +1417,27 @@ function MostBoxApp() {
               activeTab !== 'explore' ? styles.tabPanelHidden : null,
             ]}
           >
-            <DiscoverScreen
-              reselectToken={reselectTokens.explore}
-              onJoinChannel={() => {
-                changeTab('chat')
-                setJoinChannelRequest(current => current + 1)
-              }}
-              onReceiveFile={openDownloadModal}
-              onOpenFiles={openFileLibrary}
-              onOpenTransfers={openTransfers}
-              onOpenNode={openNodeStatus}
-            />
+            {discoverRoute === 'p2pPing' ? (
+              <P2PPingScreen
+                ping={currentSnapshot.p2pPing}
+                ready={isNodeOnline}
+                onStart={handleStartP2PPing}
+                onCancel={handleCancelP2PPing}
+              />
+            ) : (
+              <DiscoverScreen
+                reselectToken={reselectTokens.explore}
+                onJoinChannel={() => {
+                  changeTab('chat')
+                  setJoinChannelRequest(current => current + 1)
+                }}
+                onReceiveFile={openDownloadModal}
+                onOpenFiles={openFileLibrary}
+                onOpenTransfers={openTransfers}
+                onOpenNode={openNodeStatus}
+                onOpenP2PPing={() => setDiscoverRoute('p2pPing')}
+              />
+            )}
           </View>
           {PRODUCT_PROFILE.features.chat ? (
             <View
@@ -1527,20 +1537,12 @@ function MostBoxApp() {
                 onRetryTransfer={handleRetryTransfer}
                 onShowTransferDetails={handleShowTransferDetails}
               />
-            ) : nodeRoute === 'p2pPing' ? (
-              <P2PPingScreen
-                ping={currentSnapshot.p2pPing}
-                ready={isNodeOnline}
-                onStart={handleStartP2PPing}
-                onCancel={handleCancelP2PPing}
-              />
             ) : (
               <NodeScreen
                 client={core}
                 reselectToken={reselectTokens.node}
                 retryStartDisabled={isCoreBusy}
                 snapshot={currentSnapshot}
-                onOpenP2PPing={() => setNodeRoute('p2pPing')}
                 onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
                 onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
                 onOpenTerms={() => openExternalUrl(TERMS_URL)}

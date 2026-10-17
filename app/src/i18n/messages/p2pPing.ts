@@ -5,9 +5,9 @@ export const p2pPingMessages = {
     en: 'Device P2P Ping',
   },
   'p2pPing.back': {
-    'zh-CN': '返回节点页面',
-    'zh-TW': '返回節點頁面',
-    en: 'Back to node',
+    'zh-CN': '返回发现页面',
+    'zh-TW': '返回發現頁面',
+    en: 'Back to Discover',
   },
   'p2pPing.subtitle': {
     'zh-CN': '测试两台设备当前能否直接连接',

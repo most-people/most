@@ -26,12 +26,12 @@ test('root tabs scroll to top on reselection and switch cleanly', () => {
   assert.equal(getTabPressAction('files', 'node'), 'switch')
 })
 
-test('back action closes overlays and node child routes before exiting', () => {
+test('back action closes overlays and discover child routes before exiting', () => {
   const base = {
     activeTab: 'chat' as const,
     downloadModalOpen: true,
     languageModalOpen: true,
-    nodeRoute: 'status' as const,
+    discoverRoute: 'home' as const,
   }
   assert.equal(getRootBackAction(base), 'closeLanguage')
   assert.equal(
@@ -41,12 +41,12 @@ test('back action closes overlays and node child routes before exiting', () => {
   assert.equal(
     getRootBackAction({
       ...base,
-      activeTab: 'node',
+      activeTab: 'explore',
       downloadModalOpen: false,
       languageModalOpen: false,
-      nodeRoute: 'p2pPing',
+      discoverRoute: 'p2pPing',
     }),
-    'closeNodeChild'
+    'closeDiscoverChild'
   )
   assert.equal(
     getRootBackAction({
@@ -76,7 +76,7 @@ test('transfer child page closes before returning from Me', () => {
       downloadModalOpen: false,
       languageModalOpen: false,
       transfersOpen: true,
-      nodeRoute: 'status',
+      discoverRoute: 'home',
     }),
     'closeTransfers'
   )

@@ -27,7 +27,7 @@ export type RootBackAction =
   | 'closeLanguage'
   | 'closeReceive'
   | 'closeFilesLibrary'
-  | 'closeNodeChild'
+  | 'closeDiscoverChild'
   | 'closeTransfers'
   | 'exit'
 
@@ -44,14 +44,14 @@ export function getRootBackAction(input: {
   transfersOpen?: boolean
   filesLibraryOpen?: boolean
   languageModalOpen: boolean
-  nodeRoute: 'status' | 'p2pPing'
+  discoverRoute: 'home' | 'p2pPing'
 }): RootBackAction {
   if (input.languageModalOpen) return 'closeLanguage'
   if (input.downloadModalOpen) return 'closeReceive'
   if (input.transfersOpen) return 'closeTransfers'
   if (input.filesLibraryOpen) return 'closeFilesLibrary'
-  if (input.activeTab === 'node' && input.nodeRoute === 'p2pPing') {
-    return 'closeNodeChild'
+  if (input.activeTab === 'explore' && input.discoverRoute === 'p2pPing') {
+    return 'closeDiscoverChild'
   }
   return 'exit'
 }
