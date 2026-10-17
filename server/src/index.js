@@ -255,6 +255,8 @@ export class MostBoxEngine extends EventEmitter {
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
   #channelIdDiscoveries = new Map()
+  #channelTopicMap = null
+  #channelTopicMapVersion = 0
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
   #channelStreams = new Map()
@@ -726,6 +728,7 @@ export class MostBoxEngine extends EventEmitter {
       await this.#migrateLegacyTrashMetadata()
 
       this.#channels = loadChannelsMetadata(this.#options.dataPath)
+      this.#invalidateChannelTopicMap()
       console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
 
       for (const channel of this.#channels) {
@@ -824,6 +827,7 @@ export class MostBoxEngine extends EventEmitter {
     }
     this.#channelPresence.clear()
     this.#channels = []
+    this.#invalidateChannelTopicMap()
 
     if (this.#store) {
       await this.#store.close()
@@ -3723,6 +3727,7 @@ export class MostBoxEngine extends EventEmitter {
     const chatDiscovery = this.#channelChatDiscoveries.get(channel.channelKey)
     if (chatDiscovery && this.#chatSwarm) {
       this.#channelChatDiscoveries.delete(channel.channelKey)
+      this.#invalidateChannelTopicMap()
       const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(
         channel.channelKey
       )
@@ -3742,6 +3747,7 @@ export class MostBoxEngine extends EventEmitter {
       const idDiscovery = this.#channelIdDiscoveries.get(channel.channelId)
       if (idDiscovery && this.#chatSwarm) {
         this.#channelIdDiscoveries.delete(channel.channelId)
+        this.#invalidateChannelTopicMap()
         this.#chatSwarm
           .leave(this.#generateChannelIdDiscoveryKey(channel.channelId))
           .catch(err => {
@@ -3771,6 +3777,7 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#channelPeers.delete(channel.channelKey)
     this.#channels.splice(index, 1)
+    this.#invalidateChannelTopicMap()
     this.#saveChannelsMetadata()
 
     console.log(`[MostBox] Left channel: ${channel.channelKey}`)
@@ -4267,6 +4274,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.#channels.push(channelInfo)
+    this.#invalidateChannelTopicMap()
     await this.#openChannelRuntime(channelInfo)
     await this.#joinChannelDiscoveryTopics(channelInfo)
     this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
@@ -4441,6 +4449,7 @@ export class MostBoxEngine extends EventEmitter {
         { server: true, client: true }
       )
       this.#channelChatDiscoveries.set(channel.channelKey, chatDiscovery)
+      this.#invalidateChannelTopicMap()
     }
 
     if (!this.#channelIdDiscoveries.has(channel.channelId)) {
@@ -4449,6 +4458,7 @@ export class MostBoxEngine extends EventEmitter {
         { server: true, client: true }
       )
       this.#channelIdDiscoveries.set(channel.channelId, idDiscovery)
+      this.#invalidateChannelTopicMap()
     }
   }
 
@@ -4487,11 +4497,13 @@ export class MostBoxEngine extends EventEmitter {
         { server: true, client: true }
       )
       this.#channelIdDiscoveries.set(channelId, discovery)
+      this.#invalidateChannelTopicMap()
     }
     await sleep(timeout)
     const candidates = getCachedCandidates()
     if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
       this.#channelIdDiscoveries.delete(channelId)
+      this.#invalidateChannelTopicMap()
       this.#chatSwarm
         .leave(this.#generateChannelIdDiscoveryKey(channelId))
         .catch(() => {})
@@ -5381,6 +5393,7 @@ export class MostBoxEngine extends EventEmitter {
         syncUpdatedAt: updatedAt,
       }
       this.#channels.push(channel)
+      this.#invalidateChannelTopicMap()
       changed = true
     } else {
       const nextKeys = uniqueStrings([
@@ -6017,6 +6030,7 @@ export class MostBoxEngine extends EventEmitter {
     const normalizedOwner = normalizeOwnerAddress(ownerAddress)
     if (!normalizedOwner) return
 
+    const previousChannelCount = this.#channels.length
     this.#channels = this.#channels
       .map(channel => {
         const remarks = channel.remarks
@@ -6050,6 +6064,9 @@ export class MostBoxEngine extends EventEmitter {
         }
       })
       .filter(channel => channel.members.length > 0)
+    if (this.#channels.length !== previousChannelCount) {
+      this.#invalidateChannelTopicMap()
+    }
   }
 
   async #clearLocalCidContent(cid, driveName) {
@@ -6424,12 +6441,20 @@ export class MostBoxEngine extends EventEmitter {
     topicMap.set(topicHex, channelIds)
   }
 
+  #invalidateChannelTopicMap() {
+    this.#channelTopicMap = null
+    this.#channelTopicMapVersion += 1
+  }
+
   #getChannelTopicMap() {
+    if (this.#channelTopicMap) return this.#channelTopicMap
+
     const topicMap = new Map()
+    const channelsByKey = new Map(
+      this.#channels.map(channel => [channel.channelKey, channel])
+    )
     for (const [channelKey] of this.#channelChatDiscoveries) {
-      const channel = this.#channels.find(
-        item => item.channelKey === channelKey
-      )
+      const channel = channelsByKey.get(channelKey)
       if (!channel) continue
       this.#addChannelTopicMapping(
         topicMap,
@@ -6444,6 +6469,7 @@ export class MostBoxEngine extends EventEmitter {
         channelId
       )
     }
+    this.#channelTopicMap = topicMap
     return topicMap
   }
 
@@ -6463,13 +6489,24 @@ export class MostBoxEngine extends EventEmitter {
 
   #getAuthorizedChannelIds(stream) {
     const record = this.#channelStreams.get(stream)
+    if (!record) return new Set()
+    if (
+      record.authorizedChannelIds &&
+      record.authorizedChannelIdsVersion === this.#channelTopicMapVersion
+    ) {
+      return record.authorizedChannelIds
+    }
+
     const topicMap = this.#getChannelTopicMap()
     const channelIds = new Set()
-    for (const topicHex of record?.authorizedTopics || []) {
+    for (const topicHex of record.authorizedTopics) {
       for (const channelId of topicMap.get(topicHex) || []) {
         channelIds.add(channelId)
       }
     }
+    // Derived only from verified proofs; callers treat this Set as read-only.
+    record.authorizedChannelIds = channelIds
+    record.authorizedChannelIdsVersion = this.#channelTopicMapVersion
     return channelIds
   }
 
@@ -6889,6 +6926,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     if (changed) {
+      record.authorizedChannelIds = null
       this.#sendChannelHello(stream, { sendScope: false })
       this.#sendCurrentChannelPresence(stream)
     }
@@ -7043,6 +7081,8 @@ export class MostBoxEngine extends EventEmitter {
       info,
       remoteClaimedTopics: new Set(),
       authorizedTopics: new Set(),
+      authorizedChannelIds: null,
+      authorizedChannelIdsVersion: -1,
       proofSentTopics: new Set(),
       localChallenge: '',
       remoteChallenge: '',
