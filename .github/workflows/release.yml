@@ -303,6 +303,18 @@ jobs:
       - name: Install Android dependencies
         run: npm ci --prefix app
 
+      - name: Make Android build tools executable
+        working-directory: app
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import cmakeRuntime from 'cmake-runtime'
+          import ninjaRuntime from 'ninja-runtime'
+          for (const binary of [cmakeRuntime(), ninjaRuntime()]) {
+            fs.chmodSync(binary, 0o755)
+          }
+          NODE
+
       - name: Run Android tests
         run: npm test --prefix app
 
