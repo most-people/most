@@ -211,13 +211,6 @@
     }
   }
 
-  .chat-mode-btn.is-active,
-  .chat-emoji-btn.is-active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-  }
-
   .input-pill {
     min-width: 0;
     flex: 1;
@@ -235,61 +228,8 @@
     field-sizing: content;
   }
 
-  .chat-voice-message-btn {
-    min-width: 0;
-    min-height: 44px;
-    flex: 1;
-    padding: 0 18px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl);
-    background: var(--glass-bg);
-    color: var(--text-primary);
-    font: inherit;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
-    }
-  }
-
-  .chat-emoji-panel {
-    position: absolute;
-    right: 72px;
-    bottom: calc(100% - 8px);
-    z-index: 8;
-    display: flex;
-    gap: 4px;
-    padding: 10px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
-    background: var(--glass-bg);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .chat-emoji-option {
-    width: 34px;
-    height: 34px;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: transparent;
-    font-size: 20px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--glass-bg);
-    }
-  }
-
   .send-btn {
     flex-shrink: 0;
-    min-width: 64px;
-    border-radius: var(--radius-md);
 
     &:hover:not(:disabled) {
       transform: scale(1.05);
