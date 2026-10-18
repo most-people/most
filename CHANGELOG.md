@@ -4,6 +4,33 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-19
+
+### Added
+
+- Added mobile channel and conversation management, photo and voice messages, text previews, and chat notifications.
+- Added Android foreground service controls for keeping the local node online.
+- Added transfer byte counts, streamed CID progress, download recovery hints, and optional relay configuration.
+
+### Changed
+
+- Centered MostBox on decentralized chat and file transfer, with Web3 tools available separately.
+- Moved the shared mobile application into `app/` and updated development and validation guidance.
+
+### Fixed
+
+- Fixed production startup, large-file UnixFS encoding, and local file availability checks when blobs are missing.
+- Preserved mobile transfer history and partial downloads across core restarts, and improved CID verification cancellation and Android file exports.
+- Cached channel authorization for presence heartbeats to prevent repeated channel joins and request timeouts.
+- Restored the desktop feature portal on startup and allowed official web origins to connect to nodes by default.
+- Restored npm OIDC publishing and the working Android SDK setup in the release workflow.
+
+## [0.5.4] - 2026-09-17
+
+### Changed
+
+- npm 发布切换到 OIDC Trusted Publishing，发布不再依赖长期 `NPM_TOKEN`。
+
 ## [0.5.3] - 2026-09-13
 
 ### Added

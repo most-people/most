@@ -1,6 +1,6 @@
 {
   "name": "most-box",
-  "version": "0.5.3",
+  "version": "0.5.5",
   "description": "MostBox - decentralized P2P chat and file transfer",
   "type": "module",
   "engines": {
