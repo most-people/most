@@ -3,6 +3,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:2020',
   'http://localhost:2021',
   'http://127.0.0.1:2021',
+  'https://most.box',
+  'https://pre.most.box',
 ]
 
 function normalizeConfiguredOrigins(value) {

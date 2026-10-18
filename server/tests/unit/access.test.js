@@ -27,19 +27,28 @@ describe('HTTP access boundary', () => {
       'http://127.0.0.1:2020',
       'http://localhost:2021',
       'http://127.0.0.1:2021',
+      'https://most.box',
+      'https://pre.most.box',
     ]) {
       assert.equal(isAllowedRequestOrigin(origin, origins), true)
     }
-    for (const origin of ['https://example.com', 'http://localhost:8082']) {
+    for (const origin of [
+      'https://example.com',
+      'http://localhost:8082',
+      'https://most.box.attacker.example',
+      'https://pre.most.box.attacker.example',
+      'http://most.box',
+    ]) {
       assert.equal(isAllowedRequestOrigin(origin, origins), false)
     }
-    assert.equal(
-      isAllowedRequestOrigin(
-        'https://web.example.com',
-        getAllowedOrigins(1976, 'https://web.example.com')
-      ),
-      true
-    )
+    const configuredOrigins = getAllowedOrigins(1976, 'https://web.example.com')
+    for (const origin of [
+      'https://most.box',
+      'https://pre.most.box',
+      'https://web.example.com',
+    ]) {
+      assert.equal(isAllowedRequestOrigin(origin, configuredOrigins), true)
+    }
   })
   it('requires both a loopback socket and a loopback Host header', () => {
     assert.strictEqual(

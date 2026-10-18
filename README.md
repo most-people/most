@@ -106,7 +106,7 @@ npm run server
 
 ### 浏览器来源白名单
 
-daemon 默认允许 `localhost` 和 `127.0.0.1` 的 HTTP 开发来源（端口 `2020`、`2021`），以及 daemon 自身端口的本地来源；与请求 Host 完全匹配的同源页面也可访问。其他部署域名需要在启动 daemon 时通过 `MOSTBOX_ALLOWED_ORIGINS` 配置，多个来源用英文逗号分隔。每项填写完整的来源（协议、域名和可选端口），不带路径，不使用通配符。
+daemon 默认允许 `https://most.box`、`https://pre.most.box`，以及 `localhost` 和 `127.0.0.1` 的 HTTP 开发来源（端口 `2020`、`2021`）和 daemon 自身端口的本地来源；与请求 Host 完全匹配的同源页面也可访问。其他部署域名可在启动 daemon 时通过 `MOSTBOX_ALLOWED_ORIGINS` 追加，保留默认来源，多个来源用英文逗号分隔。每项填写完整的来源（协议、域名和可选端口），不带路径，不使用通配符。
 
 PowerShell：
 

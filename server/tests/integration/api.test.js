@@ -201,7 +201,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('allows private network preflight from MostBox web apps', async () => {
-      for (const origin of ['https://most.box', 'https://app.most.box']) {
+      for (const origin of ['https://most.box', 'https://pre.most.box']) {
         const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
           method: 'OPTIONS',
           headers: {
@@ -223,25 +223,96 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       }
     })
 
-    it('allows private network preflight from most-people.com', async () => {
-      const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
-        method: 'OPTIONS',
-        headers: {
-          Origin: 'https://most-people.com',
-          'Access-Control-Request-Method': 'GET',
-          'Access-Control-Request-Private-Network': 'true',
-        },
-      })
+    it('extends HTTP and WebSocket origins from the environment without replacing defaults', async () => {
+      const previousOrigins = process.env.MOSTBOX_ALLOWED_ORIGINS
+      try {
+        process.env.MOSTBOX_ALLOWED_ORIGINS = 'https://support.example.com'
+        const { app, validateWebSocketRequest } = createApp(engine, {
+          port: TEST_PORT,
+          configStore,
+          nodeLogger,
+          remoteInvites: ['origin-test-invite'],
+        })
+        for (const origin of [
+          'https://most.box',
+          'https://pre.most.box',
+          'https://support.example.com',
+        ]) {
+          const res = await app.request('/api/remote/capabilities', {
+            method: 'OPTIONS',
+            headers: {
+              host: 'localhost:1976',
+              origin,
+              'Access-Control-Request-Method': 'GET',
+              'Access-Control-Request-Headers':
+                'authorization,x-mostbox-invite',
+              'Access-Control-Request-Private-Network': 'true',
+            },
+          })
+          assert.strictEqual(res.status, 204)
+          assert.strictEqual(
+            res.headers.get('access-control-allow-origin'),
+            origin
+          )
+          assert.strictEqual(
+            res.headers.get('access-control-allow-private-network'),
+            'true'
+          )
+          assert.strictEqual(
+            res.headers.get('access-control-allow-headers'),
+            'authorization,x-mostbox-invite'
+          )
+          assert.strictEqual(
+            validateWebSocketRequest({
+              url: '/ws',
+              headers: { host: 'localhost:1976', origin },
+              socket: { remoteAddress: '127.0.0.1' },
+            }),
+            true
+          )
+          assert.strictEqual(
+            validateWebSocketRequest({
+              url: '/ws',
+              headers: { host: 'node.example.com', origin },
+              socket: { remoteAddress: '203.0.113.20' },
+            }),
+            false
+          )
+          const remote = await app.request('/api/node-id', {
+            headers: { host: 'node.example.com', origin },
+          })
+          assert.strictEqual(remote.status, 403)
+          assert.strictEqual((await remote.json()).code, 'INVALID_INVITE')
+        }
 
-      assert.strictEqual(res.status, 204)
-      assert.strictEqual(
-        res.headers.get('access-control-allow-origin'),
-        'https://most-people.com'
-      )
-      assert.strictEqual(
-        res.headers.get('access-control-allow-private-network'),
-        'true'
-      )
+        const origin = 'https://pre.most.box.attacker.example'
+        const rejected = await app.request('/api/remote/capabilities', {
+          method: 'OPTIONS',
+          headers: {
+            host: 'localhost:1976',
+            origin,
+            'Access-Control-Request-Method': 'GET',
+          },
+        })
+        assert.strictEqual(
+          rejected.headers.get('access-control-allow-origin'),
+          null
+        )
+        assert.strictEqual(
+          validateWebSocketRequest({
+            url: '/ws',
+            headers: { host: 'localhost:1976', origin },
+            socket: { remoteAddress: '127.0.0.1' },
+          }),
+          false
+        )
+      } finally {
+        if (previousOrigins === undefined) {
+          delete process.env.MOSTBOX_ALLOWED_ORIGINS
+        } else {
+          process.env.MOSTBOX_ALLOWED_ORIGINS = previousOrigins
+        }
+      }
     })
   })
 
@@ -542,7 +613,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.id)
     })
 
-    it('allows most-people.com to use a localhost daemon without a remote invite', async () => {
+    it('allows pre.most.box to use a localhost daemon without a remote invite', async () => {
       const { success } = configStore.saveNodeConfigPatch({
         remoteInvites: ['saved-invite'],
       })
@@ -560,7 +631,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         {
           headers: {
             host: 'localhost:1976',
-            origin: 'https://most-people.com',
+            origin: 'https://pre.most.box',
           },
         },
         LOCAL_REQUEST_CONTEXT
