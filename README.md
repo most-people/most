@@ -436,6 +436,8 @@ git tag -a vx.x.x -m "MostBox vx.x.x"
 git push origin main vx.x.x
 ```
 
+需要重建已有版本时，可在 `main` 手动运行 Release workflow，并将 `tag` 输入设为对应的发布 tag；各构建任务会检出该 tag 的源码，复用已发布的 npm 包，并补齐安装包与 R2 镜像。
+
 触发后自动执行：
 
 1. **npm 包发布** — 发布 `most-box` 到 npm registry

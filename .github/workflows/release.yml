@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -16,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -27,7 +38,7 @@ jobs:
         run: npm ci
 
       - name: Check release versions
-        run: npm run check:versions -- --tag "$GITHUB_REF_NAME"
+        run: npm run check:versions -- --tag "$RELEASE_TAG"
 
       - name: Check formatting
         run: npm run format:check
@@ -61,10 +72,10 @@ jobs:
     steps:
       - name: Create release if needed
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --notes "MostBox $GITHUB_REF_NAME"
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
+              --notes "MostBox $RELEASE_TAG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -80,6 +91,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -108,7 +121,7 @@ jobs:
           fi
 
       - name: Publish to npm
-        if: steps.npm-version.outputs.exists != 'true'
+        if: github.event_name != 'workflow_dispatch' && steps.npm-version.outputs.exists != 'true'
         run: npm publish --access public
 
   build-win:
@@ -119,6 +132,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -130,7 +145,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows x64
-        run: npm run electron:build:win -- --x64 --publish never
+        run: npm run electron:build:win -- --x64 --publish never --config.directories.app=.
 
       - name: Check static output
         run: npm run check:static-output
@@ -144,13 +159,13 @@ jobs:
             echo "No Windows x64 assets found"
             exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
       - name: Build Windows arm64
-        run: npm run electron:build:win -- --arm64 --publish never
+        run: npm run electron:build:win -- --arm64 --publish never --config.directories.app=.
 
       - name: Check static output
         run: npm run check:static-output
@@ -164,7 +179,7 @@ jobs:
             echo "No Windows arm64 assets found"
             exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -177,6 +192,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -188,7 +205,7 @@ jobs:
         run: npm ci
 
       - name: Build macOS
-        run: npm run electron:build:mac -- --publish never
+        run: npm run electron:build:mac -- --publish never --config.directories.app=.
 
       - name: Check static output
         run: npm run check:static-output
@@ -201,7 +218,7 @@ jobs:
             echo "No macOS assets found"
             exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -214,6 +231,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -225,7 +244,7 @@ jobs:
         run: npm ci
 
       - name: Build Linux
-        run: npm run electron:build:linux -- --publish never
+        run: npm run electron:build:linux -- --publish never --config.directories.app=.
 
       - name: Check static output
         run: npm run check:static-output
@@ -238,7 +257,7 @@ jobs:
             echo "No Linux assets found"
             exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -251,6 +270,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -276,6 +297,9 @@ jobs:
             yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
           fi
 
+      - name: Install Android NDK
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006"'
+
       - name: Install Android dependencies
         run: npm ci --prefix app
 
@@ -300,7 +324,7 @@ jobs:
       - name: Build Android APK
         run: npm run build:release --prefix app
         env:
-          MOST_ANDROID_RELEASE_VERSION: ${{ github.ref_name }}
+          MOST_ANDROID_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
           MOSTBOX_ANDROID_KEYSTORE: ${{ runner.temp }}/mostbox-app-signing.keystore
           MOSTBOX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MOSTBOX_ANDROID_KEYSTORE_PASSWORD }}
           MOSTBOX_ANDROID_KEY_ALIAS: ${{ secrets.MOSTBOX_ANDROID_KEY_ALIAS }}
@@ -319,7 +343,7 @@ jobs:
             echo "No Android APK checksum files found"
             exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" "${checksums[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" "${checksums[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -337,6 +361,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -348,7 +374,7 @@ jobs:
         run: npm ci
 
       - name: Download GitHub release assets
-        run: gh release download "$GITHUB_REF_NAME" --dir release-assets --clobber
+        run: gh release download "$RELEASE_TAG" --dir release-assets --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -393,7 +419,7 @@ jobs:
         run: |
           node scripts/create-release-manifest.mjs \
             --assets release-assets \
-            --tag "$GITHUB_REF_NAME" \
+            --tag "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --base-url "$R2_PUBLIC_BASE_URL"
 
@@ -423,7 +449,7 @@ jobs:
               continue
             fi
 
-            aws --endpoint-url "$endpoint" s3 cp "release-assets/$asset_file" "s3://$R2_RELEASE_BUCKET/releases/$GITHUB_REF_NAME/$asset_file" \
+            aws --endpoint-url "$endpoint" s3 cp "release-assets/$asset_file" "s3://$R2_RELEASE_BUCKET/releases/$RELEASE_TAG/$asset_file" \
               --cache-control "public, max-age=31536000, immutable"
           done < release-asset-files.txt
 
@@ -460,7 +486,7 @@ jobs:
             meta_path="asset-head-$index.json"
             aws --endpoint-url "$endpoint" s3api head-object \
               --bucket "$R2_RELEASE_BUCKET" \
-              --key "releases/$GITHUB_REF_NAME/$asset_file" \
+              --key "releases/$RELEASE_TAG/$asset_file" \
               > "$meta_path"
 
           node - "$asset_file" "$meta_path" <<'NODE'
@@ -508,7 +534,7 @@ jobs:
 
           aws --endpoint-url "$endpoint" s3 rm "s3://$R2_RELEASE_BUCKET/releases/" \
             --recursive \
-            --exclude "$GITHUB_REF_NAME/*" \
+            --exclude "$RELEASE_TAG/*" \
             --exclude "latest.json"
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

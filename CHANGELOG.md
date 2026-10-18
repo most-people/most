@@ -25,6 +25,7 @@ All notable changes to MostBox are documented in this file.
 - Restored the desktop feature portal on startup and allowed official web origins to connect to nodes by default.
 - Restored npm OIDC publishing and the working Android SDK setup in the release workflow.
 - Included the required UnixFS installation script in both Docker build stages.
+- Selected the repository root explicitly for Electron packaging and installed the Android NDK required by the Bare runtime during release builds.
 
 ## [0.5.4] - 2026-09-17
 

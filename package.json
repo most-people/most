@@ -138,6 +138,7 @@
       }
     ],
     "directories": {
+      "app": ".",
       "output": "dist"
     },
     "afterPack": "electron/afterPack.cjs",
