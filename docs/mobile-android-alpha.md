@@ -4,9 +4,10 @@
 
 ## 构建与安装
 
-在 `app/` 运行：
+从仓库根目录进入 `app/` 后运行：
 
 ```bash
+cd app
 npm test
 npm run typecheck
 npm run bundle:android
