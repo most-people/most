@@ -44,7 +44,7 @@ jobs:
         run: npm run format:check
 
       - name: Run tests
-        run: npm test
+        run: npm test -- --test-force-exit
 
       - name: Run frontend smoke tests
         run: npm run test:frontend
