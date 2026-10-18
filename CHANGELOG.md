@@ -24,6 +24,7 @@ All notable changes to MostBox are documented in this file.
 - Cached channel authorization for presence heartbeats to prevent repeated channel joins and request timeouts.
 - Restored the desktop feature portal on startup and allowed official web origins to connect to nodes by default.
 - Restored npm OIDC publishing and the working Android SDK setup in the release workflow.
+- Included the required UnixFS installation script in both Docker build stages.
 
 ## [0.5.4] - 2026-09-17
 

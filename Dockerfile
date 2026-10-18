@@ -2,6 +2,7 @@ FROM node:24-bookworm AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+COPY scripts/patch-unixfs-runtime.mjs ./scripts/
 RUN npm ci
 
 COPY . .
@@ -14,6 +15,7 @@ ENV NODE_ENV=production
 ENV HOME=/data
 
 COPY package.json package-lock.json ./
+COPY scripts/patch-unixfs-runtime.mjs ./scripts/
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/out ./out
