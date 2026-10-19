@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native'
 import { useMemo, type ReactNode } from 'react'
-import { SvgXml } from 'react-native-svg'
+import { AvatarSvg } from '../../ui/AvatarSvg'
 import { Avatar, Style } from '@dicebear/core'
 import planetsDefinition from '@dicebear/styles/planets.json'
 import { localeNames, useI18n, type MessageKey } from '../../i18n'
@@ -31,6 +31,7 @@ import {
 export type MeScreenProps = {
   snapshot: MobileCoreSnapshot
   username?: string
+  onOpenProfile: () => void
   onOpenLanguage: () => void
   onOpenFiles: () => void
   onOpenNode: () => void
@@ -45,6 +46,7 @@ export type MeScreenProps = {
 export function MeScreen({
   snapshot,
   username,
+  onOpenProfile,
   onOpenLanguage,
   onOpenFiles,
   onOpenNode,
@@ -73,10 +75,18 @@ export function MeScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.profileCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('me.profile')}
+        onPress={onOpenProfile}
+        style={({ pressed }) => [
+          styles.profileCard,
+          pressed ? styles.pressed : null,
+        ]}
+      >
         <View style={styles.avatar} accessibilityLabel={t('me.avatar')}>
           {avatarXml ? (
-            <SvgXml xml={avatarXml} width={56} height={56} />
+            <AvatarSvg xml={avatarXml} size={56} />
           ) : (
             <UserRound size={28} color={theme.colors.textSecondary} />
           )}
@@ -88,7 +98,7 @@ export function MeScreen({
           </Text>
         </View>
         <ChevronRight size={20} color={theme.colors.textMuted} />
-      </View>
+      </Pressable>
 
       <View style={styles.group}>
         <MeRow
@@ -157,52 +167,39 @@ export function MeScreen({
               onPress={() => setPreference(option)}
               style={({ pressed }) => [
                 styles.themeOption,
+                preference === option ? styles.themeOptionSelected : null,
                 pressed ? styles.pressed : null,
               ]}
             >
-              <View
-                style={[
-                  styles.previewBorder,
-                  preference === option ? styles.previewSelected : null,
-                ]}
-              >
-                <View style={styles.preview}>
+              <View style={styles.preview}>
+                {(option === 'system'
+                  ? (['light', 'dark'] as const)
+                  : [option]
+                ).map(mode => (
                   <View
+                    key={mode}
                     style={[
                       styles.previewHalf,
-                      option === 'dark'
+                      mode === 'dark'
                         ? styles.previewDark
                         : styles.previewLight,
                     ]}
-                  />
-                  <View
-                    style={[
-                      styles.previewHalf,
-                      option === 'light'
-                        ? styles.previewLight
-                        : styles.previewDark,
-                    ]}
-                  />
-                  <View style={styles.previewContent}>
-                    <View style={styles.previewHandle} />
-                    <View style={styles.previewRule} />
+                  >
                     <View
                       style={[
-                        styles.previewWindow,
-                        option === 'dark' ? styles.previewWindowDark : null,
+                        styles.previewCard,
+                        mode === 'dark'
+                          ? styles.previewCardDark
+                          : styles.previewCardLight,
                       ]}
                     >
-                      {option === 'system' ? (
-                        <View style={styles.previewWindowSplit} />
-                      ) : null}
-                      <View style={styles.previewShortLine} />
-                      <View style={styles.previewLine} />
-                      <View style={styles.previewDivider} />
-                      <View style={styles.previewShortLine} />
+                      <View
+                        style={[styles.previewLine, styles.previewShortLine]}
+                      />
                       <View style={styles.previewLine} />
                     </View>
                   </View>
-                </View>
+                ))}
               </View>
               <Text
                 style={[
@@ -326,76 +323,51 @@ function meStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     rowLabel: { color: colors.text, fontSize: 15, fontWeight: '600' } as const,
     rowMeta: { color: colors.textSecondary, fontSize: 11 } as const,
     appearance: { padding: 16, gap: 14 } as const,
-    themeOptions: { flexDirection: 'row', gap: 10 } as const,
-    themeOption: { flex: 1, minWidth: 0, gap: 8 } as const,
-    previewBorder: {
-      padding: 3,
-      borderWidth: 2,
-      borderColor: 'transparent',
-      borderRadius: 9,
+    themeOptions: {
+      flexDirection: 'row',
+      gap: 10,
+      maxWidth: 420,
+      width: '100%',
     } as const,
-    previewSelected: { borderColor: colors.accent } as const,
+    themeOption: {
+      flex: 1,
+      minWidth: 0,
+      gap: 8,
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+    } as const,
+    themeOptionSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.surfaceMuted,
+    } as const,
     preview: {
-      height: 116,
-      borderRadius: 5,
+      height: 64,
+      borderRadius: 4,
       overflow: 'hidden',
       flexDirection: 'row',
     } as const,
-    previewHalf: { flex: 1 } as const,
+    previewHalf: { flex: 1, justifyContent: 'center', padding: 8 } as const,
     previewLight: { backgroundColor: '#e8eaf0' } as const,
     previewDark: { backgroundColor: '#575a62' } as const,
-    previewContent: {
-      position: 'absolute',
-      top: 18,
-      left: 10,
-      right: 10,
-      gap: 8,
-    } as const,
-    previewHandle: {
-      width: '28%',
-      height: 5,
-      backgroundColor: '#a2a5ae',
-      borderRadius: 3,
-      alignSelf: 'center',
-    } as const,
-    previewRule: {
-      width: '80%',
-      height: 4,
-      backgroundColor: '#a2a5ae',
-      borderRadius: 3,
-      alignSelf: 'center',
-    } as const,
-    previewWindow: {
-      padding: 8,
+    previewCard: {
+      height: 30,
+      borderRadius: 4,
+      padding: 6,
+      justifyContent: 'center',
       gap: 5,
-      borderRadius: 7,
-      backgroundColor: 'rgba(255,255,255,0.65)',
-    } as const,
-    previewWindowDark: { backgroundColor: '#1c1c1e' } as const,
-    previewWindowSplit: {
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      bottom: 0,
-      width: '50%',
-      backgroundColor: '#1c1c1e',
-    } as const,
-    previewShortLine: {
-      width: '35%',
-      height: 4,
-      backgroundColor: '#a2a5ae',
-      borderRadius: 3,
     } as const,
     previewLine: {
-      height: 4,
+      height: 3,
+      borderRadius: 2,
       backgroundColor: '#a2a5ae',
-      borderRadius: 3,
     } as const,
-    previewDivider: {
-      height: 1,
-      backgroundColor: '#c7c9d0',
-      marginVertical: 2,
-    } as const,
+    previewShortLine: { width: '55%' } as const,
+    previewCardLight: { backgroundColor: '#ffffff' } as const,
+    previewCardDark: { backgroundColor: '#1c1c1e' } as const,
     themeLabel: {
       color: colors.textSecondary,
       fontSize: 12,

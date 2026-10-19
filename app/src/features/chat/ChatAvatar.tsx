@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
-import { SvgXml } from 'react-native-svg'
+import { AvatarSvg } from '../../ui/AvatarSvg'
 import { Avatar, Style } from '@dicebear/core'
 import planetsDefinition from '@dicebear/styles/planets.json'
 
@@ -24,7 +24,7 @@ export function ChatAvatar({ address, avatar }: ChatAvatarProps) {
           onError={() => setFailedUri(avatar)}
         />
       ) : (
-        <SvgXml xml={fallback} width={40} height={40} />
+        <AvatarSvg xml={fallback} size={40} />
       )}
     </View>
   )

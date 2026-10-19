@@ -222,7 +222,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         onRequestClose={dismissToast}
         visible={Boolean(toastState)}
       >
-        <View pointerEvents="box-none" style={styles.toastLayer}>
+        <View style={styles.toastLayer}>
           {toastState ? (
             <View accessibilityLiveRegion="polite" style={styles.toastWrap}>
               <View style={styles.toast}>

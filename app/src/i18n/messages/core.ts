@@ -1,4 +1,14 @@
 export const coreMessages = {
+  'me.profile': {
+    'zh-CN': '个人资料',
+    'zh-TW': '個人資料',
+    en: 'Profile',
+  },
+  'me.address': {
+    'zh-CN': '地址',
+    'zh-TW': '地址',
+    en: 'Address',
+  },
   'me.aboutVersion': {
     'zh-CN': '版本 {version}',
     'zh-TW': '版本 {version}',
@@ -111,14 +121,14 @@ export const coreMessages = {
     en: '{language} (Current)',
   },
   'common.theme.dark': {
-    'zh-CN': '深色模式',
-    'zh-TW': '深色模式',
-    en: 'Dark mode',
+    'zh-CN': '深色',
+    'zh-TW': '深色',
+    en: 'Dark',
   },
   'common.theme.light': {
-    'zh-CN': '浅色模式',
-    'zh-TW': '淺色模式',
-    en: 'Light mode',
+    'zh-CN': '浅色',
+    'zh-TW': '淺色',
+    en: 'Light',
   },
   'common.theme.system': {
     'zh-CN': '跟随系统',

@@ -9,11 +9,7 @@ export function FeedbackLayer({
 }: FeedbackLayerProps) {
   if (!modal) {
     if (!visible) return null
-    return (
-      <View pointerEvents="box-none" style={styles.inlineLayer}>
-        {children}
-      </View>
-    )
+    return <View style={styles.inlineLayer}>{children}</View>
   }
 
   return (
@@ -31,6 +27,7 @@ export function FeedbackLayer({
 
 const styles = StyleSheet.create({
   inlineLayer: {
+    pointerEvents: 'box-none',
     bottom: 0,
     left: 0,
     position: 'absolute',

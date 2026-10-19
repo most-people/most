@@ -63,6 +63,7 @@ import {
 import { NodeScreen } from './src/features/node/NodeScreen'
 import { MeScreen } from './src/features/node/MeScreen'
 import { AboutMostBox } from './src/features/node/AboutMostBox'
+import { ProfileScreen } from './src/features/node/ProfileScreen'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
@@ -319,6 +320,7 @@ function MostBoxApp() {
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [downloadLinkInput, setDownloadLinkInput] = useState('')
   const [downloadIntent, setDownloadIntent] = useState<IncomingMostLink | null>(
     null
@@ -1230,6 +1232,10 @@ function MostBoxApp() {
 
   const openExternalUrl = async (url: string) => {
     try {
+      if (Platform.OS === 'web' && url === SUPPORT_URL) {
+        window.location.assign(url)
+        return
+      }
       await Linking.openURL(url)
     } catch {
       alert(t('app.link.openFailed'), url)
@@ -1492,6 +1498,7 @@ function MostBoxApp() {
               <MeScreen
                 snapshot={currentSnapshot}
                 username={currentSnapshot.node.username}
+                onOpenProfile={() => setProfileOpen(true)}
                 onOpenFiles={openFileLibrary}
                 onOpenNode={openNodeStatus}
                 onOpenTransfers={openTransfers}
@@ -1552,6 +1559,12 @@ function MostBoxApp() {
           </View>
         </View>
 
+        <ProfileScreen
+          visible={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          username={currentSnapshot.node.username}
+          address={currentSnapshot.node.userAddress || ''}
+        />
         <AboutMostBox
           visible={aboutOpen}
           onClose={() => setAboutOpen(false)}
