@@ -15,14 +15,14 @@ export const statusMessages = {
     en: 'Not connected',
   },
   'status.offline.localDetail': {
-    'zh-CN': '本机节点未运行，暂时无法收发消息。点击查看并重试。',
-    'zh-TW': '本機節點未執行，暫時無法收發訊息。點擊查看並重試。',
-    en: 'The local node is not running, so messages cannot be sent or received. Tap to review and retry.',
+    'zh-CN': '本机节点未运行，暂时无法收发消息。',
+    'zh-TW': '本機節點未執行，暫時無法收發訊息。',
+    en: 'The local node is not running, so messages cannot be sent or received.',
   },
   'status.offline.remoteDetail': {
-    'zh-CN': '无法连接 {source}，暂时无法收发消息。点击检查连接。',
-    'zh-TW': '無法連線 {source}，暫時無法收發訊息。點擊檢查連線。',
-    en: 'Cannot reach {source}, so messages cannot be sent or received. Tap to check the connection.',
+    'zh-CN': '无法连接 {source}，暂时无法收发消息。',
+    'zh-TW': '無法連線 {source}，暫時無法收發訊息。',
+    en: 'Cannot reach {source}, so messages cannot be sent or received.',
   },
   'status.offline.noNodeDetail': {
     'zh-CN': '尚未连接节点。填写节点地址并连接后即可收发消息。',
@@ -35,9 +35,9 @@ export const statusMessages = {
     en: 'Not signed in to the remote node',
   },
   'status.login.detail': {
-    'zh-CN': '登录 {source} 后才能收发消息。点击前往登录。',
-    'zh-TW': '登入 {source} 後才能收發訊息。點擊前往登入。',
-    en: 'Sign in to {source} to send and receive messages. Tap to sign in.',
+    'zh-CN': '登录 {source} 后才能收发消息。',
+    'zh-TW': '登入 {source} 後才能收發訊息。',
+    en: 'Sign in to {source} to send and receive messages.',
   },
   'status.reconnecting.title': {
     'zh-CN': '正在重新连接…',

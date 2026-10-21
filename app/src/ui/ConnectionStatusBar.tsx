@@ -9,6 +9,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
+  ChevronRight,
   CircleSlash,
 } from 'lucide-react-native'
 import { useI18n } from '../i18n'
@@ -88,6 +89,9 @@ export function ConnectionStatusBar({
           </Text>
         )}
       </View>
+      {onPress ? (
+        <ChevronRight size={16} color={theme.colors.textMuted} />
+      ) : null}
     </Pressable>
   )
 }
