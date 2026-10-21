@@ -92,3 +92,21 @@ test('remote node that dropped and is retrying shows reconnecting', () => {
   assert.equal(result.level, 'pending')
   assert.equal(result.titleKey, 'status.reconnecting.title')
 })
+
+test('channel peer count overrides the node-wide count', () => {
+  const alone = getConnectionStatus({
+    node: local,
+    chatConnected: true,
+    hasChannels: true,
+    channelPeers: 0,
+  })
+  assert.equal(alone.titleKey, 'status.channelAlone.title')
+  const joined = getConnectionStatus({
+    node: local,
+    chatConnected: true,
+    hasChannels: true,
+    channelPeers: 3,
+  })
+  assert.equal(joined.titleKey, 'status.channelConnected.title')
+  assert.equal(joined.params.count, 3)
+})

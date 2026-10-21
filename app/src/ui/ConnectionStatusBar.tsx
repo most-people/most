@@ -15,11 +15,14 @@ import {
 
 export type ConnectionStatusBarProps = ConnectionStatusInput & {
   onPress?: () => void
+  /** 正常状态只显示标题一行，异常状态仍显示完整说明 */
+  compact?: boolean
 }
 
 /** 常驻的连接状态条：一眼看到是否连上、几个节点在线、通过谁连接。 */
 export function ConnectionStatusBar({
   onPress,
+  compact = false,
   ...input
 }: ConnectionStatusBarProps) {
   const { t } = useI18n()
@@ -61,12 +64,14 @@ export function ConnectionStatusBar({
         >
           {title}
         </Text>
-        <Text
-          style={[styles.detail, { color: theme.colors.textSecondary }]}
-          numberOfLines={2}
-        >
-          {detail}
-        </Text>
+        {compact && status.level === 'ok' ? null : (
+          <Text
+            style={[styles.detail, { color: theme.colors.textSecondary }]}
+            numberOfLines={2}
+          >
+            {detail}
+          </Text>
+        )}
       </View>
     </Pressable>
   )

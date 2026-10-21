@@ -233,7 +233,12 @@ type ChatBridge = MostBoxMobileCore & {
     current?: boolean
   }>
   listChannels?: () => Promise<
-    Array<{ channelKey?: string; channelId?: string; name?: string }>
+    Array<{
+      channelKey?: string
+      channelId?: string
+      name?: string
+      peerCount?: number
+    }>
   >
   createChannel?: (input: { name: string; type?: string }) => Promise<unknown>
   sendChannelMessage?: (
@@ -344,6 +349,7 @@ export function ChatScreen({
   const [nearLatest, setNearLatest] = useState(true)
   const [chatConnected, setChatConnected] = useState(false)
   const [sending, setSending] = useState(false)
+  const [channelPeers, setChannelPeers] = useState<number | null>(null)
   const [voiceState, setVoiceState] = useState<VoiceRoomState | null>(null)
   const [voiceJoined, setVoiceJoined] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
@@ -409,6 +415,12 @@ export function ChatScreen({
   const visibleMessages = useMemo(
     () => messages.filter(message => message.type !== 'system').reverse(),
     [messages]
+  )
+  const ownAddress = identity?.address || snapshot.node.userAddress || ''
+  const latestOwnMessage = useMemo(
+    () =>
+      visibleMessages.find(message => isOwnChatMessage(message, ownAddress)),
+    [visibleMessages, ownAddress]
   )
   useChatNotifications({
     scope: conversationScope,
@@ -552,6 +564,45 @@ export function ChatScreen({
       onPress={onOpenNode}
     />
   )
+
+  const detailNotice = (
+    <ConnectionStatusBar
+      node={snapshot.node}
+      chatConnected={localMode || chatConnected}
+      hasChannels={Boolean(channelNames)}
+      onPress={onOpenNode}
+      compact
+      channelPeers={channelPeers}
+    />
+  )
+
+  useEffect(() => {
+    setChannelPeers(null)
+    if (!chatOpen || !channel || snapshot.node.status !== 'ready') return
+    if (!api && !localMode) return
+    let active = true
+    const refresh = () => {
+      const request = localMode
+        ? bridge.listChannels?.() || Promise.resolve([])
+        : api?.listChannels() || Promise.resolve([])
+      void request
+        .then(items => {
+          if (!active) return
+          const item = (items as Array<Record<string, unknown>>).find(
+            value => value.name === channel || value.channelKey === channel
+          )
+          if (item && typeof item.peerCount === 'number')
+            setChannelPeers(item.peerCount)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 8000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [api, bridge, channel, chatOpen, localMode, snapshot.node.status])
 
   useEffect(() => {
     if (
@@ -1439,7 +1490,7 @@ export function ChatScreen({
               <View style={styles.detailHeaderSpacer} />
             )}
           </View>
-          {connectionNotice}
+          {detailNotice}
           {voiceJoined ? (
             <Pressable
               accessibilityRole="button"
@@ -1716,6 +1767,18 @@ export function ChatScreen({
                             </Text>
                           )}
                         </Pressable>
+                        {mine &&
+                        item === latestOwnMessage &&
+                        channelPeers !== null ? (
+                          <Text style={styles.deliveryNote}>
+                            {t(
+                              channelPeers > 0
+                                ? 'status.delivery.peers'
+                                : 'status.delivery.localOnly',
+                              { count: channelPeers }
+                            )}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
                   </View>
@@ -2310,6 +2373,7 @@ function chatStyles(
       fontSize: 12,
       color: colors.textSecondary,
     },
+    deliveryNote: { fontSize: 11, color: colors.textMuted },
     messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     messageRowMine: { flexDirection: 'row-reverse' },
     messageBody: {

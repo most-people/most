@@ -20,6 +20,8 @@ export type ConnectionStatusInput = {
   chatConnected: boolean
   /** 是否已有需要同步的频道 */
   hasChannels: boolean
+  /** 当前打开频道的在线节点数；未知时不传，走节点整体数据 */
+  channelPeers?: number | null
 }
 
 export function getConnectionSource(
@@ -39,9 +41,14 @@ export function getConnectionStatus({
   node,
   chatConnected,
   hasChannels,
+  channelPeers,
 }: ConnectionStatusInput): ConnectionStatus {
+  const inChannel = typeof channelPeers === 'number'
   const params = {
-    count: Math.max(0, Math.floor(node.peerCount || 0)),
+    count: Math.max(
+      0,
+      Math.floor(inChannel ? channelPeers : node.peerCount || 0)
+    ),
     source: getConnectionSource(node),
   }
   const remote = node.mode === 'remote'
@@ -74,10 +81,14 @@ export function getConnectionStatus({
       'status.reconnecting.detail'
     )
   if (params.count === 0)
-    return make('warn', 'status.alone.title', 'status.alone.detail')
+    return make(
+      'warn',
+      inChannel ? 'status.channelAlone.title' : 'status.alone.title',
+      'status.alone.detail'
+    )
   return make(
     'ok',
-    'status.connected.title',
+    inChannel ? 'status.channelConnected.title' : 'status.connected.title',
     remote ? 'status.connected.remoteDetail' : 'status.connected.localDetail'
   )
 }

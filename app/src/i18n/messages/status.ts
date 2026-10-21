@@ -69,4 +69,24 @@ export const statusMessages = {
     'zh-TW': '透過 {source} · 點對點同步中',
     en: 'Via {source} · syncing peer to peer',
   },
+  'status.channelAlone.title': {
+    'zh-CN': '本频道暂无其他节点在线',
+    'zh-TW': '本頻道暫無其他節點上線',
+    en: 'No other peers online in this channel',
+  },
+  'status.channelConnected.title': {
+    'zh-CN': '本频道 {count} 个节点在线',
+    'zh-TW': '本頻道 {count} 個節點上線',
+    en: '{count} peers online in this channel',
+  },
+  'status.delivery.localOnly': {
+    'zh-CN': '仅保存在本节点，对方上线后同步',
+    'zh-TW': '僅保存在本節點，對方上線後同步',
+    en: 'Saved on this node only; syncs when others come online',
+  },
+  'status.delivery.peers': {
+    'zh-CN': '已发给 {count} 个在线节点',
+    'zh-TW': '已發給 {count} 個上線節點',
+    en: 'Sent to {count} online peers',
+  },
 } as const
