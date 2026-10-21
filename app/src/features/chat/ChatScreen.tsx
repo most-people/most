@@ -558,6 +558,7 @@ export function ChatScreen({
 
   const connectionNotice = (
     <ConnectionStatusBar
+      flush
       node={snapshot.node}
       chatConnected={localMode || chatConnected}
       hasChannels={Boolean(channelNames)}
