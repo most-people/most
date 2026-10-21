@@ -350,6 +350,7 @@ export function ChatScreen({
   const [chatConnected, setChatConnected] = useState(false)
   const [sending, setSending] = useState(false)
   const [channelPeers, setChannelPeers] = useState<number | null>(null)
+  const [peerMap, setPeerMap] = useState<Record<string, number>>({})
   const [voiceState, setVoiceState] = useState<VoiceRoomState | null>(null)
   const [voiceJoined, setVoiceJoined] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
@@ -576,6 +577,35 @@ export function ChatScreen({
       channelPeers={channelPeers}
     />
   )
+
+  useEffect(() => {
+    if (!active || chatOpen || snapshot.node.status !== 'ready') return
+    if (!api && !localMode) return
+    let alive = true
+    const refresh = () => {
+      const request = localMode
+        ? bridge.listChannels?.() || Promise.resolve([])
+        : api?.listChannels() || Promise.resolve([])
+      void request
+        .then(items => {
+          if (!alive) return
+          const next: Record<string, number> = {}
+          for (const item of items as Array<Record<string, unknown>>) {
+            if (typeof item.peerCount === 'number')
+              next[normalizeChatChannel(String(item.name || ''))] =
+                item.peerCount
+          }
+          setPeerMap(next)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 10000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [active, api, bridge, chatOpen, localMode, snapshot.node.status])
 
   useEffect(() => {
     setChannelPeers(null)
@@ -1441,6 +1471,14 @@ export function ChatScreen({
                         )}
                       </Text>
                     </View>
+                    {(peerMap[normalizeChatChannel(item.name)] || 0) > 0 ? (
+                      <View
+                        accessibilityLabel={t('status.channelConnected.title', {
+                          count: peerMap[normalizeChatChannel(item.name)],
+                        })}
+                        style={styles.presenceDot}
+                      />
+                    ) : null}
                     {item.lastMessageAt ? (
                       <Text style={styles.channelTime}>
                         {new Intl.DateTimeFormat(locale, {
@@ -2384,6 +2422,12 @@ function chatStyles(
       flex: 1,
       fontSize: 12,
       color: colors.textSecondary,
+    },
+    presenceDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.success,
     },
     deliveryNote: { fontSize: 11, color: colors.textMuted },
     messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
