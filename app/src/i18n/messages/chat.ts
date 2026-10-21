@@ -178,6 +178,11 @@ export const chatMessages = {
     'zh-TW': '正在恢復連線並同步訊息…',
     en: 'Restoring the connection and syncing messages…',
   },
+  'chat.sendOffline': {
+    'zh-CN': '节点未连接，消息未发送。草稿已保留，连接恢复后再点发送。',
+    'zh-TW': '節點未連線，訊息未傳送。草稿已保留，連線恢復後再點傳送。',
+    en: 'Not connected, so the message was not sent. Your draft is kept; tap send again once reconnected.',
+  },
   'chat.copied': { 'zh-CN': '已复制', 'zh-TW': '已複製', en: 'Copied' },
   'chat.loadOlderMessages': {
     'zh-CN': '加载更早的消息',

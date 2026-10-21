@@ -589,8 +589,11 @@ export function ChatScreen({
       void request
         .then(items => {
           if (!active) return
+          const wanted = normalizeChatChannel(channel)
           const item = (items as Array<Record<string, unknown>>).find(
-            value => value.name === channel || value.channelKey === channel
+            value =>
+              normalizeChatChannel(String(value.name || '')) === wanted ||
+              value.channelKey === channel
           )
           if (item && typeof item.peerCount === 'number')
             setChannelPeers(item.peerCount)
@@ -1057,6 +1060,12 @@ export function ChatScreen({
     return () => subscription.remove()
   }, [active, chatOpen, emojiOpen, conversation.flush])
 
+  const blockWhenOffline = () => {
+    if (snapshot.node.status === 'ready') return false
+    toast(t('chat.sendOffline'), 'error')
+    return true
+  }
+
   const send = async () => {
     const content = draft.trim()
     if (
@@ -1068,6 +1077,7 @@ export function ChatScreen({
       (!identity && !localMode)
     )
       return
+    if (blockWhenOffline()) return
     setSending(true)
     const targetChannel = channel
     const scope = conversationScope
@@ -1131,6 +1141,7 @@ export function ChatScreen({
       (!identity && !localMode)
     )
       return
+    if (blockWhenOffline()) return
     const targetChannel = channel
     const scope = conversationScope
     setSending(true)
