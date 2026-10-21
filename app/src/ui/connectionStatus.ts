@@ -1,7 +1,7 @@
 import type { NodeState } from '../mobileCore/types'
 import type { MessageKey } from '../i18n/messages'
 
-export type ConnectionLevel = 'ok' | 'pending' | 'warn' | 'error'
+export type ConnectionLevel = 'ok' | 'pending' | 'idle' | 'warn' | 'error'
 
 export type ConnectionStatus = {
   level: ConnectionLevel
@@ -92,7 +92,7 @@ export function getConnectionStatus({
     return make('error', 'status.network.title', 'status.network.detail')
   if (params.count === 0)
     return make(
-      'warn',
+      'idle',
       inChannel ? 'status.channelAlone.title' : 'status.alone.title',
       'status.alone.detail'
     )

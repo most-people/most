@@ -5,7 +5,12 @@ import {
   Text,
   View,
 } from 'react-native'
-import { CircleAlert, CircleCheck, CircleSlash } from 'lucide-react-native'
+import {
+  CircleAlert,
+  CircleCheck,
+  CircleDashed,
+  CircleSlash,
+} from 'lucide-react-native'
 import { useI18n } from '../i18n'
 import { useMostBoxTheme } from './theme'
 import {
@@ -34,6 +39,7 @@ export function ConnectionStatusBar({
   const palette = {
     ok: { fg: theme.colors.success, bg: theme.colors.successSoft },
     pending: { fg: theme.colors.info, bg: theme.colors.infoSoft },
+    idle: { fg: theme.colors.textMuted, bg: theme.colors.surfaceMuted },
     warn: { fg: theme.colors.warning, bg: theme.colors.warningSoft },
     error: { fg: theme.colors.danger, bg: theme.colors.dangerSoft },
   }[status.level]
@@ -44,7 +50,9 @@ export function ConnectionStatusBar({
       ? CircleCheck
       : status.level === 'error'
         ? CircleSlash
-        : CircleAlert
+        : status.level === 'idle'
+          ? CircleDashed
+          : CircleAlert
 
   return (
     <Pressable

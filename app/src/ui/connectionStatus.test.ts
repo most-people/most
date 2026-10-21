@@ -56,7 +56,7 @@ test('zero peers is a warning that explains messages still sync later', () => {
     chatConnected: true,
     hasChannels: true,
   })
-  assert.equal(result.level, 'warn')
+  assert.equal(result.level, 'idle')
   assert.equal(result.titleKey, 'status.alone.title')
 })
 
