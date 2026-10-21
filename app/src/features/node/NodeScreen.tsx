@@ -23,7 +23,6 @@ import type {
   LogLevel,
   MobileCoreSnapshot,
   MostBoxMobileClient,
-  NodeRuntimeStatus,
 } from '../../mobileCore/types'
 import { getGlassSurfaceStyle } from '../../ui/components'
 import {
@@ -38,6 +37,7 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import { NodeConnectionPanel } from './NodeConnectionPanel'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 import { BackgroundServicePanel } from './BackgroundServicePanel'
 
 export type NodeScreenProps = {
@@ -49,14 +49,6 @@ export type NodeScreenProps = {
   onOpenSupport: () => void | Promise<void>
   onOpenTerms: () => void | Promise<void>
   onRetryStartCore: () => void | Promise<void>
-}
-
-const NODE_STATUS_LABELS: Record<NodeRuntimeStatus, MessageKey> = {
-  idle: 'node.status.idle',
-  starting: 'node.status.starting',
-  ready: 'node.status.ready',
-  stopping: 'node.status.stopping',
-  error: 'node.status.error',
 }
 
 const LOG_LEVEL_LABELS: Record<LogLevel, MessageKey> = {
@@ -168,8 +160,14 @@ export function NodeScreen({
       <View style={styles.section}>
         <SectionTitle
           icon={<Radio size={18} color={theme.colors.accent} />}
-          meta={t(NODE_STATUS_LABELS[snapshot.node.status])}
           title={t('node.section.status')}
+        />
+        <ConnectionStatusBar
+          node={snapshot.node}
+          chatConnected
+          hasChannels={false}
+          remote={isRemote}
+          flush
         />
         {snapshot.node.error ? (
           <View

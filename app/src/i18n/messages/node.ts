@@ -37,31 +37,6 @@ export const nodeMessages = {
     en: 'Background support could not start. Open the app and retry.',
   },
 
-  'node.status.idle': {
-    'zh-CN': '未启动',
-    'zh-TW': '未啟動',
-    en: 'Not started',
-  },
-  'node.status.starting': {
-    'zh-CN': '启动中',
-    'zh-TW': '啟動中',
-    en: 'Starting',
-  },
-  'node.status.ready': {
-    'zh-CN': '在线',
-    'zh-TW': '在線',
-    en: 'Online',
-  },
-  'node.status.stopping': {
-    'zh-CN': '停止中',
-    'zh-TW': '停止中',
-    en: 'Stopping',
-  },
-  'node.status.error': {
-    'zh-CN': '异常',
-    'zh-TW': '異常',
-    en: 'Error',
-  },
   'node.seed.queued': {
     'zh-CN': '队列中',
     'zh-TW': '佇列中',
@@ -173,8 +148,8 @@ export const nodeMessages = {
     en: 'Node status',
   },
   'node.metric.onlinePeers': {
-    'zh-CN': '在线 Peer',
-    'zh-TW': '在線 Peer',
+    'zh-CN': '在线节点',
+    'zh-TW': '上線節點',
     en: 'Online peers',
   },
   'node.metric.localSeeds': {
@@ -618,8 +593,8 @@ export const nodeMessages = {
     en: 'Open file details and actions',
   },
   'files.details.peers': {
-    'zh-CN': '{count} 个 Peer',
-    'zh-TW': '{count} 個 Peer',
+    'zh-CN': '{count} 个节点',
+    'zh-TW': '{count} 個節點',
     en: '{count} peers',
   },
   'files.details.path': {
