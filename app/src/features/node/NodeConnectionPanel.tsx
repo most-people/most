@@ -287,7 +287,10 @@ export function NodeConnectionPanel({
                 </View>
 
                 <ConnectionStatusBar
-                  node={node}
+                  node={{
+                    ...node,
+                    endpoint: node.endpoint || selectedRemote?.url,
+                  }}
                   chatConnected
                   hasChannels={false}
                   remote={remote}
