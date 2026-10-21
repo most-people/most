@@ -22,12 +22,15 @@ export type ConnectionStatusInput = {
   hasChannels: boolean
   /** 当前打开频道的在线节点数；未知时不传，走节点整体数据 */
   channelPeers?: number | null
+  /** 平台只能使用远程节点（如 Web）时传 true，覆盖 node.mode 判断 */
+  remote?: boolean
 }
 
 export function getConnectionSource(
-  node: Pick<NodeState, 'mode' | 'endpoint'>
+  node: Pick<NodeState, 'endpoint'>,
+  remote: boolean
 ) {
-  if (node.mode !== 'remote') return ''
+  if (!remote) return ''
   const endpoint = node.endpoint || ''
   try {
     return new URL(endpoint).host
@@ -42,16 +45,17 @@ export function getConnectionStatus({
   chatConnected,
   hasChannels,
   channelPeers,
+  remote: remoteOverride,
 }: ConnectionStatusInput): ConnectionStatus {
+  const remote = remoteOverride ?? node.mode === 'remote'
   const inChannel = typeof channelPeers === 'number'
   const params = {
     count: Math.max(
       0,
       Math.floor(inChannel ? channelPeers : node.peerCount || 0)
     ),
-    source: getConnectionSource(node),
+    source: getConnectionSource(node, remote),
   }
-  const remote = node.mode === 'remote'
   const make = (
     level: ConnectionLevel,
     titleKey: MessageKey,
@@ -70,7 +74,11 @@ export function getConnectionStatus({
     return make(
       'error',
       'status.offline.title',
-      remote ? 'status.offline.remoteDetail' : 'status.offline.localDetail'
+      !remote
+        ? 'status.offline.localDetail'
+        : params.source
+          ? 'status.offline.remoteDetail'
+          : 'status.offline.noNodeDetail'
     )
   if (remote && node.authenticated !== true)
     return make('warn', 'status.login.title', 'status.login.detail')

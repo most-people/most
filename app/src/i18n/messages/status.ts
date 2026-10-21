@@ -24,6 +24,11 @@ export const statusMessages = {
     'zh-TW': '無法連線 {source}，暫時無法收發訊息。點擊檢查連線。',
     en: 'Cannot reach {source}, so messages cannot be sent or received. Tap to check the connection.',
   },
+  'status.offline.noNodeDetail': {
+    'zh-CN': '尚未连接节点。填写节点地址并连接后即可收发消息。',
+    'zh-TW': '尚未連線節點。填寫節點位址並連線後即可收發訊息。',
+    en: 'No node connected yet. Enter a node address and connect to send and receive messages.',
+  },
   'status.login.title': {
     'zh-CN': '未登录远程节点',
     'zh-TW': '未登入遠端節點',

@@ -22,6 +22,7 @@ import planetsDefinition from '@dicebear/styles/planets.json'
 import { localeNames, useI18n, type MessageKey } from '../../i18n'
 import type { MobileCoreSnapshot } from '../../mobileCore/types'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
+import { getConnectionStatus } from '../../ui/connectionStatus'
 import {
   useMostBoxTheme,
   useThemePreference,
@@ -62,6 +63,12 @@ export function MeScreen({
   const { locale, t } = useI18n()
   const { preference, setPreference } = useThemePreference()
   const address = snapshot.node.userAddress
+  const nodeStatus = getConnectionStatus({
+    node: snapshot.node,
+    chatConnected: true,
+    hasChannels: false,
+    remote: Platform.OS === 'web' || snapshot.node.mode === 'remote',
+  })
   const avatarXml = useMemo(
     () =>
       address
@@ -118,11 +125,7 @@ export function MeScreen({
           icon={<Radio size={20} color={theme.colors.info} />}
           last
           label={t('me.nodeTitle')}
-          meta={
-            snapshot.node.status === 'ready'
-              ? t('me.nodeReady')
-              : t('me.nodeOffline')
-          }
+          meta={t(nodeStatus.titleKey, nodeStatus.params)}
           onPress={onOpenNode}
           styles={styles}
         />

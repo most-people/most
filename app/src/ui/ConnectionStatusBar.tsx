@@ -17,12 +17,15 @@ export type ConnectionStatusBarProps = ConnectionStatusInput & {
   onPress?: () => void
   /** 正常状态只显示标题一行，异常状态仍显示完整说明 */
   compact?: boolean
+  /** 贴边无外边距，用于卡片/弹窗内部 */
+  flush?: boolean
 }
 
 /** 常驻的连接状态条：一眼看到是否连上、几个节点在线、通过谁连接。 */
 export function ConnectionStatusBar({
   onPress,
   compact = false,
+  flush = false,
   ...input
 }: ConnectionStatusBarProps) {
   const { t } = useI18n()
@@ -50,7 +53,11 @@ export function ConnectionStatusBar({
       accessibilityLiveRegion="polite"
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.bar, { backgroundColor: palette.bg }]}
+      style={[
+        styles.bar,
+        flush ? styles.flush : null,
+        { backgroundColor: palette.bg },
+      ]}
     >
       {status.level === 'pending' ? (
         <ActivityIndicator size="small" color={palette.fg} />
@@ -88,6 +95,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
+  flush: { marginHorizontal: 0 },
   text: { flex: 1, gap: 1 },
   title: { fontSize: 13, fontWeight: '600' },
   detail: { fontSize: 12 },

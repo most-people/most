@@ -30,6 +30,7 @@ import type {
 import { useI18n } from '../../i18n'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
 import { useFeedback } from '../../ui/feedback'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import {
   BottomSheetCard,
@@ -284,6 +285,14 @@ export function NodeConnectionPanel({
                     <X size={20} color={theme.colors.textSecondary} />
                   </IconButton>
                 </View>
+
+                <ConnectionStatusBar
+                  node={node}
+                  chatConnected
+                  hasChannels={false}
+                  remote={remote}
+                  flush
+                />
 
                 {working ? (
                   <View

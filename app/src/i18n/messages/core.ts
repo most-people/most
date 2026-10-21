@@ -310,16 +310,6 @@ export const coreMessages = {
     'zh-TW': '節點與做種',
     en: 'Node and seeding',
   },
-  'me.nodeReady': {
-    'zh-CN': '节点运行中',
-    'zh-TW': '節點運行中',
-    en: 'Node is running',
-  },
-  'me.nodeOffline': {
-    'zh-CN': '节点未连接',
-    'zh-TW': '節點未連線',
-    en: 'Node is offline',
-  },
   'me.about': {
     'zh-CN': '关于 MostBox',
     'zh-TW': '關於 MostBox',
