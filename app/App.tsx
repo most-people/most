@@ -350,6 +350,14 @@ function MostBoxApp() {
   const isReady =
     isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
+  // 曾经连上的远程节点掉线重连时保留主界面，避免用 onboarding 盖住聊天上下文
+  const wasReadyRef = useRef(false)
+  if (isReady) wasReadyRef.current = true
+  const isReconnecting =
+    wasReadyRef.current &&
+    isRemote &&
+    nodeStatus === 'starting' &&
+    Boolean(currentSnapshot.node.error)
   const backgroundService = useBackgroundService()
   const transferRuntimePolicy = getTransferRuntimePolicy({
     platform: (Platform.OS === 'android' ||
@@ -1294,7 +1302,7 @@ function MostBoxApp() {
     )
   }
 
-  if (Platform.OS === 'web' && !isReady) {
+  if (Platform.OS === 'web' && !isReady && !isReconnecting) {
     return (
       <SafeAreaProvider>
         <SafeAreaView
@@ -1466,6 +1474,7 @@ function MostBoxApp() {
                 channels={joinedChannels}
                 openChannelRequest={openChannelRequest}
                 onDetailChange={setChatDetailRoute}
+                onOpenNode={openNodeStatus}
                 onPublishAttachment={handlePublishChatAttachment}
                 onPublishVoiceMessage={handlePublishVoiceMessage}
                 onSaveAttachment={handleSaveHolding}

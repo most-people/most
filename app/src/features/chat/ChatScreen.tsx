@@ -87,6 +87,7 @@ import {
 } from '../../ui/components'
 import { useFeedback } from '../../ui/feedback'
 import { useMostBoxTheme } from '../../ui/theme'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 
 import {
   getJoinedChannels,
@@ -245,6 +246,7 @@ export type ChatScreenProps = {
   snapshot: MobileCoreSnapshot
   openChannelRequest?: { channel: string; token: number } | null
   onDetailChange?: (open: boolean) => void
+  onOpenNode?: () => void
   active?: boolean
   joinRequest?: number
   onUnreadChange?: (count: number) => void
@@ -266,6 +268,7 @@ export function ChatScreen({
   snapshot,
   openChannelRequest,
   onDetailChange,
+  onOpenNode,
   active = true,
   joinRequest = 0,
   onUnreadChange,
@@ -541,16 +544,14 @@ export function ChatScreen({
     snapshot.node.status,
   ])
 
-  const connectionNotice =
-    snapshot.node.status !== 'ready' ||
-    (!localMode && channelNames && !chatConnected) ? (
-      <View style={styles.connectionNotice} accessibilityLiveRegion="polite">
-        <ActivityIndicator size="small" color={theme.colors.accent} />
-        <Text style={styles.connectionNoticeText}>
-          {t('chat.restoringConnection')}
-        </Text>
-      </View>
-    ) : null
+  const connectionNotice = (
+    <ConnectionStatusBar
+      node={snapshot.node}
+      chatConnected={localMode || chatConnected}
+      hasChannels={Boolean(channelNames)}
+      onPress={onOpenNode}
+    />
+  )
 
   useEffect(() => {
     if (

@@ -5,6 +5,7 @@ import { nodeMessages } from './messages/node'
 import { p2pPingMessages } from './messages/p2pPing'
 import { chatMessages } from './messages/chat'
 import { discoverMessages } from './messages/discover'
+import { statusMessages } from './messages/status'
 
 export const messageDefinitions = {
   ...coreMessages,
@@ -13,6 +14,7 @@ export const messageDefinitions = {
   ...p2pPingMessages,
   ...chatMessages,
   ...discoverMessages,
+  ...statusMessages,
 } as const
 
 export type MessageKey = keyof typeof messageDefinitions
