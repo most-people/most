@@ -15,7 +15,7 @@ export type ConnectionStatusInput = {
   node: Pick<
     NodeState,
     'status' | 'mode' | 'authenticated' | 'peerCount' | 'endpoint'
-  > & { error?: string }
+  > & { error?: string; networkOnline?: boolean }
   /** 聊天 WebSocket 是否已连上；本机节点不使用 WebSocket，传 true */
   chatConnected: boolean
   /** 是否已有需要同步的频道 */
@@ -88,6 +88,8 @@ export function getConnectionStatus({
       'status.reconnecting.title',
       'status.reconnecting.detail'
     )
+  if (node.networkOnline === false)
+    return make('error', 'status.network.title', 'status.network.detail')
   if (params.count === 0)
     return make(
       'warn',

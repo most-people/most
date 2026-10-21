@@ -866,6 +866,7 @@ export class MostBoxEngine extends EventEmitter {
       peers: total,
       appPeers: appConnections,
       chatPeers: chatConnections,
+      online: this.#swarm.dht?.online !== false,
       relayConfigured: Boolean(this.#options.relayThrough),
       status: total > 0 ? 'connected' : 'waiting',
     }

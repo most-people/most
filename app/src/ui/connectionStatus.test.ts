@@ -110,3 +110,13 @@ test('channel peer count overrides the node-wide count', () => {
   assert.equal(joined.titleKey, 'status.channelConnected.title')
   assert.equal(joined.params.count, 3)
 })
+
+test('DHT offline is reported before the alone state', () => {
+  const result = getConnectionStatus({
+    node: { ...local, peerCount: 0, networkOnline: false },
+    chatConnected: true,
+    hasChannels: true,
+  })
+  assert.equal(result.level, 'error')
+  assert.equal(result.titleKey, 'status.network.title')
+})

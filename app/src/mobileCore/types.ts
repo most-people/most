@@ -173,6 +173,8 @@ export type MobileChannelPresence = {
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
+  /** HyperDHT 是否能连上 P2P 网络；未知时缺省 */
+  networkOnline?: boolean
   storagePath: string
   error: string
   mode?: NodeMode

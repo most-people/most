@@ -534,7 +534,11 @@ export class MobileP2PCore {
 
   getSnapshot() {
     return {
-      node: { ...this.#node, peerCount: this.#peerCount() },
+      node: {
+        ...this.#node,
+        peerCount: this.#peerCount(),
+        networkOnline: this.#swarm?.dht?.online !== false,
+      },
       holdings: this.#holdings.map(holding => this.#toMobileHolding(holding)),
       transfers: this.#transfers.map(transfer => ({ ...transfer })),
       channels: this.#channels.map(channel => this.#toMobileChannel(channel)),
@@ -594,6 +598,7 @@ export class MobileP2PCore {
       this.#emitNetworkStatus()
     })
     this.#swarm.on('update', () => this.#emitNetworkStatus())
+    this.#swarm.dht?.on?.('network-update', () => this.#emitNetworkStatus())
     this.#swarm.on('error', err => {
       const message = err && err.message ? err.message : 'Hyperswarm error'
       this.#log('warn', message)

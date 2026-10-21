@@ -49,6 +49,16 @@ export const statusMessages = {
     'zh-TW': '正在恢復與 {source} 的連線並同步訊息，已有歷史仍可查看。',
     en: 'Restoring the connection to {source} and syncing. Existing history is still available.',
   },
+  'status.network.title': {
+    'zh-CN': '无法连接 P2P 网络',
+    'zh-TW': '無法連線 P2P 網路',
+    en: 'Cannot reach the P2P network',
+  },
+  'status.network.detail': {
+    'zh-CN': '请检查网络或防火墙。网络恢复后会自动重连，消息仍保存在本节点。',
+    'zh-TW': '請檢查網路或防火牆。網路恢復後會自動重連，訊息仍保存在本節點。',
+    en: 'Check your network or firewall. It reconnects automatically; messages stay on this node.',
+  },
   'status.alone.title': {
     'zh-CN': '已联网 · 暂无其他节点在线',
     'zh-TW': '已連網 · 暫無其他節點上線',

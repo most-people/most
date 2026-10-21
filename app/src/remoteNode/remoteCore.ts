@@ -632,6 +632,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     const status = asRecord(await this.#requestJson('GET', '/api/node/status'))
     const network = asRecord(status.network)
     this.#snapshot.node.peerCount = readNumber(network, 'peers')
+    this.#snapshot.node.networkOnline = network.online !== false
     this.#emit()
   }
 
@@ -759,6 +760,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     if (event === 'node:status') {
       const network = asRecord(data.network)
       this.#snapshot.node.peerCount = readNumber(network, 'peers')
+      this.#snapshot.node.networkOnline = network.online !== false
       this.#emit()
       return
     }
