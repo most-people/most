@@ -306,76 +306,6 @@ export function NodeConnectionPanel({
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
-                    {t('node.account.title')}
-                  </Text>
-                  {accountName ? (
-                    <View style={styles.signedInRow}>
-                      <View style={styles.signedInText}>
-                        <Text style={styles.primaryText}>{accountName}</Text>
-                        <Text style={styles.secondaryText}>
-                          {shortAddress(accountAddress)}
-                        </Text>
-                      </View>
-                      <MostButton
-                        disabled={working}
-                        icon={
-                          operation === 'signOut' ? (
-                            <ActivityIndicator color={theme.colors.danger} />
-                          ) : (
-                            <LogOut size={16} color={theme.colors.danger} />
-                          )
-                        }
-                        onPress={confirmSignOut}
-                        variant="ghost"
-                      >
-                        {t(
-                          operation === 'signOut'
-                            ? 'node.account.signingOut'
-                            : 'node.account.signOut'
-                        )}
-                      </MostButton>
-                    </View>
-                  ) : (
-                    <View style={styles.formFields}>
-                      <MostTextInput
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!working}
-                        onChangeText={setUsername}
-                        placeholder={t('node.account.username')}
-                        value={username}
-                      />
-                      <MostTextInput
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!working}
-                        onChangeText={setPassword}
-                        placeholder={t('node.account.password')}
-                        secureTextEntry
-                        value={password}
-                      />
-                      <MostButton
-                        disabled={working || !username.trim() || !password}
-                        icon={
-                          operation === 'signIn' ? (
-                            <ActivityIndicator color={theme.colors.onAccent} />
-                          ) : (
-                            <LogIn size={16} color={theme.colors.onAccent} />
-                          )
-                        }
-                        onPress={() => void signIn()}
-                        variant="primary"
-                      >
-                        {operation === 'signIn'
-                          ? t('node.account.signingIn')
-                          : t('node.account.signIn')}
-                      </MostButton>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.formSection}>
-                  <Text style={styles.formTitle}>
                     {t('node.connection.remote')}
                   </Text>
                   <View style={styles.formFields}>
@@ -481,6 +411,75 @@ export function NodeConnectionPanel({
                     </View>
                   </View>
                 ) : null}
+                <View style={styles.formSection}>
+                  <Text style={styles.formTitle}>
+                    {t('node.account.title')}
+                  </Text>
+                  {accountName ? (
+                    <View style={styles.signedInRow}>
+                      <View style={styles.signedInText}>
+                        <Text style={styles.primaryText}>{accountName}</Text>
+                        <Text style={styles.secondaryText}>
+                          {shortAddress(accountAddress)}
+                        </Text>
+                      </View>
+                      <MostButton
+                        disabled={working}
+                        icon={
+                          operation === 'signOut' ? (
+                            <ActivityIndicator color={theme.colors.danger} />
+                          ) : (
+                            <LogOut size={16} color={theme.colors.danger} />
+                          )
+                        }
+                        onPress={confirmSignOut}
+                        variant="ghost"
+                      >
+                        {t(
+                          operation === 'signOut'
+                            ? 'node.account.signingOut'
+                            : 'node.account.signOut'
+                        )}
+                      </MostButton>
+                    </View>
+                  ) : (
+                    <View style={styles.formFields}>
+                      <MostTextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!working}
+                        onChangeText={setUsername}
+                        placeholder={t('node.account.username')}
+                        value={username}
+                      />
+                      <MostTextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!working}
+                        onChangeText={setPassword}
+                        placeholder={t('node.account.password')}
+                        secureTextEntry
+                        value={password}
+                      />
+                      <MostButton
+                        disabled={working || !username.trim() || !password}
+                        icon={
+                          operation === 'signIn' ? (
+                            <ActivityIndicator color={theme.colors.onAccent} />
+                          ) : (
+                            <LogIn size={16} color={theme.colors.onAccent} />
+                          )
+                        }
+                        onPress={() => void signIn()}
+                        variant="primary"
+                      >
+                        {operation === 'signIn'
+                          ? t('node.account.signingIn')
+                          : t('node.account.signIn')}
+                      </MostButton>
+                    </View>
+                  )}
+                </View>
               </BottomSheetCard>
             </ScrollView>
           </KeyboardAvoidingView>
