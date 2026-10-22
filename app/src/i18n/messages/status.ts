@@ -59,6 +59,21 @@ export const statusMessages = {
     'zh-TW': '請檢查網路或防火牆。網路恢復後會自動重連，訊息仍保存在本節點。',
     en: 'Check your network or firewall. It reconnects automatically; messages stay on this node.',
   },
+  'status.fallback.title': {
+    'zh-CN': '未连上 {from}，已改用其他节点',
+    'zh-TW': '未連上 {from}，已改用其他節點',
+    en: 'Could not reach {from}; using another node',
+  },
+  'status.fallback.detail': {
+    'zh-CN': '当前通过 {source} 同步。你选择的节点恢复后，可在节点页重新连接。',
+    'zh-TW': '目前透過 {source} 同步。你選擇的節點恢復後，可在節點頁重新連線。',
+    en: 'Syncing via {source}. Reconnect to your chosen node from the node page once it is back.',
+  },
+  'status.fallback.localDetail': {
+    'zh-CN': '当前使用本机节点。你选择的节点恢复后，可在节点页重新连接。',
+    'zh-TW': '目前使用本機節點。你選擇的節點恢復後，可在節點頁重新連線。',
+    en: 'Using the local node. Reconnect to your chosen node from the node page once it is back.',
+  },
   'status.alone.title': {
     'zh-CN': '已联网 · 暂无其他节点在线',
     'zh-TW': '已連網 · 暫無其他節點上線',

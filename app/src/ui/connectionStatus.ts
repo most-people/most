@@ -8,14 +8,14 @@ export type ConnectionStatus = {
   titleKey: MessageKey
   detailKey: MessageKey
   /** 展示在标题/详情里的插值参数 */
-  params: { count: number; source: string }
+  params: { count: number; source: string; from: string }
 }
 
 export type ConnectionStatusInput = {
   node: Pick<
     NodeState,
     'status' | 'mode' | 'authenticated' | 'peerCount' | 'endpoint'
-  > & { error?: string; networkOnline?: boolean }
+  > & { error?: string; networkOnline?: boolean; fallbackFrom?: string }
   /** 聊天 WebSocket 是否已连上；本机节点不使用 WebSocket，传 true */
   chatConnected: boolean
   /** 是否已有需要同步的频道 */
@@ -55,6 +55,7 @@ export function getConnectionStatus({
       Math.floor(inChannel ? channelPeers : node.peerCount || 0)
     ),
     source: getConnectionSource(node, remote),
+    from: getConnectionSource({ endpoint: node.fallbackFrom }, true),
   }
   const make = (
     level: ConnectionLevel,
@@ -87,6 +88,12 @@ export function getConnectionStatus({
       'pending',
       'status.reconnecting.title',
       'status.reconnecting.detail'
+    )
+  if (node.fallbackFrom)
+    return make(
+      'warn',
+      'status.fallback.title',
+      params.source ? 'status.fallback.detail' : 'status.fallback.localDetail'
     )
   if (node.networkOnline === false)
     return make('error', 'status.network.title', 'status.network.detail')
