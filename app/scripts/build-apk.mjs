@@ -64,7 +64,9 @@ const packageTarget = path.join(
       ? `mostbox-android-${version}-store-release.apk`
       : `mostbox-android-${version}-release.${packageExtension}`
 )
-const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
+// cmd.exe 在 NoDefaultCurrentDirectoryInExePath 下不会从当前目录解析 gradlew.bat
+const gradleCommand =
+  process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
 function run(command, args, options = {}) {
@@ -128,7 +130,7 @@ function safeRm(filePath) {
 
 function hasAndroidProject() {
   return fs.existsSync(
-    path.join(androidDir, gradleCommand.replace(/^\.\//, ''))
+    path.join(androidDir, gradleCommand.replace(/^\.[\\/]/, ''))
   )
 }
 

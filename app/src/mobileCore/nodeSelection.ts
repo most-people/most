@@ -13,7 +13,11 @@ export async function startPreferredOrLocal<T>(input: {
   preferred: RemoteNodeConfig | null
   startRemote: (config: RemoteNodeConfig) => Promise<T>
   startLocal: () => Promise<T>
+  /** 本机 daemon 以远程节点方式连接时（如 Web），本机分支沿用该配置 */
+  localConfig?: RemoteNodeConfig | null
 }) {
+  const localMode = input.localConfig ? ('remote' as const) : ('local' as const)
+  const localConfig = input.localConfig || null
   if (input.preferred) {
     try {
       return {
@@ -24,18 +28,18 @@ export async function startPreferredOrLocal<T>(input: {
       }
     } catch {
       return {
-        mode: 'local' as const,
+        mode: localMode,
         node: await input.startLocal(),
-        config: null,
+        config: localConfig,
         fallbackFrom: input.preferred.url,
       }
     }
   }
 
   return {
-    mode: 'local' as const,
+    mode: localMode,
     node: await input.startLocal(),
-    config: null,
+    config: localConfig,
     fallbackFrom: '',
   }
 }

@@ -113,3 +113,52 @@ test('treats queued, running and waiting transfers as switch blockers', () => {
   assert.equal(hasActiveTransfers(snapshotWithStatus('completed')), false)
   assert.equal(hasActiveTransfers(snapshotWithStatus('failed')), false)
 })
+
+test('web mode uses the last selected node before the local daemon', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  let localStarts = 0
+  const result = await startPreferredOrLocal({
+    preferred: { url: 'https://x.most.red', invite: 'invite' },
+    localConfig: local,
+    startRemote: async () => 'remote-node',
+    startLocal: async () => {
+      localStarts += 1
+      return 'local-daemon'
+    },
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, 'remote-node')
+  assert.equal(result.fallbackFrom, '')
+  assert.equal(localStarts, 0)
+})
+
+test('web mode falls back to the local daemon and reports the failed node', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  const result = await startPreferredOrLocal({
+    preferred: { url: 'https://x.most.red', invite: 'invite' },
+    localConfig: local,
+    startRemote: async () => {
+      throw new Error('offline')
+    },
+    startLocal: async () => 'local-daemon',
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, 'local-daemon')
+  assert.deepEqual(result.config, local)
+  assert.equal(result.fallbackFrom, 'https://x.most.red')
+})
+
+test('web mode without a saved selection uses the local daemon', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  const result = await startPreferredOrLocal({
+    preferred: null,
+    localConfig: local,
+    startRemote: async () => 'remote-node',
+    startLocal: async () => 'local-daemon',
+  })
+
+  assert.equal(result.node, 'local-daemon')
+  assert.equal(result.fallbackFrom, '')
+})

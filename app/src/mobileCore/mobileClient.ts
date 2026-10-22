@@ -37,7 +37,11 @@ import {
   saveMobileIdentity,
   saveRemoteNodes,
 } from '../remoteNode/storage'
-import { hasActiveTransfers, startLocalOrPreferred } from './nodeSelection'
+import {
+  hasActiveTransfers,
+  startLocalOrPreferred,
+  startPreferredOrLocal,
+} from './nodeSelection'
 
 const LOCAL_DAEMON_CONFIG: RemoteNodeConfig = {
   url: 'http://localhost:1976',
@@ -89,7 +93,11 @@ export class MobileNodeClient implements MostBoxMobileClient {
     const preferred = this.#remoteEnabled
       ? this.#nodes.find(node => node.preferred) || null
       : null
-    const selection = await startLocalOrPreferred<MostBoxMobileCore>({
+    // Web 只能连接 daemon：优先最后一次选择的节点，没有再用本机 daemon。
+    const startNode = this.#remoteOnly
+      ? startPreferredOrLocal<MostBoxMobileCore>
+      : startLocalOrPreferred<MostBoxMobileCore>
+    const selection = await startNode({
       preferred,
       localConfig: this.#remoteOnly ? LOCAL_DAEMON_CONFIG : null,
       startRemote: async config => {
@@ -356,7 +364,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
           this.#mode === 'local' ? true : snapshot.node.authenticated === true,
         userAddress: this.#identity?.address || '',
         username: this.#identity?.username || '',
-        fallbackFrom: this.#mode === 'local' ? this.#fallbackFrom : '',
+        fallbackFrom: this.#fallbackFrom,
       },
     }
   }
