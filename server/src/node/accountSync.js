@@ -91,6 +91,30 @@ export class AccountSync extends EventEmitter {
     return this.#accounts.has(String(addressInput || '').toLowerCase())
   }
 
+  hasAccounts() {
+    return this.#accounts.size > 0
+  }
+
+  addresses() {
+    return [...this.#accounts.keys()]
+  }
+
+  /** 本设备写入日志用的 deviceId；其他设备的条目 deviceId 与它不同。 */
+  deviceIdFor(addressInput) {
+    return this.#accounts.get(String(addressInput || '').toLowerCase())
+      ?.deviceId
+  }
+
+  /** 本机已发布条目的内容哈希（key 为 kind:id），用于只发布相对上次的变化。 */
+  getPublished(addressInput) {
+    return new Map(this.#requireAccount(addressInput).published)
+  }
+
+  setPublished(addressInput, published) {
+    this.#requireAccount(addressInput).published = new Map(published)
+    this.#persist()
+  }
+
   /** 登记账号的同步子密钥并开始同步；同一密钥重复登记是幂等的。 */
   async register(addressInput, syncKeyInput) {
     const address = normalizeAddress(addressInput)
@@ -200,6 +224,11 @@ export class AccountSync extends EventEmitter {
           if (!SYNC_KEY_REGEX.test(String(record?.syncKey || ''))) continue
           records[address] = {
             syncKey: record.syncKey,
+            published: Object.fromEntries(
+              Object.entries(record.published || {}).filter(
+                ([key, hash]) => key && typeof hash === 'string'
+              )
+            ),
             deviceNonce: NONCE_REGEX.test(String(record.deviceNonce || ''))
               ? record.deviceNonce
               : '',
@@ -219,6 +248,7 @@ export class AccountSync extends EventEmitter {
       accounts[address] = {
         syncKey: account.syncKey,
         deviceNonce: account.deviceNonce,
+        published: Object.fromEntries(account.published),
         writerCoreKeys: [...account.cores.keys()].filter(
           key => key !== account.deviceId
         ),
@@ -248,6 +278,7 @@ export class AccountSync extends EventEmitter {
       address,
       syncKey: record.syncKey,
       deviceNonce,
+      published: new Map(Object.entries(record.published || {})),
       topic,
       namespace,
       localCore,

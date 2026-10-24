@@ -30,6 +30,7 @@ import {
   buildMostLink,
 } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
+import { ACCOUNT_HELLO_TYPE, AccountSync } from './node/accountSync.js'
 import {
   compareChannelHistoryEntries,
   paginateChannelHistory,
@@ -235,6 +236,8 @@ function createMemoryDuplexPair() {
   return [left, right]
 }
 
+const ACCOUNT_SYNC_RECONCILE_DELAY = 400
+
 export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
@@ -267,6 +270,9 @@ export class MostBoxEngine extends EventEmitter {
   #channelCreationQueues = new Map()
   #channelMessageQueues = new Map()
   #channelHistoryIndex = new Map()
+  #accountSync = null
+  #accountSyncQueue = Promise.resolve()
+  #accountSyncTimer = null
 
   #accountMetadata = { profiles: {} }
 
@@ -754,6 +760,18 @@ export class MostBoxEngine extends EventEmitter {
       }
 
       this.#accountMetadata = this.#loadAccountMetadata()
+
+      this.#accountSync = new AccountSync({
+        store: this.#store,
+        dataPath: this.#options.dataPath,
+        swarm: this.#swarm,
+        chatSwarm: this.#chatSwarm,
+      })
+      this.#accountSync.on('change', event => {
+        this.emit('account:sync:change', event)
+        this.#enqueueAccountSync(() => this.#applyAccountSyncChange(event))
+      })
+      await this.#accountSync.start()
     } catch (err) {
       await this.stop()
       throw err
@@ -799,6 +817,14 @@ export class MostBoxEngine extends EventEmitter {
     this.#activePublishes.clear()
     this.#seedStates.clear()
     this.#holdingResumeTask = null
+
+    clearTimeout(this.#accountSyncTimer)
+    this.#accountSyncTimer = null
+    await this.#accountSyncQueue.catch(() => {})
+    if (this.#accountSync) {
+      await this.#accountSync.stop()
+      this.#accountSync = null
+    }
 
     if (this.#p2pPingManager) {
       await this.#p2pPingManager.destroy()
@@ -2608,6 +2634,208 @@ export class MostBoxEngine extends EventEmitter {
         rightChat.destroy()
       },
     }
+  }
+
+  // ---- 账号状态同步：把本机变更发布到账号日志，并应用其他设备的变更 ----
+
+  #enqueueAccountSync(task) {
+    const run = this.#accountSyncQueue.then(task)
+    this.#accountSyncQueue = run.catch(err => {
+      console.warn('[MostBox] Account sync failed:', err.message)
+    })
+    return this.#accountSyncQueue
+  }
+
+  #scheduleAccountSyncReconcile() {
+    if (!this.#accountSync?.hasAccounts() || this.#accountSyncTimer) return
+    this.#accountSyncTimer = setTimeout(() => {
+      this.#accountSyncTimer = null
+      this.#enqueueAccountSync(async () => {
+        for (const address of this.#accountSync?.addresses() || []) {
+          await this.#reconcileAccountSync(address)
+        }
+      })
+    }, ACCOUNT_SYNC_RECONCILE_DELAY)
+    this.#accountSyncTimer.unref?.()
+  }
+
+  /**
+   * 账号同步用的稳定投影：只含用户设置的内容，去掉 lastMessageAt、writerCoreKeys、
+   * updatedAt 这类会随聊天活动频繁变化的字段，否则每条消息都会触发重复发布。
+   */
+  #toAccountSyncRecords(address) {
+    const backup = this.exportUserData(address)
+    const records = new Map()
+    if (backup.profile) {
+      const { displayName, avatar, tag } = backup.profile
+      records.set('profile:self', { displayName, avatar, tag })
+    }
+    for (const file of backup.files) {
+      const record = { ...file }
+      delete record.updatedAt
+      records.set(`file:${file.cid}`, record)
+    }
+    for (const channel of backup.channels) {
+      records.set(`channel:${channel.channelKey}`, {
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        remark: channel.remark,
+        pinned: channel.pinned,
+        member: channel.member
+          ? {
+              displayName: channel.member.displayName,
+              avatar: channel.member.avatar,
+              ...(channel.member.tag ? { tag: channel.member.tag } : {}),
+            }
+          : undefined,
+      })
+    }
+    return records
+  }
+
+  #hashAccountSyncRecord(record) {
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(record))
+      .digest('hex')
+  }
+
+  async #reconcileAccountSync(address) {
+    if (!address || !this.#accountSync?.has(address)) return
+    const records = this.#toAccountSyncRecords(address)
+    const published = this.#accountSync.getPublished(address)
+    let changed = false
+    for (const [key, record] of records) {
+      const hash = this.#hashAccountSyncRecord(record)
+      if (published.get(key) === hash) continue
+      const [kind, ...rest] = key.split(':')
+      await this.#accountSync.append(address, {
+        kind,
+        id: rest.join(':'),
+        data: record,
+      })
+      published.set(key, hash)
+      changed = true
+    }
+    for (const key of [...published.keys()]) {
+      if (records.has(key)) continue
+      const [kind, ...rest] = key.split(':')
+      await this.#accountSync.append(address, {
+        kind,
+        id: rest.join(':'),
+        deleted: true,
+      })
+      published.delete(key)
+      changed = true
+    }
+    if (changed) this.#accountSync.setPublished(address, published)
+  }
+
+  async #applyAccountSyncChange({ address, changed }) {
+    const localDevice = this.#accountSync?.deviceIdFor(address)
+    const remote = changed.filter(entry => entry.deviceId !== localDevice)
+    for (const entry of remote) {
+      const key = `${entry.kind}:${entry.id}`
+      if (entry.kind === 'channel') {
+        await this.#applyAccountSyncChannel(address, entry)
+      } else if (entry.kind === 'file' && !entry.deleted) {
+        const existing = this.#getPublishedBucket(address).find(
+          file => file.cid === entry.id
+        )
+        await this.#importAccountSyncRecord(address, {
+          files: [
+            {
+              ...entry.data,
+              updatedAt: Math.max(
+                entry.updatedAt,
+                this.#getRecordUpdatedAt(existing) + 1
+              ),
+            },
+          ],
+        })
+      } else if (entry.kind === 'profile' && !entry.deleted) {
+        await this.#importAccountSyncRecord(
+          address,
+          { profile: { ...entry.data, updatedAt: entry.updatedAt } },
+          { overwriteProfile: true }
+        )
+      } else {
+        continue
+      }
+      // 记录应用后的本地内容哈希，避免把刚收到的变更再发布回去。
+      const published = this.#accountSync.getPublished(address)
+      const record = this.#toAccountSyncRecords(address).get(key)
+      if (record) published.set(key, this.#hashAccountSyncRecord(record))
+      else published.delete(key)
+      this.#accountSync.setPublished(address, published)
+    }
+  }
+
+  async #applyAccountSyncChannel(address, entry) {
+    const channel = this.#channels.find(item => item.channelKey === entry.id)
+    if (entry.deleted) {
+      if (channel && this.#channelHasMember(channel, address)) {
+        await this.leaveChannel(entry.id, { ownerAddress: address })
+      }
+      return
+    }
+    await this.#importAccountSyncRecord(address, {
+      channels: [
+        {
+          ...entry.data,
+          updatedAt: Math.max(
+            entry.updatedAt,
+            this.#getRecordUpdatedAt(channel) + 1
+          ),
+        },
+      ],
+    })
+  }
+
+  #importAccountSyncRecord(address, parts, options = {}) {
+    return this.importUserData(
+      address,
+      {
+        type: 'mostbox.account-backup',
+        schemaVersion: 1,
+        ownerAddress: address,
+        profile: null,
+        files: [],
+        channels: [],
+        ...parts,
+      },
+      options
+    )
+  }
+
+  /**
+   * 登记账号的同步子密钥，开始与同账号的其他设备同步账号状态。
+   * 节点只保存同步子密钥，不接触账号种子。
+   */
+  async registerAccountSync(ownerAddress, syncKey) {
+    this.#ensureInitialized()
+    const status = await this.#accountSync.register(ownerAddress, syncKey)
+    await this.#enqueueAccountSync(() =>
+      this.#reconcileAccountSync(normalizeOwnerAddress(ownerAddress))
+    )
+    return status
+  }
+
+  getAccountSyncStatus(ownerAddress) {
+    this.#ensureInitialized()
+    return this.#accountSync.status(ownerAddress)
+  }
+
+  listAccountSyncEntries(ownerAddress, options = {}) {
+    this.#ensureInitialized()
+    return this.#accountSync.list(ownerAddress, options)
+  }
+
+  async appendAccountSyncEntry(ownerAddress, entry) {
+    this.#ensureInitialized()
+    return this.#accountSync.append(ownerAddress, entry)
   }
 
   getUserProfile(ownerAddressInput) {
@@ -6326,6 +6554,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#getMetadataPath(),
       JSON.stringify(this.#publishedFiles, null, 2)
     )
+    this.#scheduleAccountSyncReconcile()
   }
 
   #loadHoldingsMetadata() {
@@ -6432,6 +6661,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#getAccountMetadataPath(),
       JSON.stringify(this.#accountMetadata, null, 2)
     )
+    this.#scheduleAccountSyncReconcile()
   }
 
   #saveChannelsMetadata() {
@@ -6440,6 +6670,7 @@ export class MostBoxEngine extends EventEmitter {
       getChannelsMetadataPath(this.#options.dataPath),
       serializeChannelsMetadata(this.#channels)
     )
+    this.#scheduleAccountSyncReconcile()
   }
 
   #generateChannelDiscoveryKey(channelKey) {
@@ -7133,6 +7364,7 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
     this.#sendCurrentChannelPresence(stream)
+    this.#accountSync?.attachStream(stream)
 
     stream.on('data', async data => {
       let lines
@@ -7150,6 +7382,10 @@ export class MostBoxEngine extends EventEmitter {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          if (message?.type === ACCOUNT_HELLO_TYPE) {
+            await this.#accountSync?.handleMessage(stream, message)
+            continue
+          }
           if (this.#processChannelScopeMessage(stream, message)) continue
           if (this.#processChannelProofChallengeMessage(stream, message)) {
             continue
