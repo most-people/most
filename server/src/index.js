@@ -287,6 +287,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
    * @param {boolean} [options.disableNetwork] - 测试用：跳过真实 Hyperswarm 网络
    * @param {string|Buffer|null} [options.relayThrough] - 可选的 Hyperswarm 数据中继公钥
+   * @param {Array<string|object>} [options.bootstrap] - 测试用：覆盖 DHT bootstrap 节点（如本地测试网）
    */
   constructor(options) {
     super()
@@ -308,6 +309,7 @@ export class MostBoxEngine extends EventEmitter {
         options.localContentProbeTimeout ?? LOCAL_CONTENT_PROBE_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
       relayThrough: options.relayThrough || null,
+      bootstrap: options.bootstrap || SWARM_BOOTSTRAP,
       createP2PPingSwarm: options.createP2PPingSwarm,
     }
     this.#channelPresence = new ChannelPresenceManager({
@@ -633,7 +635,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#swarm = new Hyperswarm({
         seed: nodeSeed,
         maxPeers: MAX_PEERS,
-        bootstrap: SWARM_BOOTSTRAP,
+        bootstrap: this.#options.bootstrap,
         firewall: () => false,
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
@@ -669,7 +671,7 @@ export class MostBoxEngine extends EventEmitter {
     if (!this.#options.disableNetwork) {
       this.#chatSwarm = new Hyperswarm({
         maxPeers: MAX_PEERS,
-        bootstrap: SWARM_BOOTSTRAP,
+        bootstrap: this.#options.bootstrap,
         firewall: () => false,
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
