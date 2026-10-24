@@ -134,6 +134,22 @@ export class AccountSync extends EventEmitter {
     return this.status(address)
   }
 
+  /** 停止同步并删除该账号的同步密钥；已同步到本机的数据保留，日志 core 不再更新。 */
+  async unregister(addressInput) {
+    const address = normalizeAddress(addressInput)
+    const account = this.#accounts.get(address)
+    if (!account) return { registered: false }
+    this.#accounts.delete(address)
+    this.#persist()
+    const topicBuffer = b4a.from(account.topic.slice(2), 'hex')
+    this.#swarm?.leave?.(topicBuffer)?.catch?.(() => {})
+    this.#chatSwarm?.leave?.(chatTopicFor(account.topic))?.catch?.(() => {})
+    await Promise.allSettled(
+      [...account.cores.values()].map(core => core.close())
+    )
+    return { registered: false }
+  }
+
   status(addressInput) {
     const account = this.#accounts.get(String(addressInput || '').toLowerCase())
     if (!account) return { registered: false }

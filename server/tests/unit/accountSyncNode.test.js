@@ -155,6 +155,22 @@ describe('AccountSync (single node)', () => {
     )
   })
 
+  it('unregisters: forgets the key and can register again', async () => {
+    const node = await createNode()
+    await node.sync.register(ADDRESS, syncKey)
+    await node.sync.append(ADDRESS, { kind: 'channel', id: 'room', data: {} })
+    assert.deepEqual(await node.sync.unregister(ADDRESS), { registered: false })
+    assert.deepEqual(node.sync.status(ADDRESS), { registered: false })
+    assert.equal(
+      fs
+        .readFileSync(path.join(node.root, 'account-sync.json'), 'utf-8')
+        .includes(syncKey),
+      false
+    )
+    assert.deepEqual(await node.sync.unregister(ADDRESS), { registered: false })
+    assert.equal((await node.sync.register(ADDRESS, syncKey)).registered, true)
+  })
+
   it('emits change events with the winning entries', async () => {
     const node = await createNode()
     await node.sync.register(ADDRESS, syncKey)

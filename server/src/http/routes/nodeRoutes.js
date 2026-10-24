@@ -302,6 +302,36 @@ export function registerNodeRoutes(
     }
   })
 
+  app.get('/api/user/sync', c => {
+    try {
+      return c.json(engine.getAccountSyncStatus(c.get('userAddress')))
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.put('/api/user/sync', async c => {
+    try {
+      const body = await c.req.json()
+      const status = await engine.registerAccountSync(
+        c.get('userAddress'),
+        body?.syncKey
+      )
+      return c.json({ success: true, status })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.delete('/api/user/sync', async c => {
+    try {
+      const status = await engine.unregisterAccountSync(c.get('userAddress'))
+      return c.json({ success: true, status })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
   app.get('/api/user/export', c => {
     try {
       return c.json(engine.exportUserData(c.get('userAddress')))

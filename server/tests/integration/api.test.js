@@ -671,11 +671,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 50)
+      assert.strictEqual(documentedOperations.length, 53)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        50
+        53
       )
       assert.ok(
         documentedOperations.every(
@@ -2330,6 +2330,60 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({}),
       })
       assert.strictEqual(importRes.status, 401)
+    })
+
+    it('registers the account sync key without ever returning it', async () => {
+      const url = `${baseUrl}/api/user/sync`
+      assert.strictEqual((await fetchWithoutAuth(url)).status, 401)
+      const noAuthPut = await fetchWithoutAuth(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncKey: SECOND_IDENTITY.syncKey }),
+      })
+      assert.strictEqual(noAuthPut.status, 401)
+
+      const before = await fetchAs(SECOND_IDENTITY, url)
+      assert.strictEqual(before.status, 200)
+      assert.deepStrictEqual(await before.json(), { registered: false })
+
+      const put = body =>
+        fetchAs(SECOND_IDENTITY, url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      assert.strictEqual((await put({ syncKey: 'not-a-key' })).status, 400)
+      assert.strictEqual((await put({})).status, 400)
+
+      const registered = await put({ syncKey: SECOND_IDENTITY.syncKey })
+      assert.strictEqual(registered.status, 200)
+      const body = await registered.json()
+      assert.strictEqual(body.success, true)
+      assert.strictEqual(body.status.registered, true)
+      assert.strictEqual(body.status.topic, SECOND_IDENTITY.syncTopic)
+      assert.strictEqual(
+        JSON.stringify(body).includes(SECOND_IDENTITY.syncKey),
+        false
+      )
+
+      const after = await (await fetchAs(SECOND_IDENTITY, url)).json()
+      assert.strictEqual(after.registered, true)
+      assert.strictEqual(
+        JSON.stringify(after).includes(SECOND_IDENTITY.syncKey),
+        false
+      )
+
+      const noAuthDelete = await fetchWithoutAuth(url, { method: 'DELETE' })
+      assert.strictEqual(noAuthDelete.status, 401)
+      const removed = await fetchAs(SECOND_IDENTITY, url, { method: 'DELETE' })
+      assert.strictEqual(removed.status, 200)
+      assert.deepStrictEqual((await removed.json()).status, {
+        registered: false,
+      })
+      assert.deepStrictEqual(
+        await (await fetchAs(SECOND_IDENTITY, url)).json(),
+        { registered: false }
+      )
     })
 
     it('saves and reads authenticated local profile metadata', async () => {

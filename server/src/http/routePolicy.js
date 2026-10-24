@@ -25,6 +25,7 @@ export function requiresUserAuth(path) {
     path.startsWith('/api/admin/mcp/clients') ||
     path === '/api/p2p/pull' ||
     path === '/api/user/profile' ||
+    path === '/api/user/sync' ||
     path === '/api/user/export' ||
     path === '/api/user/import' ||
     path === '/api/move' ||

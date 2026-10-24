@@ -655,6 +655,29 @@ const schemas = {
     },
     additionalProperties: true,
   },
+  AccountSyncStatus: {
+    type: 'object',
+    required: ['registered'],
+    properties: {
+      registered: { type: 'boolean' },
+      topic: { type: 'string' },
+      deviceId: { type: 'string' },
+      writerCores: { type: 'integer', minimum: 0 },
+      entries: { type: 'integer', minimum: 0 },
+    },
+  },
+  AccountSyncRegistration: {
+    type: 'object',
+    required: ['syncKey'],
+    properties: {
+      syncKey: {
+        type: 'string',
+        pattern: '^0x[0-9a-f]{64}$',
+        description:
+          'Sub-key derived from the account seed. It cannot be used to sign requests or recover the seed.',
+      },
+    },
+  },
   AccountBackup: {
     type: 'object',
     required: ['type', 'schemaVersion', 'ownerAddress'],
@@ -1441,6 +1464,81 @@ export function createOpenApiSpec({
                   },
                 ],
               }),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+      },
+      '/api/user/sync': {
+        get: operation({
+          tag: 'Users',
+          operationId: 'getAccountSyncStatus',
+          summary: 'Read cross-device account sync status',
+          security: signedSecurity,
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync status',
+                ref('AccountSyncStatus'),
+                { registered: true, writerCores: 2, entries: 8 }
+              ),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+        put: operation({
+          tag: 'Users',
+          operationId: 'registerAccountSync',
+          summary: 'Register the account sync key on this node',
+          description:
+            'Lets this node sync the account profile, channels and file metadata with the account other devices. File content is never synced.',
+          sideEffect: 'write',
+          security: signedSecurity,
+          requestBody: jsonRequest(ref('AccountSyncRegistration'), {
+            syncKey: `0x${'0'.repeat(64)}`,
+          }),
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync registered',
+                {
+                  allOf: [
+                    successSchema,
+                    {
+                      type: 'object',
+                      properties: { status: ref('AccountSyncStatus') },
+                    },
+                  ],
+                },
+                { success: true, status: { registered: true } }
+              ),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+        delete: operation({
+          tag: 'Users',
+          operationId: 'unregisterAccountSync',
+          summary: 'Stop account sync and delete the sync key on this node',
+          description:
+            'Data already synced to this node is kept; no further changes are exchanged with the accounts other devices.',
+          sideEffect: 'write',
+          security: signedSecurity,
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync unregistered',
+                {
+                  allOf: [
+                    successSchema,
+                    {
+                      type: 'object',
+                      properties: { status: ref('AccountSyncStatus') },
+                    },
+                  ],
+                },
+                { success: true, status: { registered: false } }
+              ),
             },
             [400, 401, 403, 429, 500]
           ),

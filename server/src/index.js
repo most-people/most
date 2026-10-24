@@ -2825,6 +2825,11 @@ export class MostBoxEngine extends EventEmitter {
     return status
   }
 
+  async unregisterAccountSync(ownerAddress) {
+    this.#ensureInitialized()
+    return this.#accountSync.unregister(ownerAddress)
+  }
+
   getAccountSyncStatus(ownerAddress) {
     this.#ensureInitialized()
     return this.#accountSync.status(ownerAddress)
