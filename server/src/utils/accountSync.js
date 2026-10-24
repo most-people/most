@@ -16,16 +16,18 @@ function hmacSha256(key, label) {
   return getBytes(computeHmac('sha256', key, new TextEncoder().encode(label)))
 }
 
+/** 节点只持有同步子密钥，topic 由它派生，两端各自算出同一个值。 */
+export function deriveAccountSyncTopic(syncKey) {
+  return hexlify(hmacSha256(getBytes(syncKey), SYNC_TOPIC_DOMAIN))
+}
+
 /**
  * 从账号种子单向派生同步子密钥。节点只保存子密钥，泄露它不会泄露种子或钱包签名能力。
  * topic 由子密钥再派生，不含公开地址，外人无法凭地址猜出账号同步 topic。
  */
 export function deriveAccountSyncKeys(danger) {
-  const syncKey = hmacSha256(getBytes(danger), SYNC_KEY_DOMAIN)
-  return {
-    syncKey: hexlify(syncKey),
-    topic: hexlify(hmacSha256(syncKey, SYNC_TOPIC_DOMAIN)),
-  }
+  const syncKey = hexlify(hmacSha256(getBytes(danger), SYNC_KEY_DOMAIN))
+  return { syncKey, topic: deriveAccountSyncTopic(syncKey) }
 }
 
 function normalizeEntry(input) {
