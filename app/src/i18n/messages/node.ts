@@ -462,6 +462,13 @@ export const nodeMessages = {
     'zh-TW': '密碼',
     en: 'Password',
   },
+  'node.account.passwordShort': {
+    'zh-CN':
+      '密码少于 18 个字符，账号可能被离线暴力破解。建议用一句诗或一句歌词作密码；你也可以忽略此提示继续使用。',
+    'zh-TW':
+      '密碼少於 18 個字元，帳號可能被離線暴力破解。建議用一句詩或一句歌詞作密碼；你也可以忽略此提示繼續使用。',
+    en: 'This password is shorter than 18 characters, so the account could be cracked offline. A line of a poem or song works well. You can ignore this warning and continue.',
+  },
   'node.account.signIn': {
     'zh-CN': '登录',
     'zh-TW': '登入',

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Settings, Wallet } from 'lucide-react'
 import { useI18n } from '~/lib/i18n'
+import { PasswordLengthHint } from '~/components/PasswordLengthHint'
 import {
   MAX_PBKDF2_ITERATIONS,
   MIN_PBKDF2_ITERATIONS,
@@ -113,6 +114,7 @@ export function Web3LoginPanel({
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
+        <PasswordLengthHint password={password} />
       </div>
       <button
         className="btn btn-primary btn-full"

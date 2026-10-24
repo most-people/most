@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useUserStore } from '~/stores/userStore'
 import { SafeImage } from '~/components/SafeImage'
+import { PasswordLengthHint } from '~/components/PasswordLengthHint'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
 import { shortAddress } from '~/lib/format'
@@ -92,6 +93,7 @@ export default function UserLoginModal() {
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
+          <PasswordLengthHint password={loginPassword} />
           <div className="login-buttons-row">
             <button
               className="btn btn-secondary"

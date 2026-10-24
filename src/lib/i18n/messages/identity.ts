@@ -9,6 +9,8 @@ export const zhCNIdentityMessages = {
   'login.error.credentialsRequired': '请输入用户名和密码',
   'login.error.previewRequired': '请先预览并确认头像',
   'login.error.failed': '登录失败',
+  'login.warning.passwordShort':
+    '密码少于 18 个字符，账号可能被离线暴力破解。建议用一句诗或一句歌词作密码；你也可以忽略此提示继续使用。',
   'unlock.title': '输入密码解锁',
   'unlock.tip':
     '此操作需要账号密码。密码只保存在本页内存中，关闭页面后需重新输入。',
@@ -29,6 +31,8 @@ export const zhTWIdentityMessages = {
   'login.error.credentialsRequired': '請輸入使用者名稱和密碼',
   'login.error.previewRequired': '請先預覽並確認頭像',
   'login.error.failed': '登入失敗',
+  'login.warning.passwordShort':
+    '密碼少於 18 個字元，帳號可能被離線暴力破解。建議用一句詩或一句歌詞作密碼；你也可以忽略此提示繼續使用。',
   'unlock.title': '輸入密碼解鎖',
   'unlock.tip':
     '此操作需要帳號密碼。密碼只保存在本頁記憶體中，關閉頁面後需重新輸入。',
@@ -49,6 +53,8 @@ export const enIdentityMessages = {
   'login.error.credentialsRequired': 'Enter a username and password',
   'login.error.previewRequired': 'Preview and confirm the avatar first',
   'login.error.failed': 'Sign-in failed',
+  'login.warning.passwordShort':
+    'This password is shorter than 18 characters, so the account could be cracked offline. A line of a poem or song works well. You can ignore this warning and continue.',
   'unlock.title': 'Enter password to unlock',
   'unlock.tip':
     'This action needs your account password. It is kept in this page memory only and must be entered again after the page closes.',

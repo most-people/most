@@ -1560,6 +1560,15 @@
   line-height: 1.4;
 }
 
+.password-length-hint {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 159, 10, 0.12);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .login-password-wrapper {
   position: relative;
   display: flex;

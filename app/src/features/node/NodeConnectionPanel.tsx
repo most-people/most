@@ -1,3 +1,4 @@
+import { isPasswordShort } from '../../remoteNode/identity'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -371,6 +372,11 @@ export function NodeConnectionPanel({
                         secureTextEntry
                         value={password}
                       />
+                      {isPasswordShort(password) && (
+                        <Text style={styles.passwordHint}>
+                          {t('node.account.passwordShort')}
+                        </Text>
+                      )}
                       <MostButton
                         disabled={working || !username.trim() || !password}
                         icon={
@@ -578,6 +584,14 @@ function createConnectionStyles(theme: MostBoxTheme) {
     formSection: { gap: 10 },
     formTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
     formFields: { gap: 9 },
+    passwordHint: {
+      backgroundColor: colors.warningSoft,
+      borderRadius: 8,
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      padding: 8,
+    },
     signedInRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     signedInText: { flex: 1, gap: 2, minWidth: 0 },
     primaryText: { color: colors.text, fontSize: 14, fontWeight: '600' },
