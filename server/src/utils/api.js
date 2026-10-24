@@ -322,7 +322,7 @@ function createApiInstance() {
           }
 
           const identity = getStoredIdentity()
-          if (identity?.danger) {
+          if (identity?.device?.cert) {
             try {
               const authHeaders = await buildAuthHeaders(
                 identity,
@@ -532,18 +532,18 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
   }
 
   const identity = getStoredIdentity()
-  if (identity?.danger) {
+  if (identity?.device?.cert) {
     try {
       const auth = await buildAuthHeaders(
         identity,
         'GET',
         normalizeAuthPath(path)
       )
-      const [address, timestamp, signature] = String(
+      const [cert, timestamp, signature] = String(
         auth.Authorization || ''
       ).split(',')
-      if (address && signature) {
-        url.searchParams.set('address', address)
+      if (cert && signature) {
+        url.searchParams.set('cert', cert)
         url.searchParams.set('timestamp', timestamp)
         url.searchParams.set('signature', signature)
       }
@@ -676,7 +676,7 @@ async function probeMostBoxEndpoint(cleanedUrl, signal) {
 async function probeWebSocket(cleanedUrl, invite, identity, signal) {
   signal?.throwIfAborted()
   if (typeof WebSocket === 'undefined') return { ok: true }
-  if (!identity?.danger) return { ok: true }
+  if (!identity?.device?.cert) return { ok: true }
 
   try {
     const wsUrl = new URL(buildWebSocketUrl(cleanedUrl))
@@ -685,18 +685,18 @@ async function probeWebSocket(cleanedUrl, invite, identity, signal) {
       wsUrl.searchParams.set('invite', invite)
     }
 
-    if (identity?.danger) {
+    if (identity?.device?.cert) {
       try {
         const auth = await buildAuthHeaders(
           identity,
           'GET',
           normalizeAuthPath('/ws')
         )
-        const [address, timestamp, signature] = String(
+        const [cert, timestamp, signature] = String(
           auth.Authorization || ''
         ).split(',')
-        if (address && signature) {
-          wsUrl.searchParams.set('address', address)
+        if (cert && signature) {
+          wsUrl.searchParams.set('cert', cert)
           wsUrl.searchParams.set('timestamp', timestamp)
           wsUrl.searchParams.set('signature', signature)
         }

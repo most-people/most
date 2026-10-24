@@ -1,4 +1,5 @@
 import type { MobileIdentity } from '../mobileCore/types'
+import { isUsableDevice } from './identity'
 import {
   normalizeRemoteNodes,
   type StoredRemoteNode,
@@ -23,7 +24,7 @@ export async function loadMobileIdentity() {
     !identity?.username ||
     !identity.address ||
     !/^0x[0-9a-f]{40}$/i.test(identity.address) ||
-    !/^0x[0-9a-f]{64}$/i.test(identity.danger || '')
+    !isUsableDevice(identity.device)
   ) {
     return null
   }

@@ -10,7 +10,7 @@ import { WebSocket } from 'ws'
 import { createApp, createWebSocketServer } from '../../index.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
-import { buildAuthMessage } from '../../src/utils/auth.js'
+import { authHeaderFor } from '../helpers/deviceIdentity.js'
 
 const wallet = new Wallet('0x' + '11'.repeat(32))
 const otherWallet = new Wallet('0x' + '22'.repeat(32))
@@ -47,10 +47,7 @@ async function createFixture(t) {
 
 async function request(fixture, requestPath, body, identity = wallet) {
   const method = body === undefined ? 'GET' : 'POST'
-  const timestamp = String(Date.now())
-  const signature = await identity.signMessage(
-    buildAuthMessage(timestamp, method, requestPath)
-  )
+  const authorization = await authHeaderFor(identity, method, requestPath)
   return fixture.runtime.app.request(
     requestPath,
     {
@@ -59,7 +56,7 @@ async function request(fixture, requestPath, body, identity = wallet) {
         host: 'chat.example',
         origin: 'http://localhost:2020',
         'x-mostbox-invite': invite,
-        authorization: `${identity.address},${timestamp},${signature}`,
+        authorization,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -339,11 +336,10 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
 
   it('allows the explicit browser origins for HTTP and authenticated WebSocket access', async t => {
     const fixture = await createFixture(t)
-    const timestamp = String(Date.now())
-    const signature = await wallet.signMessage(
-      buildAuthMessage(timestamp, 'GET', '/ws')
-    )
-    const url = `/ws?${new URLSearchParams({ invite, address: wallet.address, timestamp, signature })}`
+    const [cert, timestamp, signature] = (
+      await authHeaderFor(wallet, 'GET', '/ws')
+    ).split(',')
+    const url = `/ws?${new URLSearchParams({ invite, cert, timestamp, signature })}`
     for (const origin of [
       'http://localhost:2020',
       'http://127.0.0.1:2020',
@@ -406,16 +402,10 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       await new Promise(resolve => sockets.close(resolve))
       await new Promise(resolve => server.close(resolve))
     })
-    const timestamp = String(Date.now())
-    const signature = await wallet.signMessage(
-      buildAuthMessage(timestamp, 'GET', '/ws')
-    )
-    const query = new URLSearchParams({
-      invite,
-      address: wallet.address,
-      timestamp,
-      signature,
-    })
+    const [cert, timestamp, signature] = (
+      await authHeaderFor(wallet, 'GET', '/ws')
+    ).split(',')
+    const query = new URLSearchParams({ invite, cert, timestamp, signature })
     const socket = new WebSocket(
       `ws://127.0.0.1:${server.address().port}/ws?${query}`,
       { origin: 'http://localhost:2020' }

@@ -60,7 +60,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
-    "sodium-native": "5.1.0"
+    "sodium-native": "5.1.0",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/b4a": "1.6.5",

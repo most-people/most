@@ -19,9 +19,10 @@ import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
-import { createLoginIdentity } from '../../src/utils/userIdentity.js'
+import { createLoginSession } from '../../src/utils/userIdentity.js'
 
-const TEST_IDENTITY = createLoginIdentity('mcp-user', 'mcp-password')
+const TEST_IDENTITY = (await createLoginSession('mcp-user', 'mcp-password'))
+  .identity
 const LOCAL_CONTEXT = {
   incoming: { socket: { remoteAddress: '127.0.0.1' } },
 }

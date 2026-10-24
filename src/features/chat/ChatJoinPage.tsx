@@ -171,8 +171,9 @@ function ChatJoinContent() {
       }
 
       signal.throwIfAborted()
-      const nextIdentity = createChatJoinInviteIdentity(activeInvite)
-      setUserIdentity(nextIdentity)
+      const { identity: nextIdentity, danger } =
+        await createChatJoinInviteIdentity(activeInvite)
+      setUserIdentity(nextIdentity, danger)
 
       let firstJoinedChannelKey = ''
       for (const channel of activeInvite.channels) {

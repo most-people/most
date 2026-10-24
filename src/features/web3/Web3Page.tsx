@@ -19,6 +19,7 @@ import {
   most25519,
 } from '~server/src/utils/mostWallet.js'
 import { getEdKeyPair } from '~server/src/utils/mp.js'
+import { createSessionFromWallet } from '~server/src/utils/userIdentity.js'
 import { AsymmetricBoxView } from './components/AsymmetricBoxView'
 import { PemExportView } from './components/PemExportView'
 import { WalletExportView } from './components/WalletExportView'
@@ -134,7 +135,18 @@ export default function Web3Page() {
     const result = mostWallet(username.trim(), password, parsedPbkdf2Iterations)
     const displayName = `${result.username}#${result.address.slice(-4).toUpperCase()}`
     setWalletResult(result)
-    setUserIdentity({ ...result, displayName })
+    const session = await createSessionFromWallet(result)
+    setUserIdentity(
+      {
+        ...session.identity,
+        displayName,
+        iterations:
+          parsedPbkdf2Iterations === DEFAULT_PBKDF2_ITERATIONS
+            ? undefined
+            : parsedPbkdf2Iterations,
+      },
+      result.danger
+    )
     addToast(
       t('login.toast.signedIn', { username: result.username }),
       'success'

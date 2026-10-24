@@ -1,20 +1,39 @@
 import { create } from 'zustand'
 import {
   createLoginIdentity,
+  createLoginSession,
   loadIdentity,
   clearIdentity,
   saveIdentity,
 } from '~server/src/utils/userIdentity.js'
+import {
+  issueDeviceCert,
+  readDeviceCertExpiry,
+} from '~server/src/utils/auth.js'
+import { mostWallet } from '~server/src/utils/mostWallet.js'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
 type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
 
+const DEVICE_CERT_RENEW_BEFORE_MS = 3 * 24 * 60 * 60 * 1000
+
+export interface DeviceCredential {
+  publicKey: string
+  secretKey: string
+  cert: string
+}
+
+/** 持久化的身份只含设备密钥证书和子密钥，不含账号种子。 */
 export interface UserIdentity {
   username: string
   address: string
-  danger: string
+  device: DeviceCredential
+  syncKey: string
+  syncTopic: string
+  publicKeys?: { x25519: string; ed25519: string }
+  iterations?: number
   displayName?: string
   logo?: string
   logo_dark?: string
@@ -37,6 +56,9 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
+  seed: string | null
+  unlockOpen: boolean
+  unlockError: MessageKey | ''
   setFirstPath: (path: string) => void
   initializeUser: () => void
   openLoginModal: () => void
@@ -44,10 +66,22 @@ interface UserState {
   setLoginUsername: (username: string) => void
   setLoginPassword: (password: string) => void
   togglePassword: () => void
-  previewLoginIdentity: () => UserIdentity | null
-  loginUser: () => UserIdentity | null
-  setUserIdentity: (identity: UserIdentity) => void
+  previewLoginIdentity: () => Pick<UserIdentity, 'username' | 'address'> | null
+  loginUser: () => Promise<UserIdentity | null>
+  setUserIdentity: (identity: UserIdentity, seed?: string) => void
   logoutUser: () => void
+  unlockSeed: () => Promise<string | null>
+  submitUnlock: (password: string) => void
+  cancelUnlock: () => void
+  renewDeviceCertIfNeeded: () => Promise<void>
+}
+
+let unlockWaiters: Array<(seed: string | null) => void> = []
+
+function settleUnlock(seed: string | null) {
+  const waiters = unlockWaiters
+  unlockWaiters = []
+  for (const resolve of waiters) resolve(seed)
 }
 
 function getDefaultDisplayName(
@@ -64,8 +98,20 @@ function getDisplayName(identity: UserIdentity) {
 function normalizeIdentity(input: unknown): UserIdentity | null {
   if (!input || typeof input !== 'object') return null
   const value = input as Partial<UserIdentity>
-  if (!value.username || !value.address || !value.danger) return null
+  const device = value.device
+  if (
+    !value.username ||
+    !value.address ||
+    !device?.cert ||
+    !device.secretKey ||
+    !device.publicKey ||
+    !value.syncKey ||
+    !value.syncTopic
+  ) {
+    return null
+  }
   const address = value.address
+  const iterations = Number(value.iterations)
   const displayName = getDisplayName(value as UserIdentity)
   const avatar =
     typeof value.avatar === 'string'
@@ -80,7 +126,15 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   return {
     username: value.username,
     address,
-    danger: value.danger,
+    device: {
+      publicKey: device.publicKey,
+      secretKey: device.secretKey,
+      cert: device.cert,
+    },
+    syncKey: value.syncKey,
+    syncTopic: value.syncTopic,
+    publicKeys: value.publicKeys,
+    iterations: Number.isSafeInteger(iterations) ? iterations : undefined,
     displayName,
     logo: typeof value.logo === 'string' ? value.logo : undefined,
     logo_dark:
@@ -123,6 +177,9 @@ export const useUserStore = create<UserState>((set, get) => ({
   hasPreviewedAvatar: false,
   loginLoading: false,
   loginError: '',
+  seed: null,
+  unlockOpen: false,
+  unlockError: '',
 
   setFirstPath: path => {
     set({ firstPath: path || '/' })
@@ -133,7 +190,8 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (!identity) {
       clearIdentity()
     }
-    set({ identity, wallet: identity || undefined })
+    set({ identity, wallet: identity || undefined, seed: null })
+    if (identity) void get().renewDeviceCertIfNeeded()
   },
 
   openLoginModal: () => {
@@ -178,10 +236,10 @@ export const useUserStore = create<UserState>((set, get) => ({
       hasPreviewedAvatar: true,
       loginError: '',
     })
-    return identity
+    return { username: identity.username, address: identity.address }
   },
 
-  loginUser: () => {
+  loginUser: async () => {
     const { loginUsername, loginPassword, hasPreviewedAvatar } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
       set({ loginError: 'login.error.credentialsRequired' })
@@ -194,18 +252,19 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     set({ loginLoading: true, loginError: '' })
     try {
-      const nextIdentity = createLoginIdentity(
+      const { identity, danger } = await createLoginSession(
         loginUsername.trim(),
         loginPassword
       )
-      saveIdentity(nextIdentity)
+      saveIdentity(identity)
       set({
-        identity: nextIdentity,
-        wallet: nextIdentity,
+        identity,
+        wallet: identity,
+        seed: danger,
         showLoginModal: false,
         ...resetLoginForm(),
       })
-      return nextIdentity
+      return identity
     } catch {
       set({
         loginLoading: false,
@@ -215,15 +274,78 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
-  setUserIdentity: identity => {
+  setUserIdentity: (identity, seed) => {
     const nextIdentity = normalizeIdentity(identity)
     if (!nextIdentity) return
     saveIdentity(nextIdentity)
-    set({ identity: nextIdentity, wallet: nextIdentity })
+    set(state => ({
+      identity: nextIdentity,
+      wallet: nextIdentity,
+      seed: seed ?? state.seed,
+    }))
   },
 
   logoutUser: () => {
     clearIdentity()
-    set({ identity: null, wallet: undefined })
+    settleUnlock(null)
+    set({
+      identity: null,
+      wallet: undefined,
+      seed: null,
+      unlockOpen: false,
+      unlockError: '',
+    })
+  },
+
+  unlockSeed: () => {
+    const { seed, identity } = get()
+    if (seed) return Promise.resolve(seed)
+    if (!identity) return Promise.resolve(null)
+    return new Promise(resolve => {
+      unlockWaiters.push(resolve)
+      set({ unlockOpen: true, unlockError: '' })
+    })
+  },
+
+  submitUnlock: password => {
+    const { identity } = get()
+    if (!identity || !password) {
+      set({ unlockError: 'unlock.error.passwordRequired' })
+      return
+    }
+    try {
+      const wallet = mostWallet(
+        identity.username,
+        password,
+        identity.iterations
+      )
+      if (wallet.address.toLowerCase() !== identity.address.toLowerCase()) {
+        set({ unlockError: 'unlock.error.wrongPassword' })
+        return
+      }
+      set({ seed: wallet.danger, unlockOpen: false, unlockError: '' })
+      settleUnlock(wallet.danger)
+    } catch {
+      set({ unlockError: 'unlock.error.wrongPassword' })
+    }
+  },
+
+  cancelUnlock: () => {
+    set({ unlockOpen: false, unlockError: '' })
+    settleUnlock(null)
+  },
+
+  renewDeviceCertIfNeeded: async () => {
+    const { identity } = get()
+    if (!identity) return
+    const expiresAt = readDeviceCertExpiry(identity.device.cert)
+    if (expiresAt - Date.now() > DEVICE_CERT_RENEW_BEFORE_MS) return
+    const seed = await get().unlockSeed()
+    const current = get().identity
+    if (!seed || !current || current.address !== identity.address) return
+    const cert = await issueDeviceCert(seed, current.device.publicKey)
+    const renewed = { ...current, device: { ...current.device, cert } }
+    saveIdentity(renewed)
+    set({ identity: renewed, wallet: renewed })
   },
 }))

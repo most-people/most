@@ -187,7 +187,7 @@ test('requires a uid and rejects every invalid channel id', async () => {
 
 test('creates and overrides the local identity from invite fields', async () => {
   const { createChatJoinInviteIdentity } = await importInviteIdentityModule()
-  const identity = createChatJoinInviteIdentity({
+  const { identity, danger } = await createChatJoinInviteIdentity({
     uid: 'demo-user',
     name: 'Demo User',
     avatar: 'https://example.com/avatar.png',
@@ -207,4 +207,7 @@ test('creates and overrides the local identity from invite fields', async () => 
   assert.equal(identity.theme, 'st')
   assert.equal(identity.data, '{"source":"invite"}')
   assert.deepEqual(identity.tag, { 'zh-CN': '访客', en: 'Guest' })
+  assert.ok(identity.device.cert)
+  assert.equal('danger' in identity, false)
+  assert.ok(danger)
 })

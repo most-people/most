@@ -958,7 +958,7 @@ export function createOpenApiSpec({
           in: 'header',
           name: 'Authorization',
           description:
-            'Per-request value: address,timestamp,signature. The documentation page generates it from the signed-in MostBox identity.',
+            'Per-request value: device-cert,timestamp,signature. The documentation page generates it from the signed-in MostBox identity.',
         },
         McpBearer: {
           type: 'http',

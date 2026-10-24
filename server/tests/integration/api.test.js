@@ -11,14 +11,17 @@ import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
-import { createLoginIdentity } from '../../src/utils/userIdentity.js'
+import { createLoginSession } from '../../src/utils/userIdentity.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
 const VALID_MISSING_CID =
   'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
-const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
-const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
+const TEST_SESSION = await createLoginSession('api-user', 'api-password')
+const TEST_IDENTITY = TEST_SESSION.identity
+const SECOND_IDENTITY = (
+  await createLoginSession('second-user', 'second-password')
+).identity
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const LOCAL_REQUEST_CONTEXT = {
   incoming: { socket: { remoteAddress: '::ffff:127.0.0.1' } },
@@ -2418,7 +2421,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         data.channels.some(item => item.channelKey === channel.channelKey)
       )
       assert.strictEqual(
-        JSON.stringify(data).includes(TEST_IDENTITY.danger),
+        JSON.stringify(data).includes(TEST_SESSION.danger),
         false
       )
       assert.strictEqual(JSON.stringify(data).includes(tmpDir), false)

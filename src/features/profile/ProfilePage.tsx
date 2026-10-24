@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
@@ -40,7 +40,6 @@ import {
   isDefaultAvatarValue,
   normalizeDefaultAvatarValue,
 } from '~server/src/utils/avatar.js'
-import { most25519 } from '~server/src/utils/mostWallet.js'
 
 type AvatarOption = {
   value: string
@@ -151,10 +150,12 @@ export default function ProfilePage() {
     void accountBackup.refreshBackupSummary()
   }, [accountBackup.refreshBackupSummary, hasBackend, identity])
 
-  const keys = useMemo(() => {
-    if (!identity) return null
-    return most25519(identity.danger)
-  }, [identity])
+  const keys = identity?.publicKeys
+    ? {
+        ed_public_key: identity.publicKeys.ed25519,
+        public_key: identity.publicKeys.x25519,
+      }
+    : null
 
   if (!identity) {
     return (

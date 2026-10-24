@@ -4,6 +4,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
+import SeedUnlockModal from '~/components/SeedUnlockModal'
 import ConnectModal from '~/components/ConnectModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
 
@@ -43,6 +44,8 @@ export default function AppGlobals() {
       <GlobalDownloadTasks />
 
       <UserLoginModal />
+
+      <SeedUnlockModal />
 
       <ConnectModal />
     </>

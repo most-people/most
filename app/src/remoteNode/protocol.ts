@@ -143,8 +143,8 @@ export async function buildAuthenticatedWebSocketUrl(input: {
     '/ws'
   )
   if (authorization) {
-    const [address, timestamp, signature] = authorization.split(',')
-    url.searchParams.set('address', address)
+    const [cert, timestamp, signature] = authorization.split(',')
+    url.searchParams.set('cert', cert)
     url.searchParams.set('timestamp', timestamp)
     url.searchParams.set('signature', signature)
   }

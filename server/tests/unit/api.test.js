@@ -19,6 +19,7 @@ import {
   setBackendUrl,
 } from '../../src/utils/api.js'
 import { verifyAuthHeader } from '../../src/utils/auth.js'
+import { createLoginSession } from '../../src/utils/userIdentity.js'
 
 class MemoryStorage {
   #items = new Map()
@@ -79,11 +80,12 @@ function installWebSocketProbe({
   }
 }
 
+const STORED_IDENTITY = (
+  await createLoginSession('api-unit-user', 'api-unit-password')
+).identity
+
 function installStoredIdentity() {
-  localStorage.setItem(
-    'mostbox_identity',
-    JSON.stringify({ danger: '0x' + '11'.repeat(32) })
-  )
+  localStorage.setItem('mostbox_identity', JSON.stringify(STORED_IDENTITY))
 }
 
 function capabilitiesResponse() {

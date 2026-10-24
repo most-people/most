@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import type { MobileIdentity } from '../mobileCore/types'
+import { isUsableDevice } from './identity'
 import {
   normalizeRemoteNodes,
   type StoredRemoteNode,
@@ -44,7 +45,7 @@ function normalizeIdentity(value: PersistedState['identity']) {
     !value?.username ||
     !value.address ||
     !/^0x[0-9a-f]{40}$/i.test(value.address) ||
-    !/^0x[0-9a-f]{64}$/i.test(value.danger || '')
+    !isUsableDevice(value.device)
   ) {
     return null
   }

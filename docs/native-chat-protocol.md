@@ -9,18 +9,37 @@ not require the `/chat/join` page, a WebView, or an embedded P2P engine.
 Remote HTTP requests send `x-mostbox-invite` and an `Authorization` header:
 
 ```text
-<address>,<timestamp-ms>,<signature>
+<device-cert>,<timestamp-ms>,<signature>
 ```
 
-The signature is an EIP-191 message signature over
-`<timestamp-ms>:<UPPERCASE-METHOD>:<pathname>`. Query parameters are excluded.
-The node accepts signatures within five minutes of its clock. Any valid
-secp256k1 signing identity is supported; the MostBox username/password
-derivation is a client convention, not a server requirement.
+A client never sends its account seed or wallet signature per request. It signs
+once, at login, a **device certificate** that authorizes a device key, then
+signs each request with that device key.
 
-Keep signing material and node invites out of logs and URLs other than the
-authenticated WebSocket URL required below. Native clients do not need to
-persist these credentials. Signing identities are independent of any financial
+- Device key: an ed25519 key pair, one per device. `publicKey` is 32 bytes of
+  hex; `secretKey` is the 64-byte tweetnacl secret key in hex.
+- Device certificate: `dc1.<base64url(payload)>.<signature>`. `payload` is JSON
+  `{address, devicePublicKey, issuedAt, expiresAt}` (milliseconds). `signature`
+  is an EIP-191 signature, by the account's secp256k1 key, over
+  `most-box-device-cert-v1
+
+<address>
+<devicePublicKey>
+<issuedAt>
+<expiresAt>`.
+  The node rejects certificates that are expired, issued more than five
+  minutes in the future, or valid for longer than 90 days. Clients use 30 days
+  and ask the user for the password again to renew.
+- Request signature: base64url of the ed25519 detached signature, by the device
+  key, over `<timestamp-ms>:<UPPERCASE-METHOD>:<pathname>`. Query parameters are
+  excluded. The node accepts signatures within five minutes of its clock.
+
+The MostBox username/password derivation is a client convention, not a server
+requirement; any secp256k1 identity can issue device certificates.
+
+Keep device keys and node invites out of logs and URLs other than the
+authenticated WebSocket URL required below. The account seed should not be
+persisted on the device. Signing identities are independent of any financial
 account or transaction wallet.
 
 ## Channels and History
@@ -80,9 +99,9 @@ nodes simultaneously.
 
 ## WebSocket
 
-Connect to `/ws` using `wss:` for HTTPS nodes. Supply `invite`, `address`,
-`timestamp` and `signature` query parameters. Sign `GET:/ws` with the same
-timestamp format as HTTP. Build a fresh signature for each reconnection; do
+Connect to `/ws` using `wss:` for HTTPS nodes. Supply `invite`, `cert`,
+`timestamp` and `signature` query parameters (the three `Authorization` parts).
+Sign `GET:/ws` with the same timestamp format as HTTP. Build a fresh signature for each reconnection; do
 not log the full URL.
 
 ```json

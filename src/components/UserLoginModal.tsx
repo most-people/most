@@ -31,7 +31,7 @@ export default function UserLoginModal() {
     : 'Most People'
 
   function handleLogin() {
-    loginUser()
+    void loginUser()
   }
 
   const modal = (

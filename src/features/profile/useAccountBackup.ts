@@ -320,11 +320,13 @@ export function useAccountBackup() {
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()
     if (!currentWallet || !requireBackend()) return
+    const seed = await useUserStore.getState().unlockSeed()
+    if (!seed) return
     setAction('export')
     setStatus('working')
     try {
       const payload = await buildPayload()
-      const encrypted = encryptAccountBackup(payload, currentWallet.danger)
+      const encrypted = encryptAccountBackup(payload, seed)
       const blob = new Blob([encrypted], { type: 'text/plain' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -359,12 +361,14 @@ export function useAccountBackup() {
 
         const reader = new FileReader()
         reader.onload = async () => {
+          const seed = await useUserStore.getState().unlockSeed()
+          if (!seed) return
           setAction('import')
           setStatus('working')
           try {
             const payload = decryptAccountBackup(
               String(reader.result || ''),
-              currentWallet.danger
+              seed
             ) as AccountBackupPayload
             const restored = await restorePayload(payload, {
               requestConfirm: options.requestConfirm,

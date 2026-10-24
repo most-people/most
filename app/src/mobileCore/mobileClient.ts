@@ -172,7 +172,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   async signIn(input: { username: string; password: string }) {
     this.#assertSwitchAllowed()
-    const identity = createMobileIdentity(input.username, input.password)
+    const identity = await createMobileIdentity(input.username, input.password)
     if (this.#mode === 'remote' && this.#remoteConfig) {
       const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
       try {

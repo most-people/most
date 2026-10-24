@@ -389,11 +389,11 @@ export function createApp(engine, options = {}) {
 
   function getWebSocketUserAddress(req) {
     const url = new URL(req.url, `http://localhost:${appPort}`)
-    const address = url.searchParams.get('address') || ''
+    const cert = url.searchParams.get('cert') || ''
     const timestamp = url.searchParams.get('timestamp') || ''
     const signature = url.searchParams.get('signature') || ''
     const auth = verifyAuthHeader(
-      `${address},${timestamp},${signature}`,
+      `${cert},${timestamp},${signature}`,
       'GET',
       '/ws'
     )

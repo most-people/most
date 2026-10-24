@@ -38,7 +38,7 @@ describe('remote node protocol', () => {
   })
 
   it('attaches invite and signed WebSocket credentials', async () => {
-    const identity = createMobileIdentity('alice', 'password')
+    const identity = await createMobileIdentity('alice', 'password')
     const headers = await buildRemoteHeaders({
       baseUrl: 'https://node.example.com/base',
       invite: 'invite-code',
@@ -47,7 +47,7 @@ describe('remote node protocol', () => {
       path: '/api/files',
     })
     assert.equal(headers['x-mostbox-invite'], 'invite-code')
-    assert.match(headers.Authorization, new RegExp(`^${identity.address},`))
+    assert.ok(headers.Authorization.startsWith(`${identity.device.cert},`))
 
     const ws = new URL(
       await buildAuthenticatedWebSocketUrl({
@@ -59,7 +59,7 @@ describe('remote node protocol', () => {
     assert.equal(ws.protocol, 'wss:')
     assert.equal(ws.pathname, '/base/ws')
     assert.equal(ws.searchParams.get('invite'), 'invite-code')
-    assert.equal(ws.searchParams.get('address'), identity.address)
+    assert.equal(ws.searchParams.get('cert'), identity.device.cert)
   })
 
   it('resolves a bare address to HTTPS without sending credentials', async () => {

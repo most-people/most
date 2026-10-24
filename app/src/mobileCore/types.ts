@@ -12,10 +12,11 @@ export type LogLevel = 'info' | 'warn' | 'error'
 
 export type NodeMode = 'local' | 'remote'
 
+/** 持久化的身份只含设备密钥和授权证书，不含账号种子。 */
 export type MobileIdentity = {
   username: string
   address: string
-  danger: string
+  device: { publicKey: string; secretKey: string; cert: string }
 }
 
 export type RemoteNodeConfig = {
