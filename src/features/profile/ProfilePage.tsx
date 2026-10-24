@@ -33,6 +33,7 @@ import {
 } from '~/lib/localizedTag'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
+import { ProfileAccountSyncPanel } from '~/features/profile/ProfileAccountSyncPanel'
 import { getCachedAvatar } from '~/lib/avatarCache'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
@@ -375,6 +376,7 @@ export default function ProfilePage() {
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
+          <ProfileAccountSyncPanel />
           <section className="profile-panel profile-backup-card ui-glass-surface">
             <div className="profile-panel-header profile-backup-header">
               <div>

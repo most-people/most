@@ -241,7 +241,7 @@ export function getBackendConnectionCandidates(value) {
   return [...new Set(candidates.map(normalizeBackendUrl).filter(Boolean))]
 }
 
-function isLocalBackendUrl(url) {
+export function isLocalBackendUrl(url) {
   const value = String(url || '').trim()
   if (!value) return false
   try {

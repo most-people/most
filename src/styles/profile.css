@@ -888,3 +888,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+.profile-sync-note {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.profile-sync-error {
+  color: var(--danger);
+}

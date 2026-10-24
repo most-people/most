@@ -13,6 +13,17 @@ export const zhCNProfileMessages = {
   'profile.section.backup': '账号备份',
   'profile.section.backup.desc':
     '手动备份或恢复加密账号数据，包括显示名称、头像、标签、偏好设置、文件目录和频道偏好。',
+  'profile.section.sync': '账号同步',
+  'profile.section.sync.desc':
+    '让登录同一账号的其他设备和节点自动同步显示名称、频道和文件记录。文件内容不会被同步，需要时按 CID 下载。',
+  'profile.sync.local': '本机节点已自动开启同步。',
+  'profile.sync.remoteOn': '已在此远程节点开启同步。',
+  'profile.sync.remoteWarning':
+    '开启后，此节点会持有你的同步密钥，可以读取你的频道、资料和文件记录。仅在你信任该节点时开启。',
+  'profile.sync.devices': '已发现 {count} 个设备日志',
+  'profile.sync.enable': '在此节点开启同步',
+  'profile.sync.disable': '关闭并移除同步密钥',
+  'profile.sync.error': '同步设置失败，请稍后重试',
   'profile.backup.summary.label': '账号备份数据概览',
   'profile.backup.summary.files': '文件',
   'profile.backup.summary.channels': '频道',
@@ -81,6 +92,17 @@ export const zhTWProfileMessages = {
   'profile.section.backup': '帳號備份',
   'profile.section.backup.desc':
     '手動備份或恢復加密帳號資料，包括顯示名稱、頭像、標籤、偏好設定、檔案目錄和頻道偏好。',
+  'profile.section.sync': '帳號同步',
+  'profile.section.sync.desc':
+    '讓登入同一帳號的其他裝置與節點自動同步顯示名稱、頻道和檔案記錄。檔案內容不會被同步，需要時依 CID 下載。',
+  'profile.sync.local': '本機節點已自動開啟同步。',
+  'profile.sync.remoteOn': '已在此遠端節點開啟同步。',
+  'profile.sync.remoteWarning':
+    '開啟後，此節點會持有你的同步金鑰，可以讀取你的頻道、資料和檔案記錄。僅在你信任該節點時開啟。',
+  'profile.sync.devices': '已發現 {count} 個裝置日誌',
+  'profile.sync.enable': '在此節點開啟同步',
+  'profile.sync.disable': '關閉並移除同步金鑰',
+  'profile.sync.error': '同步設定失敗，請稍後重試',
   'profile.backup.summary.label': '帳號備份資料概覽',
   'profile.backup.summary.files': '檔案',
   'profile.backup.summary.channels': '頻道',
@@ -151,6 +173,17 @@ export const enProfileMessages = {
   'profile.section.backup': 'Account backup',
   'profile.section.backup.desc':
     'Manually back up or restore encrypted account data, including display name, avatar, tags, preferences, file directories, and channel preferences.',
+  'profile.section.sync': 'Account sync',
+  'profile.section.sync.desc':
+    'Keep your display name, channels and file records in sync across the devices and nodes you sign in with. File content is never synced; download it by CID when needed.',
+  'profile.sync.local': 'Sync is on automatically for this local node.',
+  'profile.sync.remoteOn': 'Sync is on for this remote node.',
+  'profile.sync.remoteWarning':
+    'When on, this node holds your sync key and can read your channels, profile and file records. Only enable it for a node you trust.',
+  'profile.sync.devices': '{count} device logs found',
+  'profile.sync.enable': 'Turn on sync for this node',
+  'profile.sync.disable': 'Turn off and remove the sync key',
+  'profile.sync.error': 'Could not change sync settings. Try again.',
   'profile.backup.summary.label': 'Account backup data overview',
   'profile.backup.summary.files': 'Files',
   'profile.backup.summary.channels': 'Channels',
