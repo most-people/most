@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  compareChannelHistoryEntries,
   normalizeHistoryLimit,
   paginateChannelHistory,
 } from '../../src/core/channelHistory.js'
@@ -12,6 +13,23 @@ const entries = [
   { content: 'b0', timestamp: 100, _coreKey: 'b'.repeat(64), _index: 0 },
   { content: 'newer', timestamp: 101, _coreKey: 'a'.repeat(64), _index: 2 },
 ]
+
+describe('channel history ordering', () => {
+  it('orders tied timestamps identically regardless of input order', () => {
+    const expected = ['a0', 'a1', 'b0', 'newer']
+    const shuffles = [
+      [...entries],
+      [...entries].reverse(),
+      [entries[2], entries[3], entries[1], entries[0]],
+    ]
+    for (const input of shuffles) {
+      assert.deepEqual(
+        input.sort(compareChannelHistoryEntries).map(entry => entry.content),
+        expected
+      )
+    }
+  })
+})
 
 describe('channel history cursor', () => {
   it('pages tied timestamps across writers without repeats or skips', () => {

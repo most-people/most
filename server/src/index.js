@@ -30,7 +30,10 @@ import {
   buildMostLink,
 } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
-import { paginateChannelHistory } from './core/channelHistory.js'
+import {
+  compareChannelHistoryEntries,
+  paginateChannelHistory,
+} from './core/channelHistory.js'
 import {
   MAX_CHANNEL_FRAME_BYTES,
   consumeChannelFrames,
@@ -263,6 +266,7 @@ export class MostBoxEngine extends EventEmitter {
   #channelPresence = null
   #channelCreationQueues = new Map()
   #channelMessageQueues = new Map()
+  #channelHistoryIndex = new Map()
 
   #accountMetadata = { profiles: {} }
 
@@ -3779,6 +3783,7 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
       this.#channelCores.delete(channel.channelKey)
+      this.#channelHistoryIndex.delete(channel.channelKey)
     }
     this.#channelLocalCoreKey.delete(channel.channelKey)
 
@@ -3947,7 +3952,7 @@ export class MostBoxEngine extends EventEmitter {
       return true
     })
 
-    unique.sort((a, b) => a.timestamp - b.timestamp)
+    unique.sort(compareChannelHistoryEntries)
 
     this.#applyChannelMemberProfileEntries(channel, unique, { save: true })
 
@@ -4031,12 +4036,11 @@ export class MostBoxEngine extends EventEmitter {
       throw new ValidationError('attachment content must match link')
     }
     if (clientMessageId) {
-      const existing = (
-        await this.#readChannelHistory(channel, { strict: true })
-      ).find(
-        message =>
-          normalizeOwnerAddress(message.author) === authorAddress &&
-          message.clientMessageId === clientMessageId
+      const index = await this.#refreshChannelHistoryIndex(channel, {
+        strict: true,
+      })
+      const existing = index.byClientId.get(
+        `${authorAddress}:${clientMessageId}`
       )
       if (existing) {
         const samePayload =
@@ -4096,7 +4100,7 @@ export class MostBoxEngine extends EventEmitter {
         normalizeOwnerAddress(author)
       ),
       content: trimmed,
-      timestamp: await this.#getNextChannelMessageTimestamp(channel.channelKey),
+      timestamp: await this.#getNextChannelMessageTimestamp(channel),
     }
     if (normalizedAuthorTag) {
       message.authorTag = normalizedAuthorTag
@@ -5050,28 +5054,54 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
-  async #getNextChannelMessageTimestamp(channelKey) {
+  /**
+   * 增量扫描各 writer core 的新条目，维护最大时间戳和 clientMessageId 索引，
+   * 避免每次发送都全量读取频道历史。
+   */
+  async #refreshChannelHistoryIndex(channel, { strict = false } = {}) {
+    const channelKey = channel.channelKey
+    let index = this.#channelHistoryIndex.get(channelKey)
+    if (!index) {
+      index = { scanned: new Map(), maxTimestamp: 0, byClientId: new Map() }
+      this.#channelHistoryIndex.set(channelKey, index)
+    }
     const coresMap = this.#channelCores.get(channelKey)
-    let maxTimestamp = 0
+    if (!coresMap) return index
 
-    if (coresMap) {
-      for (const [, core] of coresMap) {
-        for (let i = 0; i < core.length; i++) {
-          try {
-            const entry = await core.get(i)
-            if (isChannelHistoryEntry(entry)) {
-              maxTimestamp = Math.max(
-                maxTimestamp,
-                Number(entry.timestamp) || 0
-              )
-            }
-          } catch {
-            break
+    for (const [coreKeyHex, core] of coresMap) {
+      let i = index.scanned.get(coreKeyHex) || 0
+      for (; i < core.length; i++) {
+        let entry
+        try {
+          entry = await core.get(i)
+        } catch (error) {
+          if (strict) throw error
+          break
+        }
+        if (!isChannelHistoryEntry(entry)) continue
+        index.maxTimestamp = Math.max(
+          index.maxTimestamp,
+          Number(entry.timestamp) || 0
+        )
+        if (entry.clientMessageId) {
+          const key = `${normalizeOwnerAddress(entry.author)}:${entry.clientMessageId}`
+          const candidate = { ...entry, _coreKey: coreKeyHex, _index: i }
+          const current = index.byClientId.get(key)
+          if (
+            !current ||
+            compareChannelHistoryEntries(candidate, current) < 0
+          ) {
+            index.byClientId.set(key, candidate)
           }
         }
       }
+      index.scanned.set(coreKeyHex, i)
     }
+    return index
+  }
 
+  async #getNextChannelMessageTimestamp(channel) {
+    const { maxTimestamp } = await this.#refreshChannelHistoryIndex(channel)
     return Math.max(Date.now(), maxTimestamp + 1)
   }
 
