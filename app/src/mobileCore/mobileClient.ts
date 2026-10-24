@@ -1,4 +1,5 @@
 import type {
+  AccountSyncInfo,
   CancelDownloadInput,
   CancelP2PPingInput,
   CoreListener,
@@ -26,7 +27,9 @@ import { RemoteMostBoxCore } from '../remoteNode/remoteCore'
 import {
   buildNodeHistory,
   clearPreferredRemote,
+  isLoopbackNodeUrl,
   saveRemoteNode,
+  setRemoteAccountSync,
   type StoredRemoteNode,
 } from '../remoteNode/connectionHistory'
 import { createMobileIdentity } from '../remoteNode/identity'
@@ -195,6 +198,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   async signOut() {
     this.#assertSwitchAllowed()
+    // 退出登录后节点不应继续持有同步密钥（尽力而为，失败不阻止退出）。
+    await this.#remoteCore()
+      ?.unregisterAccountSync()
+      .catch(() => {})
     await saveMobileIdentity(null)
     this.#identity = null
     if (this.#mode === 'remote' && this.#remoteConfig) {
@@ -222,6 +229,57 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   getIdentity() {
     return this.#identity
+  }
+
+  async getAccountSync(): Promise<AccountSyncInfo> {
+    const remote = this.#remoteCore()
+    const url = this.#remoteConfig?.url || ''
+    if (!remote || !this.#identity) {
+      return { available: false, automatic: false, enabled: false, devices: 0 }
+    }
+    const automatic = isLoopbackNodeUrl(url)
+    const enabled = this.#isAccountSyncAllowed()
+    let devices = 0
+    if (enabled) {
+      try {
+        devices = (await remote.getAccountSyncStatus()).devices
+      } catch {}
+    }
+    return { available: true, automatic, enabled, devices }
+  }
+
+  /** 远程节点必须经用户明确开启才会收到同步密钥；关闭会从节点删除它。 */
+  async setAccountSync(enabled: boolean): Promise<AccountSyncInfo> {
+    const remote = this.#remoteCore()
+    const url = this.#remoteConfig?.url || ''
+    if (!remote || !this.#identity || isLoopbackNodeUrl(url)) {
+      return this.getAccountSync()
+    }
+    if (enabled) await remote.registerAccountSync()
+    else await remote.unregisterAccountSync()
+    this.#nodes = setRemoteAccountSync(this.#nodes, url, enabled)
+    await saveRemoteNodes(this.#nodes)
+    return this.getAccountSync()
+  }
+
+  #remoteCore() {
+    return this.#mode === 'remote' && this.#active instanceof RemoteMostBoxCore
+      ? this.#active
+      : null
+  }
+
+  #isAccountSyncAllowed() {
+    const url = this.#remoteConfig?.url || ''
+    return (
+      isLoopbackNodeUrl(url) ||
+      this.#nodes.some(node => node.url === url && node.accountSync)
+    )
+  }
+
+  async #registerAccountSyncIfAllowed() {
+    const remote = this.#remoteCore()
+    if (!remote || !this.#identity || !this.#isAccountSyncAllowed()) return
+    await remote.registerAccountSync().catch(() => {})
   }
 
   async #startRemoteCore(config: RemoteNodeConfig) {
@@ -343,6 +401,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
     if (previous !== next) await previous.stop()
     this.#snapshot = this.#decorateSnapshot(next.getSnapshot())
     this.#emit()
+    void this.#registerAccountSyncIfAllowed()
   }
 
   #subscribeActive() {

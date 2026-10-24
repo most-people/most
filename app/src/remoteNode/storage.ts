@@ -45,6 +45,7 @@ function normalizeIdentity(value: PersistedState['identity']) {
     !value?.username ||
     !value.address ||
     !/^0x[0-9a-f]{40}$/i.test(value.address) ||
+    !/^0x[0-9a-f]{64}$/.test(value.syncKey || '') ||
     !isUsableDevice(value.device)
   ) {
     return null

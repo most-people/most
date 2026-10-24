@@ -479,6 +479,55 @@ export const nodeMessages = {
     'zh-TW': '正在登入',
     en: 'Signing in',
   },
+  'node.sync.title': {
+    'zh-CN': '账号同步',
+    'zh-TW': '帳號同步',
+    en: 'Account sync',
+  },
+  'node.sync.desc': {
+    'zh-CN':
+      '让登录同一账号的其他设备和节点同步显示名称、频道和文件记录，文件内容不会被同步。',
+    'zh-TW':
+      '讓登入同一帳號的其他裝置與節點同步顯示名稱、頻道和檔案記錄，檔案內容不會被同步。',
+    en: 'Keep your display name, channels and file records in sync across devices and nodes. File content is never synced.',
+  },
+  'node.sync.automatic': {
+    'zh-CN': '本机节点已自动开启同步。',
+    'zh-TW': '本機節點已自動開啟同步。',
+    en: 'Sync is on automatically for this local node.',
+  },
+  'node.sync.remoteOn': {
+    'zh-CN': '已在此远程节点开启同步。',
+    'zh-TW': '已在此遠端節點開啟同步。',
+    en: 'Sync is on for this remote node.',
+  },
+  'node.sync.remoteWarning': {
+    'zh-CN':
+      '开启后，此节点会持有你的同步密钥，可以读取你的频道、资料和文件记录。仅在你信任该节点时开启。',
+    'zh-TW':
+      '開啟後，此節點會持有你的同步金鑰，可以讀取你的頻道、資料和檔案記錄。僅在你信任該節點時開啟。',
+    en: 'When on, this node holds your sync key and can read your channels, profile and file records. Only enable it for a node you trust.',
+  },
+  'node.sync.devices': {
+    'zh-CN': '已发现 {count} 个设备日志',
+    'zh-TW': '已發現 {count} 個裝置日誌',
+    en: '{count} device logs found',
+  },
+  'node.sync.enable': {
+    'zh-CN': '在此节点开启同步',
+    'zh-TW': '在此節點開啟同步',
+    en: 'Turn on sync for this node',
+  },
+  'node.sync.disable': {
+    'zh-CN': '关闭并移除同步密钥',
+    'zh-TW': '關閉並移除同步金鑰',
+    en: 'Turn off and remove the sync key',
+  },
+  'node.sync.error': {
+    'zh-CN': '同步设置失败，请稍后重试',
+    'zh-TW': '同步設定失敗，請稍後重試',
+    en: 'Could not change sync settings. Try again.',
+  },
   'node.account.signOut': {
     'zh-CN': '退出登录',
     'zh-TW': '登出',

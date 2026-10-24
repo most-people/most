@@ -5,6 +5,8 @@ export const MAX_REMOTE_NODES = 8
 export type StoredRemoteNode = RemoteNodeConfig & {
   preferred: boolean
   updatedAt: number
+  /** 用户明确允许此远程节点持有账号同步子密钥。 */
+  accountSync: boolean
 }
 
 function normalizeExplicitRemoteUrl(value: string) {
@@ -54,6 +56,7 @@ function normalizeStoredNode(input: Partial<StoredRemoteNode>) {
     invite: String(input.invite || '').trim(),
     preferred: input.preferred === true,
     updatedAt: Number(input.updatedAt) || Date.now(),
+    accountSync: input.accountSync === true,
   }
 }
 
@@ -95,12 +98,40 @@ export function saveRemoteNode(
       invite: input.invite.trim(),
       preferred,
       updatedAt: now,
+      accountSync: nodes.some(node => node.url === url && node.accountSync),
     },
     ...nodes.map(node => ({
       ...node,
       preferred: preferred ? false : node.preferred,
     })),
   ])
+}
+
+/** 回环地址上的节点就是用户自己的本机 daemon，账号同步不需要额外授权。 */
+export function isLoopbackNodeUrl(value: string) {
+  try {
+    const { hostname } = new URL(value)
+    const host = hostname.toLowerCase()
+    return (
+      host === 'localhost' ||
+      host === '::1' ||
+      host === '[::1]' ||
+      host.startsWith('127.')
+    )
+  } catch {
+    return false
+  }
+}
+
+export function setRemoteAccountSync(
+  nodes: StoredRemoteNode[],
+  url: string,
+  accountSync: boolean
+) {
+  const target = normalizeRemoteUrl(url)
+  return normalizeRemoteNodes(
+    nodes.map(node => (node.url === target ? { ...node, accountSync } : node))
+  )
 }
 
 export function clearPreferredRemote(nodes: StoredRemoteNode[]) {

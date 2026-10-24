@@ -16,6 +16,7 @@ export type NodeMode = 'local' | 'remote'
 export type MobileIdentity = {
   username: string
   address: string
+  syncKey: string
   device: { publicKey: string; secretKey: string; cert: string }
 }
 
@@ -29,6 +30,16 @@ export type NodeHistoryItem = RemoteNodeConfig & {
   preferred: boolean
   current: boolean
   updatedAt: number
+  accountSync?: boolean
+}
+
+export type AccountSyncInfo = {
+  /** 已登录且连接着远程节点时才有账号同步可设置。 */
+  available: boolean
+  /** 本机 daemon（回环地址）自动同步，不需要授权。 */
+  automatic: boolean
+  enabled: boolean
+  devices: number
 }
 
 export type P2PPingRole = 'host' | 'join'
@@ -324,4 +335,6 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
   }) => Promise<MobileIdentity>
   signOut: () => Promise<void>
   getNodeHistory: () => NodeHistoryItem[]
+  getAccountSync: () => Promise<AccountSyncInfo>
+  setAccountSync: (enabled: boolean) => Promise<AccountSyncInfo>
 }

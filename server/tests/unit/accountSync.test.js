@@ -32,6 +32,22 @@ describe('account sync keys', () => {
   })
 })
 
+describe('account sync golden sample shared with the mobile app', () => {
+  it('derives the same sync key and topic as app/src/remoteNode/identity.ts', () => {
+    assert.deepEqual(
+      deriveAccountSyncKeys(
+        '0x4b3dc89d94ac8b7dfac567f811278e08d853af3be74ee0582e75350edb831dbf'
+      ),
+      {
+        syncKey:
+          '0x9f8f3de373f36ff63d410183a178b67d30f7ad431859ad63f88a713db9251b40',
+        topic:
+          '0xa95b6e6189aaee72af7f0b91c749bbf4525fd7c46c51f63a7cc21ee88407f9bc',
+      }
+    )
+  })
+})
+
 describe('account sync envelope', () => {
   const { syncKey } = deriveAccountSyncKeys(danger)
 

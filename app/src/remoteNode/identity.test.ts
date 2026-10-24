@@ -19,6 +19,11 @@ describe('mobile remote identity', () => {
     )
     assert.equal(identity.username, 'alice')
     assert.equal(identity.address, '0x023B10b4e691580966D160FbF50Dce5596A97D4C')
+    // 与节点侧 deriveAccountSyncKeys(seed).syncKey 的黄金样本一致（server/tests/unit/accountSync.test.js）。
+    assert.equal(
+      identity.syncKey,
+      '0x9f8f3de373f36ff63d410183a178b67d30f7ad431859ad63f88a713db9251b40'
+    )
     assert.equal(JSON.stringify(identity).includes('danger'), false)
     assert.equal(
       JSON.stringify(identity).includes(

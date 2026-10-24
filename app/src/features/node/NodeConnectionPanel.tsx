@@ -1,3 +1,4 @@
+import { AccountSyncRow } from './AccountSyncRow'
 import { isPasswordShort } from '../../remoteNode/identity'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -396,6 +397,13 @@ export function NodeConnectionPanel({
                     </View>
                   )}
                 </View>
+
+                {accountName ? (
+                  <AccountSyncRow
+                    client={client}
+                    refreshKey={`${node.endpoint}|${accountAddress}`}
+                  />
+                ) : null}
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>

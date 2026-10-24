@@ -5,6 +5,7 @@ import {
   decodeBase64,
   encodeBase64,
   getBytes,
+  hexlify,
   pbkdf2,
   sha256,
   toUtf8Bytes,
@@ -19,6 +20,7 @@ export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const DEVICE_CERT_PREFIX = 'dc1'
 const DEVICE_CERT_DOMAIN = 'most-box-device-cert-v1'
 const DEVICE_KEY_DOMAIN = 'most-box-device-key-v1'
+const SYNC_KEY_DOMAIN = 'most-box-account-sync-key-v1'
 
 function toBase64Url(bytes: Uint8Array) {
   return encodeBase64(bytes)
@@ -98,6 +100,8 @@ export async function createMobileIdentity(
   return {
     username,
     address: wallet.address,
+    // 账号同步子密钥：与节点侧 deriveAccountSyncKeys 一致，单向派生，不含种子。
+    syncKey: hexlify(computeHmac('sha256', seed, toUtf8Bytes(SYNC_KEY_DOMAIN))),
     device: {
       publicKey,
       secretKey: bytesToHex(keyPair.secretKey),

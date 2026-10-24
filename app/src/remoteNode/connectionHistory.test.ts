@@ -3,9 +3,11 @@ import assert from 'node:assert/strict'
 import {
   buildNodeHistory,
   getRemoteUrlCandidates,
+  isLoopbackNodeUrl,
   normalizeRemoteUrl,
   normalizeRemoteNodes,
   saveRemoteNode,
+  setRemoteAccountSync,
 } from './connectionHistory'
 
 describe('remote node history', () => {
@@ -83,5 +85,76 @@ describe('remote node history', () => {
     assert.equal(history[0].local, true)
     assert.equal(history[1].current, true)
     assert.equal(history[1].invite, 'two')
+  })
+
+  it('keeps the account sync consent per node across reconnects and refreshes', () => {
+    const first = saveRemoteNode([], {
+      url: 'https://a.example.com',
+      invite: 'x',
+    })
+    assert.equal(first[0].accountSync, false)
+
+    const consented = setRemoteAccountSync(
+      first,
+      'https://a.example.com/',
+      true
+    )
+    assert.equal(consented[0].accountSync, true)
+
+    const reconnected = saveRemoteNode(
+      consented,
+      { url: 'https://a.example.com', invite: 'y' },
+      true,
+      Date.now() + 1000
+    )
+    assert.equal(reconnected[0].accountSync, true)
+    assert.equal(reconnected[0].invite, 'y')
+
+    const other = saveRemoteNode(
+      reconnected,
+      { url: 'https://b.example.com', invite: '' },
+      false,
+      Date.now() + 2000
+    )
+    assert.equal(
+      other.find(node => node.url === 'https://b.example.com')?.accountSync,
+      false
+    )
+    assert.equal(
+      other.find(node => node.url === 'https://a.example.com')?.accountSync,
+      true
+    )
+    assert.equal(
+      setRemoteAccountSync(other, 'https://a.example.com', false).find(
+        node => node.url === 'https://a.example.com'
+      )?.accountSync,
+      false
+    )
+    assert.equal(
+      buildNodeHistory(other, 'remote', 'https://a.example.com').find(
+        item => item.url === 'https://a.example.com'
+      )?.accountSync,
+      true
+    )
+  })
+
+  it('treats only loopback addresses as the automatic local daemon', () => {
+    for (const url of [
+      'http://localhost:1976',
+      'http://127.0.0.1:1976',
+      'http://127.1.2.3',
+      'http://[::1]:1976',
+    ]) {
+      assert.equal(isLoopbackNodeUrl(url), true, url)
+    }
+    for (const url of [
+      'https://node.example.com',
+      'http://192.168.1.2:1976',
+      'http://localhost.evil.example',
+      'not a url',
+      '',
+    ]) {
+      assert.equal(isLoopbackNodeUrl(url), false, url)
+    }
   })
 })

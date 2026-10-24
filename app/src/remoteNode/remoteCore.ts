@@ -561,6 +561,25 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     }
   }
 
+  async getAccountSyncStatus() {
+    const status = asRecord(await this.#requestJson('GET', '/api/user/sync'))
+    return {
+      registered: status.registered === true,
+      devices: readNumber(status, 'writerCores'),
+    }
+  }
+
+  async registerAccountSync() {
+    if (!this.#identity?.syncKey) return
+    await this.#requestJson('PUT', '/api/user/sync', {
+      syncKey: this.#identity.syncKey,
+    })
+  }
+
+  async unregisterAccountSync() {
+    await this.#requestJson('DELETE', '/api/user/sync')
+  }
+
   async #requestJson(
     method: string,
     path: string,
