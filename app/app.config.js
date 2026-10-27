@@ -39,7 +39,18 @@ export default {
       ),
       blockedPermissions: [
         ...(baseConfig.android.blockedPermissions || []),
-        ...(!profile.features.voice ? ['android.permission.RECORD_AUDIO'] : []),
+        ...(!profile.features.voice
+          ? [
+              'android.permission.RECORD_AUDIO',
+              'android.permission.MODIFY_AUDIO_SETTINGS',
+            ]
+          : []),
+        ...(!profile.features.backgroundSeeding
+          ? [
+              'android.permission.FOREGROUND_SERVICE',
+              'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+            ]
+          : []),
         ...(!profile.features.chat ? ['android.permission.CAMERA'] : []),
         ...(!profile.features.chat
           ? ['android.permission.POST_NOTIFICATIONS']
