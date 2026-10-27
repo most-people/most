@@ -183,6 +183,117 @@ describe('AccountSync (single node)', () => {
   })
 })
 
+describe('AccountSync (direct dialing)', () => {
+  function fakeSwarm(publicKeyHex) {
+    return {
+      keyPair: { publicKey: Buffer.from(publicKeyHex, 'hex') },
+      joined: [],
+      peers: [],
+      left: [],
+      join(topic) {
+        this.joined.push(topic)
+        return {}
+      },
+      leave() {
+        return Promise.resolve()
+      },
+      joinPeer(key) {
+        this.peers.push(Buffer.from(key).toString('hex'))
+      },
+      leavePeer(key) {
+        this.left.push(Buffer.from(key).toString('hex'))
+      },
+    }
+  }
+
+  async function createDialNode(publicKeyHex) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'most-account-dial-'))
+    const store = new Corestore(root, {
+      primaryKey: Buffer.alloc(32).fill('most-box-global-shared-seed-v1'),
+      unsafe: true,
+    })
+    await store.ready()
+    const swarm = fakeSwarm(publicKeyHex)
+    const sync = new AccountSync({
+      store,
+      dataPath: root,
+      swarm,
+      chatSwarm: null,
+    })
+    cleanups.push(async () => fs.rmSync(root, { recursive: true, force: true }))
+    cleanups.push(async () => {
+      await sync.stop()
+      await store.close()
+    })
+    return { sync, swarm }
+  }
+
+  it('dials the file-swarm key from a same-account hello, once, and never itself', async () => {
+    const a = await createDialNode('aa'.repeat(32))
+    const b = await createDialNode('bb'.repeat(32))
+    await a.sync.register(ADDRESS, syncKey)
+    await b.sync.register(ADDRESS, syncKey)
+    const sent = []
+    const streamOf = target => {
+      const stream = new EventEmitter()
+      stream.write = line => {
+        sent.push(JSON.parse(line))
+        void target.sync.handleMessage(null, JSON.parse(line))
+        return true
+      }
+      return stream
+    }
+    a.sync.attachStream(streamOf(b))
+    b.sync.attachStream(streamOf(a))
+    await waitFor(() => a.swarm.peers.length > 0 && b.swarm.peers.length > 0)
+
+    assert.deepEqual(a.swarm.peers, ['bb'.repeat(32)])
+    assert.deepEqual(b.swarm.peers, ['aa'.repeat(32)])
+
+    // 重复的 hello（例如学到新设备后重新通告）不会重复拨号
+    a.sync.attachStream(streamOf(b))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    assert.deepEqual(b.swarm.peers, ['aa'.repeat(32)])
+    assert.ok(
+      sent.every(message => !JSON.stringify(message).includes('aa'.repeat(32)))
+    )
+  })
+
+  it('ignores the dial request from a device with a different sync key', async () => {
+    const a = await createDialNode('aa'.repeat(32))
+    const stranger = await createDialNode('cc'.repeat(32))
+    await a.sync.register(ADDRESS, syncKey)
+    await stranger.sync.register(
+      ADDRESS,
+      deriveAccountSyncKeys(OTHER_SEED).syncKey
+    )
+    const stream = new EventEmitter()
+    stream.write = line => {
+      void a.sync.handleMessage(null, JSON.parse(line))
+      return true
+    }
+    stranger.sync.attachStream(stream)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    assert.deepEqual(a.swarm.peers, [])
+  })
+
+  it('stops dialing peers when the account is unregistered', async () => {
+    const a = await createDialNode('aa'.repeat(32))
+    const b = await createDialNode('bb'.repeat(32))
+    await a.sync.register(ADDRESS, syncKey)
+    await b.sync.register(ADDRESS, syncKey)
+    const stream = new EventEmitter()
+    stream.write = line => {
+      void a.sync.handleMessage(null, JSON.parse(line))
+      return true
+    }
+    b.sync.attachStream(stream)
+    await waitFor(() => a.swarm.peers.length > 0)
+    await a.sync.unregister(ADDRESS)
+    assert.deepEqual(a.swarm.left, ['bb'.repeat(32)])
+  })
+})
+
 describe('AccountSync (several devices)', () => {
   it('discovers each other through hello and converges in both directions', async () => {
     const a = await createNode()

@@ -142,6 +142,11 @@ export class AccountSync extends EventEmitter {
     this.#accounts.delete(address)
     this.#persist()
     const topicBuffer = b4a.from(account.topic.slice(2), 'hex')
+    for (const keyHex of account.dialedPeers) {
+      try {
+        this.#swarm?.leavePeer?.(b4a.from(keyHex, 'hex'))
+      } catch {}
+    }
     this.#swarm?.leave?.(topicBuffer)?.catch?.(() => {})
     this.#chatSwarm?.leave?.(chatTopicFor(account.topic))?.catch?.(() => {})
     await Promise.allSettled(
@@ -200,6 +205,7 @@ export class AccountSync extends EventEmitter {
     for (const [address, account] of this.#accounts) {
       const hello = openAccountEntry(message.envelope, account.syncKey)
       if (!hello || hello.kind !== 'hello') continue
+      this.#dialPeer(account, String(hello.data?.appPublicKey || ''))
       const keys = Array.isArray(hello.data?.writerCoreKeys)
         ? hello.data.writerCoreKeys
         : []
@@ -216,6 +222,29 @@ export class AccountSync extends EventEmitter {
       break
     }
     return true
+  }
+
+  #appPublicKeyHex() {
+    const key = this.#swarm?.keyPair?.publicKey
+    return key ? b4a.toString(key, 'hex') : ''
+  }
+
+  /**
+   * 设备发现走聊天 swarm，数据复制却只走文件 swarm（每个连接都会 store.replicate）。
+   * 冷启动时两条连接的建立时间可能相差几分钟，所以收到同账号设备的 hello 后，
+   * 直接按它的文件 swarm 公钥拨号。
+   */
+  #dialPeer(account, keyHex) {
+    if (!CORE_KEY_REGEX.test(keyHex) || keyHex === this.#appPublicKeyHex()) {
+      return
+    }
+    if (account.dialedPeers.has(keyHex) || !this.#swarm?.joinPeer) return
+    account.dialedPeers.add(keyHex)
+    try {
+      this.#swarm.joinPeer(b4a.from(keyHex, 'hex'))
+    } catch {
+      account.dialedPeers.delete(keyHex)
+    }
   }
 
   #requireAccount(addressInput) {
@@ -304,6 +333,7 @@ export class AccountSync extends EventEmitter {
       state: new Map(),
       maxUpdatedAt: 0,
       scanning: Promise.resolve(),
+      dialedPeers: new Set(),
     }
     this.#accounts.set(address, account)
     this.#watch(account, localCore)
@@ -393,7 +423,11 @@ export class AccountSync extends EventEmitter {
         id: 'writers',
         deviceId: account.deviceId,
         updatedAt: this.#now(),
-        data: { writerCoreKeys: [...account.cores.keys()] },
+        data: {
+          writerCoreKeys: [...account.cores.keys()],
+          // 文件 swarm 的公钥：对方据此直接拨号，不必等 topic 在 DHT 上互相发现。
+          appPublicKey: this.#appPublicKeyHex(),
+        },
       },
       account.syncKey
     )
