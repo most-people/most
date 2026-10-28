@@ -105,7 +105,13 @@ export function getConnectionStatus({
     )
   return make(
     'ok',
-    inChannel ? 'status.channelConnected.title' : 'status.connected.title',
+    inChannel
+      ? params.count === 1
+        ? 'status.channelConnected.title.one'
+        : 'status.channelConnected.title'
+      : params.count === 1
+        ? 'status.connected.title.one'
+        : 'status.connected.title',
     remote ? 'status.connected.remoteDetail' : 'status.connected.localDetail'
   )
 }

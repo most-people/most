@@ -942,7 +942,7 @@ function MostBoxApp() {
         )
       }
     } catch (error) {
-      alert(t('app.download.retryFailed'), getFriendlyCoreError(error, locale))
+      alert(t('app.download.failedTitle'), getFriendlyCoreError(error, locale))
     } finally {
       setDownloadingCid(null)
     }

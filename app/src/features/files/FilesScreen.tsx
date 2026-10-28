@@ -636,9 +636,14 @@ export function FilesScreen({
                         <View style={styles.networkItem}>
                           <Wifi size={18} color={theme.colors.info} />
                           <Text style={styles.networkLabel}>
-                            {t('files.details.peers', {
-                              count: selectedHolding.peerCount,
-                            })}
+                            {t(
+                              selectedHolding.peerCount === 1
+                                ? 'files.details.peers.one'
+                                : 'files.details.peers',
+                              {
+                                count: selectedHolding.peerCount,
+                              }
+                            )}
                           </Text>
                         </View>
                       </View>
@@ -652,7 +657,10 @@ export function FilesScreen({
                         icon={
                           <Download size={17} color={theme.colors.onAccent} />
                         }
-                        onPress={() => onDownloadHolding(selectedHolding)}
+                        onPress={() => {
+                          closeDetails()
+                          onDownloadHolding(selectedHolding)
+                        }}
                         style={styles.detailAction}
                         variant="primary"
                       >

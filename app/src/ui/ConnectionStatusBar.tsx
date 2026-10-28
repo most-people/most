@@ -58,7 +58,7 @@ export function ConnectionStatusBar({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}。${detail}`}
+      accessibilityLabel={`${title}, ${detail}`}
       accessibilityLiveRegion="polite"
       disabled={!onPress}
       onPress={onPress}

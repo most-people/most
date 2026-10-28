@@ -653,6 +653,11 @@ export const nodeMessages = {
     'zh-TW': '{count} 個節點',
     en: '{count} peers',
   },
+  'files.details.peers.one': {
+    'zh-CN': '{count} 个节点',
+    'zh-TW': '{count} 個節點',
+    en: '{count} peer',
+  },
   'files.details.path': {
     'zh-CN': '路径',
     'zh-TW': '路徑',

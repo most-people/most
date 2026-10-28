@@ -1473,9 +1473,12 @@ export function ChatScreen({
                     </View>
                     {(peerMap[normalizeChatChannel(item.name)] || 0) > 0 ? (
                       <View
-                        accessibilityLabel={t('status.channelConnected.title', {
-                          count: peerMap[normalizeChatChannel(item.name)],
-                        })}
+                        accessibilityLabel={t(
+                          peerMap[normalizeChatChannel(item.name)] === 1
+                            ? 'status.channelConnected.title.one'
+                            : 'status.channelConnected.title',
+                          { count: peerMap[normalizeChatChannel(item.name)] }
+                        )}
                         style={styles.presenceDot}
                       />
                     ) : null}
@@ -1822,9 +1825,11 @@ export function ChatScreen({
                         channelPeers !== null ? (
                           <Text style={styles.deliveryNote}>
                             {t(
-                              channelPeers > 0
-                                ? 'status.delivery.peers'
-                                : 'status.delivery.localOnly',
+                              channelPeers === 1
+                                ? 'status.delivery.peers.one'
+                                : channelPeers > 0
+                                  ? 'status.delivery.peers'
+                                  : 'status.delivery.localOnly',
                               { count: channelPeers }
                             )}
                           </Text>
@@ -1885,6 +1890,24 @@ export function ChatScreen({
                   onFocus={() => {
                     setEmojiOpen(false)
                     jumpToLatest()
+                  }}
+                  onKeyPress={event => {
+                    // 桌面浏览器：Enter 发送，Shift+Enter 换行；输入法组字和触屏保持原行为。
+                    if (Platform.OS !== 'web') return
+                    const key = event.nativeEvent as unknown as {
+                      key: string
+                      shiftKey?: boolean
+                      isComposing?: boolean
+                    }
+                    if (
+                      key.key !== 'Enter' ||
+                      key.shiftKey ||
+                      key.isComposing ||
+                      !window.matchMedia('(pointer: fine)').matches
+                    )
+                      return
+                    event.preventDefault()
+                    void send()
                   }}
                   placeholder={t('chat.messagePlaceholder')}
                   multiline

@@ -60,6 +60,7 @@ export function getFriendlyCoreError(
 
   if (
     normalized.includes('no online seed') ||
+    normalized.includes('no file data was found') ||
     (normalized.includes('timed out') && normalized.includes('file.download'))
   ) {
     return translateMessage('core.error.seedUnavailable', locale)

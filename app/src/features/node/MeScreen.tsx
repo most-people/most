@@ -166,7 +166,7 @@ export function MeScreen({
               key={option}
               accessibilityRole="radio"
               accessibilityLabel={t(themeLabelKeys[option])}
-              accessibilityState={{ checked: preference === option }}
+              aria-checked={preference === option}
               onPress={() => setPreference(option)}
               style={({ pressed }) => [
                 styles.themeOption,

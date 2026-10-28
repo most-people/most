@@ -89,6 +89,11 @@ export const statusMessages = {
     'zh-TW': '已連線 · {count} 個節點上線',
     en: 'Connected · {count} peers online',
   },
+  'status.connected.title.one': {
+    'zh-CN': '已连接 · {count} 个节点在线',
+    'zh-TW': '已連線 · {count} 個節點上線',
+    en: 'Connected · {count} peer online',
+  },
   'status.connected.localDetail': {
     'zh-CN': '本机节点 · 点对点同步中',
     'zh-TW': '本機節點 · 點對點同步中',
@@ -109,6 +114,11 @@ export const statusMessages = {
     'zh-TW': '本頻道 {count} 個節點上線',
     en: '{count} peers online in this channel',
   },
+  'status.channelConnected.title.one': {
+    'zh-CN': '本频道 {count} 个节点在线',
+    'zh-TW': '本頻道 {count} 個節點上線',
+    en: '{count} peer online in this channel',
+  },
   'status.delivery.localOnly': {
     'zh-CN': '仅保存在本节点，对方上线后同步',
     'zh-TW': '僅保存在本節點，對方上線後同步',
@@ -118,5 +128,10 @@ export const statusMessages = {
     'zh-CN': '已发给 {count} 个在线节点',
     'zh-TW': '已發給 {count} 個上線節點',
     en: 'Sent to {count} online peers',
+  },
+  'status.delivery.peers.one': {
+    'zh-CN': '已发给 {count} 个在线节点',
+    'zh-TW': '已發給 {count} 個上線節點',
+    en: 'Sent to {count} online peer',
   },
 } as const

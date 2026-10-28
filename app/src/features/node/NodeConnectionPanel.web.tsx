@@ -74,7 +74,7 @@ export function NodeConnectionPanel({
   snapshot,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
-  const { alert, toast } = useFeedback()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
@@ -104,12 +104,15 @@ export function NodeConnectionPanel({
   const accountName = node.username || ''
   const accountAddress = node.userAddress || ''
 
+  const [connectionError, setConnectionError] = useState('')
+
   useEffect(() => {
     if (autoOpen) setOpen(true)
   }, [autoOpen])
 
   useEffect(() => {
     if (!open) return
+    setConnectionError('')
     setUrl(selectedRemote?.url || node.endpoint || '')
     setInvite(selectedRemote?.invite || '')
   }, [open, node.endpoint, selectedRemote?.invite, selectedRemote?.url])
@@ -120,6 +123,7 @@ export function NodeConnectionPanel({
   ) => {
     if (workingRef.current) return
     workingRef.current = true
+    setConnectionError('')
     setOperation(nextOperation)
     Keyboard.dismiss()
     try {
@@ -128,7 +132,7 @@ export function NodeConnectionPanel({
       )
       await action()
     } catch (nextError) {
-      toast(getFriendlyRemoteConnectionError(nextError, locale), 'error')
+      setConnectionError(getFriendlyRemoteConnectionError(nextError, locale))
     } finally {
       workingRef.current = false
       setOperation(null)
@@ -307,6 +311,12 @@ export function NodeConnectionPanel({
                       </Text>
                     </View>
                   </View>
+                ) : null}
+
+                {connectionError ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.warning}>
+                    {connectionError}
+                  </Text>
                 ) : null}
 
                 <View style={styles.formSection}>
