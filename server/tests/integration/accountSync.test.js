@@ -164,6 +164,37 @@ describe('engine account state sync', () => {
     )
   })
 
+  it('keeps an existing remark when another device first publishes the same channel without one', async t => {
+    const fx = await fixture(t)
+    const first = await fx.engine()
+    const second = await fx.engine()
+    await first.registerAccountSync(ADDRESS, syncKey)
+    const created = await first.createChannel('shared-room', 'group', {
+      ownerAddress: ADDRESS,
+      displayName: 'Alice',
+    })
+    first.setChannelRemark(created.channelKey, 'work', {
+      ownerAddress: ADDRESS,
+    })
+    await second.createChannel('shared-room', 'group', {
+      ownerAddress: ADDRESS,
+      displayName: 'Alice',
+    })
+    await second.registerAccountSync(ADDRESS, syncKey)
+    fx.connect(first, second)
+
+    const firstDevice = first.getAccountSyncStatus(ADDRESS).deviceId
+    await waitFor(
+      () =>
+        first
+          .listAccountSyncEntries(ADDRESS, { kind: 'channel' })
+          .some(entry => entry.deviceId !== firstDevice),
+      'the second device entry to reach the first device'
+    )
+    await new Promise(resolve => setTimeout(resolve, 300))
+    assert.equal(channelOf(first, 'shared-room')?.remark, 'work')
+  })
+
   it('propagates the profile and file metadata but not file content', async t => {
     const { first, second } = await pair(t)
     first.saveUserProfile(ADDRESS, { displayName: 'Alice Renamed' })

@@ -2704,6 +2704,13 @@ export class MostBoxEngine extends EventEmitter {
       .digest('hex')
   }
 
+  #stripEmptyChannelSettings(record) {
+    const data = { ...record }
+    if (!data.remark) delete data.remark
+    if (!data.pinned) delete data.pinned
+    return data
+  }
+
   async #reconcileAccountSync(address) {
     if (!address || !this.#accountSync?.has(address)) return
     const records = this.#toAccountSyncRecords(address)
@@ -2713,10 +2720,16 @@ export class MostBoxEngine extends EventEmitter {
       const hash = this.#hashAccountSyncRecord(record)
       if (published.get(key) === hash) continue
       const [kind, ...rest] = key.split(':')
+      // 首次发布的频道记录不带空的备注/置顶：否则新开启同步的节点会用空值
+      // 覆盖其他设备上已有的设置（最后写入者胜出）。之后的变化仍显式发布，包括清空。
+      const data =
+        kind === 'channel' && !published.has(key)
+          ? this.#stripEmptyChannelSettings(record)
+          : record
       await this.#accountSync.append(address, {
         kind,
         id: rest.join(':'),
-        data: record,
+        data,
       })
       published.set(key, hash)
       changed = true
@@ -5701,13 +5714,18 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     channel.remarks = channel.remarks || {}
-    const remark = String(record.remark || '').slice(0, 50)
-    if (remark) channel.remarks[owner] = remark
-    else delete channel.remarks[owner]
+    // 缺少 remark/pinned 字段表示"没有意见"（例如新设备首次发布时的空值），保留本地设置。
+    if (hasOwnProperty(record, 'remark')) {
+      const remark = String(record.remark || '').slice(0, 50)
+      if (remark) channel.remarks[owner] = remark
+      else delete channel.remarks[owner]
+    }
 
     channel.pinnedBy = channel.pinnedBy || {}
-    if (record.pinned) channel.pinnedBy[owner] = true
-    else delete channel.pinnedBy[owner]
+    if (hasOwnProperty(record, 'pinned')) {
+      if (record.pinned) channel.pinnedBy[owner] = true
+      else delete channel.pinnedBy[owner]
+    }
 
     if (!this.#channelLocalCoreKey.get(channel.channelKey)) {
       await this.#openChannelRuntime(channel)
