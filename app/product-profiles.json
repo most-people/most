@@ -7,9 +7,9 @@
     "androidPackage": "most.box",
     "iosBundleIdentifier": "most.box",
     "legalUrls": {
-      "privacy": "https://most.red/privacy/",
-      "terms": "https://most.red/terms/",
-      "support": "https://most.red/support/"
+      "privacy": "https://most-people.com/privacy/",
+      "terms": "https://most-people.com/terms/",
+      "support": "https://most-people.com/support/"
     },
     "features": {
       "chat": true,
@@ -25,12 +25,12 @@
     "displayName": "墨盒",
     "appName": "墨盒",
     "scheme": "most",
-    "androidPackage": "red.most.mohe",
-    "iosBundleIdentifier": "red.most.mohe",
+    "androidPackage": "most.people",
+    "iosBundleIdentifier": "most.people",
     "legalUrls": {
-      "privacy": "https://most.red/mohe/privacy/",
-      "terms": "https://most.red/mohe/terms/",
-      "support": "https://most.red/mohe/support/"
+      "privacy": "https://most-people.com/mohe/privacy/",
+      "terms": "https://most-people.com/mohe/terms/",
+      "support": "https://most-people.com/mohe/support/"
     },
     "features": {
       "chat": false,

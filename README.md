@@ -55,7 +55,7 @@ MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消�
 
 ### iOS / Android
 
-iOS / Android 使用共享 React Native UI 和 Bare Worklet P2P 核心。当前先开发全功能版，包含本机与远程节点、身份、频道聊天、文件传输及独立工具；海外和中国大陆 APP 商店版在全功能版稳定后按目标渠道适配。中国大陆 Android 包名确定为 `most.red`，现有历史 `inkbox` 配置尚未迁移，不能作为新包提交。开发流程见 [Android 验收](docs/mobile-android-alpha.md)与[iOS 验收](docs/mobile-ios-feasibility.md)，功能完成情况和验证限制见[验证状态](docs/validation-status.md)。
+iOS / Android 使用共享 React Native UI 和 Bare Worklet P2P 核心。当前先开发全功能版，包含本机与远程节点、身份、频道聊天、文件传输及独立工具；海外和中国大陆 APP 商店版在全功能版稳定后按目标渠道适配。中国大陆 Android 包名为 `most.people`（`inkbox` 配置），尚无正式签名与候选包，不能直接提交。开发流程见 [Android 验收](docs/mobile-android-alpha.md)与[iOS 验收](docs/mobile-ios-feasibility.md)，功能完成情况和验证限制见[验证状态](docs/validation-status.md)。
 
 移动端工程入口以 `app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 

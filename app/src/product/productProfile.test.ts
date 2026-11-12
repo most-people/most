@@ -20,10 +20,10 @@ test('resolves the international and mainland product profiles', () => {
 
   const inkbox = getProductProfile('inkbox')
   assert.equal(inkbox.displayName, '墨盒')
-  assert.equal(inkbox.androidPackage, 'red.most.mohe')
-  assert.equal(inkbox.iosBundleIdentifier, 'red.most.mohe')
+  assert.equal(inkbox.androidPackage, 'most.people')
+  assert.equal(inkbox.iosBundleIdentifier, 'most.people')
   assert.equal(inkbox.features.chat, false)
-  assert.equal(inkbox.legalUrls.privacy, 'https://most.red/mohe/privacy/')
+  assert.equal(inkbox.legalUrls.privacy, 'https://most-people.com/mohe/privacy/')
 })
 
 test('defaults to MostBox profile for invalid build values', () => {

@@ -144,7 +144,7 @@ npm run build:play
 npx eas-cli@latest build --platform android --profile android-production
 ```
 
-现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 目标包名为 `most.red`，历史 `inkbox` 包名尚未修改，不应据此提交备案。
+现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 包名为 `most.people`（`inkbox` 配置），尚无正式签名与候选包，不应据此提交备案。
 
 ## 验收
 
