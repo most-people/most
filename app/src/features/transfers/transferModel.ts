@@ -109,9 +109,19 @@ export function getDownloadByteProgress(transfer: MobileTransfer) {
   )
     return null
 
+  const completed = Math.min(completedBytes, totalBytes)
+  if (totalBytes < 1024) {
+    return { completed: `${completed} B`, total: `${totalBytes} B` }
+  }
+  if (totalBytes < 1048576) {
+    return {
+      completed: `${(completed / 1024).toFixed(1)} KiB`,
+      total: `${(totalBytes / 1024).toFixed(1)} KiB`,
+    }
+  }
   return {
-    completed: (Math.min(completedBytes, totalBytes) / 1048576).toFixed(1),
-    total: (totalBytes / 1048576).toFixed(1),
+    completed: `${(completed / 1048576).toFixed(1)} MiB`,
+    total: `${(totalBytes / 1048576).toFixed(1)} MiB`,
   }
 }
 

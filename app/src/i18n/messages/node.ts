@@ -734,9 +734,9 @@ export const nodeMessages = {
     en: 'Cancel download',
   },
   'transfers.receivedBytes': {
-    'zh-CN': '已接收 {completed} / {total} MiB',
-    'zh-TW': '已接收 {completed} / {total} MiB',
-    en: 'Received {completed} / {total} MiB',
+    'zh-CN': '已接收 {completed} / {total}',
+    'zh-TW': '已接收 {completed} / {total}',
+    en: 'Received {completed} / {total}',
   },
   'transfers.cancelling': {
     'zh-CN': '正在取消',

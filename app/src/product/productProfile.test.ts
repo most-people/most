@@ -23,7 +23,10 @@ test('resolves the international and mainland product profiles', () => {
   assert.equal(inkbox.androidPackage, 'most.people')
   assert.equal(inkbox.iosBundleIdentifier, 'most.people')
   assert.equal(inkbox.features.chat, false)
-  assert.equal(inkbox.legalUrls.privacy, 'https://most-people.com/mohe/privacy/')
+  assert.equal(
+    inkbox.legalUrls.privacy,
+    'https://most-people.com/mohe/privacy/'
+  )
 })
 
 test('defaults to MostBox profile for invalid build values', () => {
