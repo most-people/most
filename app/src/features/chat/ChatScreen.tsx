@@ -5,6 +5,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -51,6 +52,7 @@ import {
   createClientMessageId,
   getChatErrorMessage,
   getChatMessageKey,
+  getChatMessageTimestamp,
   isOwnChatMessage,
   mergeChatMessages,
   normalizeChatChannel,
@@ -97,6 +99,10 @@ import {
   getRemainingHiddenConversations,
   markConversationRead,
   setConversationDraft,
+  blockAuthor,
+  unblockAuthor,
+  withoutBlockedMessages,
+  withoutBlockedChannelMessages,
   type JoinedChannel,
 } from './conversationModel'
 import {
@@ -105,6 +111,7 @@ import {
 } from './conversationStorage'
 import { useConversationState } from './useConversationState'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
+import { REPORT_EMAIL } from '../../privacy/legalUrls'
 import { ChatImagePreview } from './ChatImagePreview'
 import { VoiceMessageRecorder } from './VoiceMessageRecorder'
 import { VoiceAudioPlayer } from './VoiceAudioPlayer'
@@ -386,9 +393,13 @@ export function ChatScreen({
     .sort()
     .join('\n')
   const inboxMessages = inbox?.scope === conversationScope ? inbox.messages : {}
-  const channelMessages = localMode
-    ? { ...inboxMessages, ...snapshot.channelMessages }
-    : inboxMessages
+  const blockedAuthors = conversation.state.blocked
+  const channelMessages = withoutBlockedChannelMessages(
+    localMode
+      ? { ...inboxMessages, ...snapshot.channelMessages }
+      : inboxMessages,
+    blockedAuthors
+  )
   const [hiddenState, setHiddenState] = useState<{
     scope: string
     channels: string[]
@@ -414,8 +425,11 @@ export function ChatScreen({
         )
       : []
   const visibleMessages = useMemo(
-    () => messages.filter(message => message.type !== 'system').reverse(),
-    [messages]
+    () =>
+      withoutBlockedMessages(messages, blockedAuthors)
+        .filter(message => message.type !== 'system')
+        .reverse(),
+    [messages, blockedAuthors]
   )
   const ownAddress = identity?.address || snapshot.node.userAddress || ''
   const latestOwnMessage = useMemo(
@@ -1062,8 +1076,46 @@ export function ChatScreen({
     messageListRef.current?.scrollToOffset({ offset: 0, animated: false })
   }
 
+  const reportMessage = (message: ChatMessage) => {
+    const attachment = getMessageAttachment(message)
+    const timestamp = getChatMessageTimestamp(message)
+    const body = [
+      `Channel: #${channel}`,
+      `Sender: ${message.authorName || ''} (${message.author})`,
+      timestamp ? `Time: ${new Date(timestamp).toISOString()}` : '',
+      `Message: ${message.content}`,
+      attachment ? `Attachment: ${attachment.link}` : '',
+    ]
+      .filter(Boolean)
+      .concat('', 'Reason:')
+      .join('\n')
+    const url = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(`MostBox report: #${channel}`)}&body=${encodeURIComponent(body)}`
+    void Linking.openURL(url).catch(() =>
+      toast(t('chat.reportUnavailable', { email: REPORT_EMAIL }), 'error')
+    )
+  }
+
+  const confirmBlockAuthor = (message: ChatMessage) => {
+    const name = message.authorName || message.author
+    alert(t('chat.blockUserTitle', { name }), t('chat.blockUserHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('chat.blockUser'),
+        style: 'destructive',
+        onPress: () => {
+          conversation.update(state =>
+            blockAuthor(state, message.author, message.authorName || '')
+          )
+          toast(t('chat.blocked', { name }), 'success')
+        },
+      },
+    ])
+  }
+
   const showMessageMenu = (message: ChatMessage) => {
     const attachment = getMessageAttachment(message)
+    const fromOthers =
+      message.type !== 'system' && !isOwnChatMessage(message, ownAddress)
     alert(t('chat.messageOptions'), attachment?.link, [
       {
         text: t(attachment ? 'chat.copyAttachmentLink' : 'chat.copyMessage'),
@@ -1073,6 +1125,19 @@ export function ChatScreen({
             .catch(() => toast(t('app.clipboard.failed'), 'error'))
         },
       },
+      ...(fromOthers
+        ? [
+            {
+              text: t('chat.reportMessage'),
+              onPress: () => reportMessage(message),
+            },
+            {
+              text: t('chat.blockUser'),
+              style: 'destructive' as const,
+              onPress: () => confirmBlockAuthor(message),
+            },
+          ]
+        : []),
       { text: t('common.cancel'), style: 'cancel' },
     ])
   }
@@ -2255,6 +2320,12 @@ export function ChatScreen({
         <ChannelShareSheet
           key={`${conversationScope}:${sharingChannel.name}`}
           channel={sharingChannel}
+          blockedUsers={Object.entries(blockedAuthors).map(
+            ([author, name]) => ({ author, name })
+          )}
+          onUnblock={author =>
+            conversation.update(state => unblockAuthor(state, author))
+          }
           onSaveRemark={async remark => {
             const name = sharingChannel.name
             if (localMode) {

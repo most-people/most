@@ -91,6 +91,8 @@ export function getRemainingHiddenConversations(
 export type ConversationState = {
   drafts: Record<string, string>
   readAt: Record<string, number>
+  // author key -> display name captured when the user was blocked
+  blocked: Record<string, string>
 }
 
 export function normalizeConversationState(value: unknown): ConversationState {
@@ -121,7 +123,66 @@ export function normalizeConversationState(value: unknown): ConversationState {
         .map(([name, timestamp]) => [normalizeChatChannel(name), timestamp])
         .filter(([name]) => name)
     ),
+    blocked: Object.fromEntries(
+      entries(state.blocked)
+        .map(([author, name]) => [
+          getBlockedAuthorKey(author),
+          typeof name === 'string' ? name : '',
+        ])
+        .filter(([author]) => author)
+    ),
   }
+}
+
+export function getBlockedAuthorKey(author: unknown) {
+  const value = typeof author === 'string' ? author.trim() : ''
+  return /^0x[0-9a-f]{40}$/i.test(value) ? value.toLowerCase() : value
+}
+
+export function blockAuthor(
+  state: ConversationState,
+  author: string,
+  name: string
+): ConversationState {
+  const key = getBlockedAuthorKey(author)
+  if (!key || Object.hasOwn(state.blocked, key)) return state
+  return { ...state, blocked: { ...state.blocked, [key]: name } }
+}
+
+export function unblockAuthor(
+  state: ConversationState,
+  author: string
+): ConversationState {
+  const key = getBlockedAuthorKey(author)
+  if (!Object.hasOwn(state.blocked, key)) return state
+  const blocked = { ...state.blocked }
+  delete blocked[key]
+  return { ...state, blocked }
+}
+
+export function withoutBlockedMessages(
+  messages: ChatMessage[],
+  blocked: Record<string, string>
+) {
+  if (!Object.keys(blocked).length) return messages
+  return messages.filter(
+    message =>
+      message.type === 'system' ||
+      !Object.hasOwn(blocked, getBlockedAuthorKey(message.author))
+  )
+}
+
+export function withoutBlockedChannelMessages(
+  messages: Record<string, ChatMessage[]>,
+  blocked: Record<string, string>
+) {
+  if (!Object.keys(blocked).length) return messages
+  return Object.fromEntries(
+    Object.entries(messages).map(([name, items]) => [
+      name,
+      withoutBlockedMessages(items, blocked),
+    ])
+  )
 }
 
 export function getConversationDraft(

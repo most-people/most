@@ -26,18 +26,22 @@ test('hidden conversations persist across reloads, remain scoped to the node and
     await saveConversationState('node-a:alice', {
       drafts: { team: 'Unsent' },
       readAt: { team: 123 },
+      blocked: {},
     })
     await saveConversationState('node-b:bob', {
       drafts: { other: 'Other account' },
       readAt: { other: 456 },
+      blocked: {},
     })
     assert.deepEqual(await loadConversationState('node-a:alice'), {
       drafts: { team: 'Unsent' },
       readAt: { team: 123 },
+      blocked: {},
     })
     assert.deepEqual(await loadConversationState('node-a:bob'), {
       drafts: {},
       readAt: {},
+      blocked: {},
     })
     assert.deepEqual(await loadHiddenConversations('node-a:alice'), ['8848'])
     await saveHiddenConversations('node-a:alice', [])
@@ -51,6 +55,7 @@ test('hidden conversations persist across reloads, remain scoped to the node and
     assert.deepEqual(await loadConversationState('node-b:bob'), {
       drafts: {},
       readAt: {},
+      blocked: {},
     })
     await saveHiddenConversations('node-b:bob', ['other'])
     assert.deepEqual(await loadHiddenConversations('node-b:bob'), ['other'])

@@ -7,9 +7,9 @@
     "androidPackage": "most.box",
     "iosBundleIdentifier": "most.box",
     "legalUrls": {
-      "privacy": "https://most-people.com/privacy/",
-      "terms": "https://most-people.com/terms/",
-      "support": "https://most-people.com/support/"
+      "privacy": "https://most.box/privacy/",
+      "terms": "https://most.box/terms/",
+      "support": "https://most.box/support/"
     },
     "features": {
       "chat": true,

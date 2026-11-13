@@ -219,6 +219,48 @@ export const chatMessages = {
     'zh-TW': '複製附件連結',
     en: 'Copy attachment link',
   },
+  'chat.reportMessage': {
+    'zh-CN': '举报',
+    'zh-TW': '檢舉',
+    en: 'Report',
+  },
+  'chat.reportUnavailable': {
+    'zh-CN': '无法打开邮件应用，请发送举报至 {email}',
+    'zh-TW': '無法開啟郵件應用，請將檢舉寄至 {email}',
+    en: 'Could not open an email app. Send the report to {email}.',
+  },
+  'chat.blockUser': {
+    'zh-CN': '屏蔽此用户',
+    'zh-TW': '封鎖此使用者',
+    en: 'Block user',
+  },
+  'chat.blockUserTitle': {
+    'zh-CN': '屏蔽 {name}？',
+    'zh-TW': '封鎖 {name}？',
+    en: 'Block {name}?',
+  },
+  'chat.blockUserHint': {
+    'zh-CN':
+      '屏蔽后本机将隐藏此用户在所有频道的消息和提醒，可在频道信息中解除。',
+    'zh-TW':
+      '封鎖後本機將隱藏此使用者在所有頻道的訊息和提醒，可在頻道資訊中解除。',
+    en: "This hides the user's messages and alerts in all channels on this device. You can unblock in channel info.",
+  },
+  'chat.blocked': {
+    'zh-CN': '已屏蔽 {name}',
+    'zh-TW': '已封鎖 {name}',
+    en: 'Blocked {name}',
+  },
+  'chat.blockedUsers': {
+    'zh-CN': '已屏蔽的用户',
+    'zh-TW': '已封鎖的使用者',
+    en: 'Blocked users',
+  },
+  'chat.unblockUser': {
+    'zh-CN': '解除屏蔽',
+    'zh-TW': '解除封鎖',
+    en: 'Unblock',
+  },
   'chat.messageActionsA11y': {
     'zh-CN': '{author}：{content}，长按打开消息操作',
     'zh-TW': '{author}：{content}，長按開啟訊息操作',

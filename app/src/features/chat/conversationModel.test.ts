@@ -12,6 +12,10 @@ import {
   getRemainingHiddenConversations,
   markConversationRead,
   setConversationDraft,
+  blockAuthor,
+  unblockAuthor,
+  withoutBlockedMessages,
+  withoutBlockedChannelMessages,
 } from './conversationModel'
 import type { ChatMessage } from '../../chat/chatProtocol'
 
@@ -92,11 +96,12 @@ test('persisted conversation state accepts only canonical draft and read records
       drafts: { '# TEAM ': 'Draft', blank: '', number: 7 },
       readAt: { '# TEAM ': 100, bad: -1, infinite: Infinity, text: '200' },
     }),
-    { drafts: { team: 'Draft' }, readAt: { team: 100 } }
+    { drafts: { team: 'Draft' }, readAt: { team: 100 }, blocked: {} }
   )
   assert.deepEqual(normalizeConversationState({ drafts: [], readAt: [] }), {
     drafts: {},
     readAt: {},
+    blocked: {},
   })
 })
 
@@ -308,4 +313,45 @@ test('time separators group nearby messages but retain gaps, day boundaries and 
     ),
     true
   )
+})
+
+test('blocked authors are hidden locally and can be unblocked', () => {
+  const address = '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01'
+  const state = blockAuthor(
+    normalizeConversationState(null),
+    address,
+    'Mallory'
+  )
+  assert.deepEqual(state.blocked, { [address.toLowerCase()]: 'Mallory' })
+  assert.equal(blockAuthor(state, address.toLowerCase(), 'Other'), state)
+  assert.deepEqual(
+    normalizeConversationState(JSON.parse(JSON.stringify(state))).blocked,
+    state.blocked
+  )
+
+  const messages: ChatMessage[] = [
+    {
+      content: 'hi',
+      author: address.toUpperCase().replace('0X', '0x'),
+      authorName: 'Mallory',
+    },
+    { content: 'hello', author: 'alice', authorName: 'Alice' },
+    { content: 'joined', author: address, authorName: '', type: 'system' },
+  ]
+  assert.deepEqual(
+    withoutBlockedMessages(messages, state.blocked).map(item => item.content),
+    ['hello', 'joined']
+  )
+  const channels = { team: messages }
+  assert.equal(withoutBlockedChannelMessages(channels, {}), channels)
+  assert.deepEqual(
+    withoutBlockedChannelMessages(channels, state.blocked).team.map(
+      item => item.content
+    ),
+    ['hello', 'joined']
+  )
+
+  const unblocked = unblockAuthor(state, address)
+  assert.deepEqual(unblocked.blocked, {})
+  assert.equal(unblockAuthor(unblocked, address), unblocked)
 })

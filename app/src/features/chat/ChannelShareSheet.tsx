@@ -18,12 +18,16 @@ import type { JoinedChannel } from './conversationModel'
 
 type ChannelShareSheetProps = {
   channel: JoinedChannel
+  blockedUsers: Array<{ author: string; name: string }>
+  onUnblock: (author: string) => void
   onSaveRemark: (remark: string) => Promise<void>
   onClose: () => void
 }
 
 export function ChannelShareSheet({
   channel,
+  blockedUsers,
+  onUnblock,
   onSaveRemark,
   onClose,
 }: ChannelShareSheetProps) {
@@ -121,6 +125,21 @@ export function ChannelShareSheet({
               >
                 {t('chat.shareChannel')}
               </MostButton>
+              {blockedUsers.length ? (
+                <>
+                  <Text style={styles.remark}>{t('chat.blockedUsers')}</Text>
+                  {blockedUsers.map(user => (
+                    <View key={user.author} style={styles.blockedRow}>
+                      <Text numberOfLines={1} style={styles.blockedName}>
+                        {user.name || user.author}
+                      </Text>
+                      <MostButton onPress={() => onUnblock(user.author)}>
+                        {t('chat.unblockUser')}
+                      </MostButton>
+                    </View>
+                  ))}
+                </>
+              ) : null}
               <MostButton variant="ghost" onPress={onClose}>
                 {t('common.close')}
               </MostButton>
@@ -148,5 +167,7 @@ function createStyles(colors: ReturnType<typeof useMostBoxTheme>['colors']) {
     success: { color: colors.accent, marginTop: 12 },
     error: { color: colors.danger, marginTop: 12 },
     actions: { gap: 12, marginTop: 20 },
+    blockedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    blockedName: { flex: 1, color: colors.text, fontSize: 15 },
   })
 }

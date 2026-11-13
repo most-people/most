@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light" />
-    <title>MostBox 隐私政策</title>
+    <title>MostBox Privacy Policy</title>
     <style>
       :root {
         color: #15231f;
@@ -75,81 +75,131 @@
   <body>
     <main>
       <header>
-        <h1>MostBox 隐私政策</h1>
-        <p class="updated">更新日期：2026 年 10 月 14 日</p>
+        <h1>MostBox Privacy Policy</h1>
+        <p class="updated">Last updated: November 13, 2026</p>
       </header>
 
       <p class="notice">
-        MostBox
-        是由用户主动操作的去中心化频道聊天与文件传输工具。身份和账号资料在本机处理，也可连接用户指定的远程节点；应用不包含广告、行为分析或由
-        MostBox 运营的中心化文件存储服务。
+        MostBox is a user-operated decentralized channel chat and file transfer
+        tool. Identity and account data are processed on the device, and the app
+        can optionally connect to a remote node chosen by the user. The app
+        contains no ads, no behavioral analytics, and no centralized file
+        storage operated by MostBox.
       </p>
 
-      <h2>1. 本机数据</h2>
+      <h2>1. Data on your device</h2>
       <p>
-        MostBox
-        会在设备本地处理和保存身份资料、频道消息与草稿、用户主动选择的文件、CID、分享链接、做种持有记录、传输状态和基础运行日志。这些数据用于聊天、发布、下载、完整性校验、恢复做种和故障诊断。
+        MostBox processes and stores on your device your identity data, channel
+        messages and drafts, files you choose, CIDs, share links, seeding
+        records, transfer status, and basic runtime logs. This data is used for
+        chat, publishing, downloading, integrity checks, resuming seeding, and
+        troubleshooting.
       </p>
 
-      <h2>2. P2P 网络数据</h2>
+      <h2>2. P2P network data</h2>
       <p>
-        当用户明确发布或下载文件时，应用会通过 Hyperswarm
-        网络发现并连接其他节点。参与连接的节点和分布式网络基础设施可能处理 IP
-        地址、连接时间、CID topic
-        派生值及其他建立连接所必需的网络元数据。文件内容直接在参与传输的节点之间传输，MostBox
-        项目不运营中心化文件存储服务器。
+        When you publish or download a file, the app discovers and connects to
+        other peers through the Hyperswarm network. Connected peers and the
+        distributed network infrastructure may process your IP address,
+        connection times, values derived from CID topics, and other network
+        metadata required to establish connections. File contents travel
+        directly between the peers involved; the MostBox project does not
+        operate centralized file storage servers.
       </p>
 
-      <h2>3. 用户主动分享</h2>
+      <h2>3. Sharing you initiate</h2>
       <p>
-        用户发布文件或将文件交给系统分享面板时，会把所选文件或分享链接提供给用户指定的接收方。知道
-        <code>most://</code>
-        链接的人可以尝试下载对应内容，因此用户应像保护文件本身一样保护分享链接。
+        When you publish a file or hand it to the system share sheet, the
+        selected file or share link is provided to the recipients you choose.
+        Anyone who knows a <code>most://</code> link can try to download the
+        content, so protect share links as you would the files themselves.
       </p>
 
-      <h2>4. 权限</h2>
+      <h2>4. Permissions</h2>
       <ul>
-        <li>网络权限：发现并连接 P2P 节点、传输文件。</li>
-        <li>本地网络：在 iOS 上发现并连接同一网络或 P2P 网络中的设备。</li>
-        <li>网络状态：在支持的平台上检测网络变化并恢复节点状态。</li>
-        <li>唤醒锁：仅在 Android 应用前台的活动传输期间维持任务运行。</li>
-        <li>系统文件选择器和分享面板：由用户主动选择、保存或分享文件。</li>
-        <li>相机：仅在用户选择拍摄照片时申请，用于所选照片附件。</li>
+        <li>Internet: discover and connect to P2P peers and transfer files.</li>
         <li>
-          通知：仅在用户开启新消息提醒时申请，展示后台收到的频道消息提醒，通知不展示消息正文或附件内容。
+          Local network: on iOS, discover and connect to devices on the same
+          network or P2P network.
         </li>
         <li>
-          麦克风：仅在用户按住说话时申请，用于录制语音消息；应用进入后台时取消正在录制的内容。
+          Network state: detect network changes and restore the node on
+          supported platforms.
+        </li>
+        <li>Wake lock: keep active transfers running on Android.</li>
+        <li>
+          Foreground service: started only when you turn on "Background support"
+          on Android. It shows a persistent notification and helps the local
+          node keep transferring and seeding with the screen off or the app in
+          the background, for up to 6 hours. You can stop it at any time from
+          the app or the notification.
+        </li>
+        <li>
+          System file picker and share sheet: used only when you choose to pick,
+          save, or share files.
+        </li>
+        <li>
+          Camera: requested only when you choose to take a photo, used for that
+          photo attachment.
+        </li>
+        <li>
+          Notifications: requested only when you turn on new message alerts, to
+          show alerts for channel messages received in the background.
+          Notifications do not show message text or attachments.
+        </li>
+        <li>
+          Microphone: requested only when you press and hold to talk, used to
+          record voice messages. Recording in progress is cancelled when the app
+          goes to the background.
         </li>
       </ul>
       <p>
-        相册使用系统选择器，不要求整库访问。语音松手后可以试听、取消或发送；取消的录音会从录音缓存删除。照片或语音发送后作为
-        CID
-        文件发布并默认做种，频道参与者、用户指定的远程节点和知道分享链接的人可以取得内容。MostBox
-        不申请通讯录、短信、通话记录、位置或全盘存储权限。
+        Photos are picked with the system picker without full library access.
+        After releasing the talk button you can preview, cancel, or send a voice
+        message; cancelled recordings are deleted from the recording cache.
+        Photos and voice messages are published as CID files and seeded by
+        default, so channel participants, remote nodes you choose, and anyone
+        with the share link can obtain them. MostBox does not request contacts,
+        SMS, call log, location, or full storage access.
       </p>
 
-      <h2>5. 保留与删除</h2>
+      <h2>5. Remote nodes</h2>
       <p>
-        本机数据保留到用户删除对应 holding、清除应用数据或卸载应用为止。删除本机
-        holding
-        会停止本机做种，但不能撤回其他节点已经下载的完整副本，也不能使已经泄露的分享链接失效。
+        You can choose to connect to a remote MostBox node you specify. Once
+        connected, that node processes the file operations, channel operations,
+        and account sync data you initiate on it. Remote nodes are managed by
+        their operators; the MostBox project does not operate public remote
+        nodes.
       </p>
 
-      <h2>6. 儿童</h2>
+      <h2>6. Retention and deletion</h2>
       <p>
-        MostBox 不以 13
-        岁以下儿童为目标用户，也不主动收集儿童个人信息。用户不应通过本应用传播违法、有害或侵犯他人权利的内容。
+        Data on your device is kept until you delete the corresponding holding,
+        clear the app data, or uninstall the app. Deleting a local holding stops
+        local seeding, but cannot recall complete copies already downloaded by
+        other peers or invalidate share links that have already leaked. See
+        <a href="/support/">MostBox Support</a> for how to delete data.
       </p>
 
-      <h2>7. 变更与联系</h2>
+      <h2>7. Children</h2>
       <p>
-        本政策会随应用的数据处理方式更新。一般问题可通过
-        <a href="https://github.com/most-people/most/issues">MostBox Issues</a>
-        联系项目维护者；涉及隐私或安全信息时，请使用
+        MostBox is not directed at children under 13 and does not knowingly
+        collect personal information from children. Do not use the app to spread
+        illegal, harmful, or infringing content.
+      </p>
+
+      <h2>8. Changes and contact</h2>
+      <p>
+        This policy is updated when the app's data handling changes. Send
+        privacy questions and data requests to
+        <a href="mailto:dev@most.box">dev@most.box</a>. General questions can
+        also be filed at
+        <a href="https://github.com/most-people/most/issues">MostBox Issues</a>;
+        for privacy or security matters, use a
         <a href="https://github.com/most-people/most/security/advisories/new"
-          >GitHub 私密安全报告</a
-        >，不要在公开 Issue 中提交个人数据。
+          >private GitHub security report</a
+        >
+        and do not post personal data in public issues.
       </p>
     </main>
   </body>
