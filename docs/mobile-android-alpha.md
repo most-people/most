@@ -53,6 +53,37 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 后台保持不承诺永久在线、系统清理后独立恢复或所有系统版本都通过。最新运行库、连续息屏、无充电和系统超时均需单独测试。中继配置与实际中继传输也应分别记录。
 
+## 验收环境注意事项
+
+以下是实际验收中踩过的坑，下次开测前先看一遍。
+
+**依赖与构建**
+
+- 根目录不要在依赖不完整时运行 `npm install`：`package-lock.json` 含 `registry.npmmirror.com` 的 remote tarball，受限环境会拒绝拉取，且失败会清空 `node_modules`。恢复办法：临时把 lock 里的 npmmirror 地址换成 `registry.npmjs.org`，运行 `npm ci --ignore-scripts`，`git checkout package-lock.json` 还原，再运行 `node scripts/patch-unixfs-runtime.mjs`。
+- `--ignore-scripts` 不会下载 Electron 二进制，桌面端验收前需补装（国内可设 `ELECTRON_MIRROR`）后运行 `node node_modules/electron/install.js`。
+- 模拟器启动报 `No initial system image` 时，系统镜像目录缺 `system.img`：删除 `system-images/android-36/google_apis/x86_64` 后用 `sdkmanager --install` 重装。
+
+**数据隔离**
+
+- 隔离 daemon：`USERPROFILE`、`HOME` 指向独立目录；端口固定 1976，测试前先 `netstat` 确认没有别的 daemon 占用。
+- 隔离 Electron 必须在同一条命令里同时设置 `USERPROFILE`、`HOME`、`APPDATA`、`LOCALAPPDATA`（并预先创建 `AppData\\Roaming`、`AppData\\Local`），否则会加载真实的 `~/most-data`。
+- 远程节点测试：在隔离 HOME 的 `.most-box/config.json` 写入 `{"node":{"host":"0.0.0.0","remoteInvites":["<邀请码>"]}}`。
+
+**真机与 adb**
+
+- 不要对真机发 `KEYCODE_SLEEP`：设备若设有锁屏图案，息屏后测试端无法解锁。需要息屏测试时先确认能人工解锁。
+- 中文输入法会改写字母。频道名用纯数字，或用 `adb shell input keyevent` 逐键输入；含 `.`、`:` 的地址用 `input text`。
+- 部分 MIUI 上 `uiautomator dump` 会打印无害的堆栈，但输出可用；按 `text` / `content-desc` 取坐标点击比固定坐标稳。
+- Git Bash 会改写 adb 的设备路径：`adb push`、`adb shell` 带绝对路径时加 `MSYS_NO_PATHCONV=1`，本机路径用 `C:/...` 形式。
+- 设备没有 SIM 时无法验证蜂窝，记录里要写明未测。
+
+**接力脚本与 Web 自动化**
+
+- `scripts/android-real-p2p-seed.mjs --handoff-check` 会在 stdin 等回车：后台运行时用 `(sleep N; echo) | node ...`，期间用深链驱动手机下载。
+- 只想让全新节点拉取某链接，可写一个调用 `MostBoxEngine.pullByCid` 的临时脚本（放在 `.tmp/`，不提交）。
+- Expo Web 在 Pixel 7 模拟下，`bsk click` 点 RN-web 按钮常无反应：先 `bsk focus @ref`，再 `bsk press Enter --ref @ref`；输入框里的 Enter 只会换行。
+- `bsk` 会话默认 5 分钟空闲后停止，长时间等待后需重新 `session start`。
+
 ## 单轮记录
 
 记录日期、Git 提交、包名、版本与构建号、APK 文件名及 SHA-256、签名证书指纹、设备型号/系统/ABI、网络/充电/息屏状态、测试 CID、原发布者退出确认、verifier 结果、重启/导出/通话结果以及证据路径。只更新[验证状态](validation-status.md)中有证据的结论，商店发行前另测最终候选包。
