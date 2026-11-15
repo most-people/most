@@ -433,8 +433,10 @@ MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md)
 ```bash
 # 更新版本文件并提交后
 git tag -a vx.x.x -m "MostBox vx.x.x"
-git push origin main vx.x.x
+git push origin vx.x.x
 ```
+
+`main` 受分支保护，不能直接推送，发布只推 tag；上一条命令特意不包含 `main`。
 
 需要重建已有版本时，可在 `main` 手动运行 Release workflow，并将 `tag` 输入设为对应的发布 tag；各构建任务会检出该 tag 的源码，复用已发布的 npm 包，并补齐安装包与 R2 镜像。
 
@@ -448,6 +450,35 @@ git push origin main vx.x.x
 6. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，生成 `releases/latest.json`，并在新版本校验成功后删除旧版本安装包
 
 GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/latest.json` 并使用 R2 下载链接。
+
+### main 分支保护
+
+`main` 受一条经典分支保护规则约束，规则名（branch name pattern）为 `main`，当前只作用于 `main` 这一个分支，用于阻断误推和误合。
+
+当前生效的规则：
+
+- **Require a pull request before merging**：禁止直接 `push` 到 `main`，`git push --force` 同样被拒。
+  `Require approvals` 保持不勾选（即 0 人批准）。单人维护时作者无法批准自己的 PR，设成 1 会把维护者锁死。
+- **Require status checks to pass before merging**：合并前必须通过 `Test (24)`、`Build`、`Typecheck`、`Lint`、`Android Tests`。
+  同时勾选 `Require branches to be up to date before merging`，避免基于旧基线的绿灯。
+  `Test (24)` 是矩阵 job（`node-version: 24`）的真实检查名，`24` 不是后缀装饰，配置时必须按这个名字填。
+- **Do not allow bypassing the above settings**：规则对管理员同样生效，误推时自己也不能绕过。
+- **Allow force pushes** 关闭：不允许强推覆盖 `main` 历史。
+- **Allow deletions** 关闭：不允许删除 `main` 分支。
+
+不启用 Require linear history，合并 PR 时可按需要保留 merge commit。
+
+日常改动必须走分支和 PR：
+
+```bash
+git switch -c fix/xxx
+git push origin fix/xxx
+# 在 GitHub 开 PR，等待 CI 全绿后合并
+```
+
+误推 `main` 时服务端直接拒收（`remote rejected ... protected branch hook declined`），远程 `main` 不变，本地提交也不受影响。该保护只约束分支推送，不约束 tag：`release.yml` 与 `docker.yml` 由 `v*` tag 触发，因此发版时 `main` 保持锁定即可。
+
+需要绕过 PR 紧急修复 `main` 时，在 Settings → Branches 打开该规则，临时取消勾选 `Require a pull request before merging` 并保存，推送完成后立刻重新勾选并保存；这是唯一后门，只有仓库 admin 能改动，改动会记入仓库审计日志。希望用单开关（Enforcement status）代替逐项改勾选时，可以在同一页面点击 `Convert to ruleset` 把该规则转成 Ruleset，转换会保留现有设置。
 
 ### 配置 Secrets
 
