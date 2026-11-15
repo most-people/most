@@ -36,9 +36,14 @@ async function waitForHoldingStatus(
   throw new Error(`Holding ${cid} did not reach ${expectedStatus}`)
 }
 
-// Prepares a data directory whose node seeds `bytes` under `cid` from its own
-// v2 drive, as a misbehaving peer would.
-async function seedOwnDriveWithBytes(dataPath, cid, bytes) {
+// Prepares a data directory that holds `bytes` under `cid`, in the node's own
+// v2 drive or, with `legacy`, in the v1 shared-key drive.
+async function seedOwnDriveWithBytes(
+  dataPath,
+  cid,
+  bytes,
+  { legacy = false } = {}
+) {
   const setup = new MostBoxEngine({ dataPath, disableNetwork: true })
   await setup.start()
   await setup.stop()
@@ -48,7 +53,11 @@ async function seedOwnDriveWithBytes(dataPath, cid, bytes) {
     unsafe: true,
   })
   const drive = new Hyperdrive(
-    store.namespace(cidDriveName(loadOrCreateNodeSeed(dataPath), topicHex))
+    store.namespace(
+      legacy
+        ? getCidInfo(cid).driveName
+        : cidDriveName(loadOrCreateNodeSeed(dataPath), topicHex)
+    )
   )
   await drive.ready()
   await drive.put('/' + cid, bytes)
@@ -2134,30 +2143,12 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const content = Buffer.from('same digest is not the same CID')
       const { cid: realCid } = await calculateCid(content)
       const fakeCid = CID.createV1(0x70, realCid.multihash).toString()
-      const topicHex = b4a.toString(realCid.multihash.digest, 'hex')
-      const driveName = `drive-${topicHex}`
-      const seed = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
-      const store = new Corestore(attackerPath, {
-        primaryKey: seed,
-        unsafe: true,
-      })
       let attacker
       let downloader
       let link
 
       try {
-        await store.ready()
-        const drive = new Hyperdrive(store.namespace(driveName))
-        await drive.ready()
-        const ws = drive.createWriteStream('/' + fakeCid)
-        ws.end(content)
-        await new Promise((resolve, reject) => {
-          ws.on('finish', resolve)
-          ws.on('error', reject)
-        })
-        await drive.close()
-        await store.close()
-
+        await seedOwnDriveWithBytes(attackerPath, fakeCid, content)
         attacker = new MostBoxEngine({ dataPath: attackerPath })
         downloader = new MostBoxEngine({
           dataPath: downloaderPath,
@@ -2165,11 +2156,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         })
         await attacker.start()
         await downloader.start()
-        await attacker.addHolding({
-          cid: fakeCid,
-          fileName: 'mismatch.txt',
-          size: content.length,
-        })
+        await waitForSeedActive(attacker, fakeCid)
 
         link = attacker.replicateWith(downloader)
         await assert.rejects(
@@ -2182,7 +2169,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         )
       } finally {
         link?.close()
-        await store.close().catch(() => {})
         if (attacker) await attacker.stop().catch(() => {})
         if (downloader) await downloader.stop().catch(() => {})
         fs.rmSync(mismatchTmpDir, { recursive: true, force: true })
@@ -2229,9 +2215,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         driveName: 'drive-not-from-cid',
       })
 
-      assert.match(holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.match(holding.driveName, /^cid-drive-[0-9a-f]{64}$/)
       assert.notStrictEqual(holding.driveName, 'drive-not-from-cid')
-      assert.strictEqual(holding.driveName, `drive-${holding.topic}`)
     })
 
     it('persists holdings and rejoins CID topics after restart', async () => {
@@ -2586,6 +2571,81 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.strictEqual(result.localAvailable, true)
         assert.deepStrictEqual((await downloader.readFileRaw(cid)).buffer, good)
         assert.ok(downloader.listHoldings().some(h => h.cid === cid))
+      } finally {
+        for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('migrates verified v1 shared-drive holdings and skips corrupt ones', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-v1-migrate-'))
+      const engines = []
+      const links = []
+
+      try {
+        const makeEngine = async name => {
+          const nextEngine = new MostBoxEngine({
+            dataPath: path.join(tmpDir, name),
+            disableNetwork: true,
+            downloadTimeout: 3000,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const good = Buffer.alloc(64 * 1024, 'm')
+        const { cid: goodCid } = await calculateCid(good)
+        await seedOwnDriveWithBytes(
+          path.join(tmpDir, 'upgraded'),
+          goodCid.toString(),
+          good,
+          { legacy: true }
+        )
+        const upgraded = await makeEngine('upgraded')
+        await waitForSeedActive(upgraded, goodCid.toString())
+
+        const fresh = await makeEngine('fresh')
+        links.push(upgraded.replicateWith(fresh))
+        await fresh.pullByCid({ cid: goodCid.toString(), fileName: 'm.bin' })
+        assert.deepStrictEqual(
+          (await fresh.readFileRaw(goodCid.toString())).buffer,
+          good
+        )
+
+        const corrupt = Buffer.alloc(64 * 1024, 'x')
+        const { cid: corruptCid } = await calculateCid(
+          Buffer.alloc(64 * 1024, 'y')
+        )
+        await seedOwnDriveWithBytes(
+          path.join(tmpDir, 'corrupt'),
+          corruptCid.toString(),
+          corrupt,
+          { legacy: true }
+        )
+        const corruptNode = await makeEngine('corrupt')
+        const deadline = Date.now() + 5000
+        let holding
+        while (Date.now() < deadline) {
+          holding = corruptNode
+            .listHoldings()
+            .find(item => item.cid === corruptCid.toString())
+          if (holding?.seedStatus === 'error') break
+          await sleep(50)
+        }
+        assert.strictEqual(holding?.seedStatus, 'error')
+
+        const other = await makeEngine('other')
+        links.push(corruptNode.replicateWith(other))
+        await assert.rejects(
+          other.pullByCid({
+            cid: corruptCid.toString(),
+            fileName: 'y.bin',
+            timeout: 1500,
+          }),
+          { name: 'PeerNotFoundError' }
+        )
       } finally {
         for (const link of links) link.close()
         await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))

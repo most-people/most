@@ -1767,9 +1767,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
-      assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.match(data.holding.driveName, /^cid-drive-[0-9a-f]{64}$/)
       assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
-      assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
     it('logs P2P pull link failures with CID diagnostics', async () => {

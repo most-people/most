@@ -258,6 +258,7 @@ export class MostBoxEngine extends EventEmitter {
   #cidDrivePeers = new Set()
   #cidDriveOffers = new Map()
   #cidDriveWants = new Map()
+  #cidDriveOfferWaiters = new Set()
   #storageReservations = new StorageReservationLedger()
 
   #channels = []
@@ -5935,6 +5936,7 @@ export class MostBoxEngine extends EventEmitter {
               status: 'checking',
             })
             try {
+              await this.#migrateLegacyCidDrive(holding)
               const localContent = await this.#getLocalCidContent(holding.cid, {
                 public: true,
                 allowHoldingFallback: true,
@@ -5997,6 +5999,41 @@ export class MostBoxEngine extends EventEmitter {
       .finally(() => {
         this.#holdingResumeTask = null
       })
+  }
+
+  // One-time move from the v1 shared-key drive. Only content that recomputes
+  // to its CID is copied; anything else stays missing and reports an error.
+  async #migrateLegacyCidDrive(holding) {
+    const { cid } = holding
+    const driveKey = '/' + cid
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    if (await this.#hasLocalDriveContent(own, driveKey)) return
+
+    const legacy = new Hyperdrive(
+      this.#store.namespace(getCidInfo(cid).driveName)
+    )
+    try {
+      await legacy.ready()
+      if (!(await this.#hasLocalDriveContent(legacy, driveKey))) return
+      if (holding.kind === 'collection') {
+        await this.#copyUnixfsBlocks(legacy, own, cid)
+      } else {
+        const { cid: actual } = await calculateCid(
+          legacy.createReadStream(driveKey, { wait: false })
+        )
+        if (actual.toString() !== cid) return
+        await pipeline(
+          legacy.createReadStream(driveKey, { wait: false }),
+          own.createWriteStream(driveKey)
+        )
+      }
+      await legacy.clear(driveKey).catch(() => {})
+      console.log(`[MostBox] Migrated ${cid} to its own seed drive`)
+    } catch (err) {
+      console.warn(`[MostBox] Failed to migrate ${cid}:`, err.message)
+    } finally {
+      await legacy.close().catch(() => {})
+    }
   }
 
   #normalizeHolding(record = {}) {
@@ -6193,6 +6230,7 @@ export class MostBoxEngine extends EventEmitter {
         const topicHex = b4a.toString(topic, 'hex')
         if (!this.#cidDriveWants.has(topicHex)) return
         this.#cidDriveOffers.get(topicHex)?.add(b4a.toString(driveKey, 'hex'))
+        for (const wake of this.#cidDriveOfferWaiters) wake()
       },
       onClose: closed => this.#cidDrivePeers.delete(closed),
     })
@@ -6246,7 +6284,15 @@ export class MostBoxEngine extends EventEmitter {
 
         const keyHex = [...offers].find(key => !triedKeys.has(key))
         if (!keyHex) {
-          await sleep(DOWNLOAD_POLL_INTERVAL_MIN)
+          await new Promise(resolve => {
+            const wake = () => {
+              clearTimeout(timer)
+              this.#cidDriveOfferWaiters.delete(wake)
+              resolve()
+            }
+            const timer = setTimeout(wake, DOWNLOAD_POLL_INTERVAL_MIN)
+            this.#cidDriveOfferWaiters.add(wake)
+          })
           continue
         }
         triedKeys.add(keyHex)
