@@ -623,6 +623,14 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    // The store lock is held, so no download can be using these: they are
+    // left over from a crash.
+    for (const name of fs.readdirSync(dataPath)) {
+      if (name.startsWith('.download-tmp-')) {
+        fs.rmSync(path.join(dataPath, name), { recursive: true, force: true })
+      }
+    }
+
     try {
       ensureNodeSeedPersisted(dataPath, nodeSeed)
     } catch (err) {
@@ -1160,6 +1168,14 @@ export class MostBoxEngine extends EventEmitter {
           starred: false,
           syncUpdatedAt: now,
         }
+        // Holding first: after a crash a library record always has one.
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: safeFileName,
+          size: fileSize,
+          driveName: name,
+          source: 'published',
+        })
         if (addToLibrary) {
           if (repairingMissingContent) {
             publishedBucket[existingIndex] = fileRecord
@@ -1168,13 +1184,6 @@ export class MostBoxEngine extends EventEmitter {
           }
           this.#savePublishedMetadata()
         }
-        this.#upsertHolding({
-          cid: cidString,
-          fileName: safeFileName,
-          size: fileSize,
-          driveName: name,
-          source: 'published',
-        })
 
         const result = {
           cid: cidString,
@@ -1391,6 +1400,14 @@ export class MostBoxEngine extends EventEmitter {
         syncUpdatedAt: now,
         ...(libraryVisible ? {} : { libraryVisible: false }),
       }
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeCollectionName,
+        kind: 'collection',
+        size: 0,
+        driveName: name,
+        source: 'published',
+      })
       if (addToLibrary) {
         if (repairingMissingContent) {
           publishedBucket[existingIndex] = fileRecord
@@ -1401,14 +1418,6 @@ export class MostBoxEngine extends EventEmitter {
         }
         this.#savePublishedMetadata()
       }
-      this.#upsertHolding({
-        cid: cidString,
-        fileName: safeCollectionName,
-        kind: 'collection',
-        size: 0,
-        driveName: name,
-        source: 'published',
-      })
 
       const result = {
         kind: 'collection',
@@ -1560,23 +1569,12 @@ export class MostBoxEngine extends EventEmitter {
         const localSize =
           Number(existingHolding?.size) ||
           (Number.isFinite(localContent.size) ? localContent.size : 0)
-        if (addToLibrary && !alreadyInOwnerLibrary) {
+        const addRecord = addToLibrary && !alreadyInOwnerLibrary
+        if (addRecord) {
           this.#assertDisplayNameAvailable(linkFileName, {
             ownerAddress,
             excludeCid: cidString,
           })
-          const syncUpdatedAt = Date.now()
-          publishedBucket.push({
-            fileName: linkFileName,
-            cid: cidString,
-            driveName: name,
-            size: localSize,
-            source: 'downloaded',
-            publishedAt: new Date(syncUpdatedAt).toISOString(),
-            starred: false,
-            syncUpdatedAt,
-          })
-          this.#savePublishedMetadata()
         }
         await this.#joinCidTopicInternal(cidString)
         this.#upsertHolding({
@@ -1592,6 +1590,20 @@ export class MostBoxEngine extends EventEmitter {
             (alreadyInOwnerLibrary ? existingFile?.source : 'downloaded') ||
             'downloaded',
         })
+        if (addRecord) {
+          const syncUpdatedAt = Date.now()
+          publishedBucket.push({
+            fileName: linkFileName,
+            cid: cidString,
+            driveName: name,
+            size: localSize,
+            source: 'downloaded',
+            publishedAt: new Date(syncUpdatedAt).toISOString(),
+            starred: false,
+            syncUpdatedAt,
+          })
+          this.#savePublishedMetadata()
+        }
         return {
           taskId,
           cid: cidString,
@@ -1934,6 +1946,13 @@ export class MostBoxEngine extends EventEmitter {
                       publishedBucket[existingIndex].syncUpdatedAt
                     )
                   : Date.now()
+              this.#upsertHolding({
+                cid: cidString,
+                fileName: sanitizedFileName,
+                size: savedSize,
+                driveName: name,
+                source: 'downloaded',
+              })
               if (addToLibrary) {
                 if (existingIndex !== -1) {
                   const existing = publishedBucket[existingIndex]
@@ -1957,13 +1976,6 @@ export class MostBoxEngine extends EventEmitter {
                 }
                 this.#savePublishedMetadata()
               }
-              this.#upsertHolding({
-                cid: cidString,
-                fileName: sanitizedFileName,
-                size: savedSize,
-                driveName: name,
-                source: 'downloaded',
-              })
 
               if (!options.suppressSuccessEvent) {
                 this.emit('download:success', result)
