@@ -55,7 +55,19 @@
 - 已修复：修复前，同一下载者在坏 peer 之后重试（即使无任何 peer）会把残留块当作本地已有，报告成功、记 holding 并做种错误内容。修复后要求本机有发布记录或 holding 才算本地已有。移动核心原本就要求 holding，不受影响。
 - 未解决（已知限制）：坏 peer 的块经复制留在本机共享密钥 core 中，Hypercore 11.37.2 的 `purge()` 不可用，`clear()` 后仍保留分叉签名。结果是该下载者此后对该 CID 持续失败（读到残留块时 CID 不符，或连接诚实种子时报 “Two conflicting signatures”），只能换数据目录恢复。
 - 同时连接诚实种子与坏 peer 的全新下载者：6 次中 1 次因分叉冲突失败，5 次取得正确内容。
-- 根因是 CID drive 的签名密钥由所有节点共享（`GLOBAL_SHARED_SEED`），知道 CID 即可签名任意内容；彻底解决需要改变 drive 密钥或发现模型，属于协议变更，待负责人决定。
+- 根因是 CID drive 的签名密钥由所有节点共享（`GLOBAL_SHARED_SEED`），知道 CID 即可签名任意内容。已由 CID drive 协议 v2 解决，见下节。
+
+## 2026-11-16 CID drive 协议 v2
+
+提交 `4588061`、`24faed3`（桌面）、`22e8b04`（移动）。设计见 [CID drive 协议 v2](cid-drive-protocol.md)。仍为本机内存复制或本地 DHT testnet，非真实网络与真机。
+
+- 坏 peer 先到、诚实种子后到：同一次下载跳过坏 drive，取得正确字节并做种。
+- 同时连接坏 peer 与诚实种子：50 次全部成功（25 次先遇到坏 peer），v1 为 6 次中 1 次失败。
+- v1 数据目录：可校验的 holding 迁移后继续做种，新节点可下载；内容与 CID 不符的旧块不迁移，状态 error、不对外提供。
+- 桌面引擎 ↔ 移动核心（Node 宿主、本地 DHT testnet）：双向下载并校验通过（`npm run test:cross-core`）。
+- 回归：根 `npm test` 720 项、`test:protocol` 13 项、移动端 `npm test` 全部通过；`bundle:android` 与 `bundle:ios` 成功且包含新协议。
+- 兼容性：v2 与 v1 客户端之间无法互传，需统一升级。
+- 未覆盖：真实网络与真机（含蜂窝、跨 NAT）、截断/极慢/谎报大小的坏 peer、大文件迁移耗时。
 
 ## 当前未完成
 

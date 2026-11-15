@@ -76,7 +76,7 @@ MVP 范围只包含上面两个闭环。深度要求：每条结论都要有失�
 文件接力不变量：
 
 - F1 只有重算 UnixFS CID v1 与链接一致的内容才会保存、记录 holding、join topic；应用/daemon 重启后自动重新 join。
-- F2 发送坏数据的 peer 永远不能让下载者做种错误内容。MVP 接受“整文件下载后校验”：单个坏 peer 单次尝试的代价上界为该 peer 声明的文件大小（且不超过 `maxFileSizeBytes`），超出即中止；校验失败后临时文件清理、不记 holding、不报告本地已有。MVP 不做边下载边校验，因为需要传输 UnixFS DAG 中间节点，属于协议变更。已知限制：CID drive 的签名密钥由公开的共享种子派生，坏 peer 的块会经复制留在本机且当前无法删除，可造成该 CID 在本机持续下载失败或分叉冲突，详见 `docs/validation-status.md`。
+- F2 发送坏数据的 peer 永远不能让下载者做种错误内容。MVP 接受“整文件下载后校验”：单个坏 peer 单次尝试的代价上界为该 peer 声明的文件大小（且不超过 `maxFileSizeBytes`），超出即中止；校验失败后临时文件清理、不记 holding、不报告本地已有。MVP 不做边下载边校验，因为需要传输 UnixFS DAG 中间节点，属于协议变更。坏 peer 被跳过后继续尝试其他种子，见 `docs/cid-drive-protocol.md`。
 - F3 任意崩溃点重启后，holding、`published-files.json` 与 Hyperdrive `/<cid>` 实际可读性一致；不一致时以 CID 可读为准自愈或报错，不误报“已有”。
 - F4 根项目、移动端与 kubo/Helia 对同一黄金样本集给出相同 CID（含 0B、块边界 ±1、2/4/10GiB 编码边界）。
 - F5 发布者退出后，只要至少 1 个下载者在线做种，新节点可完成下载并校验。
@@ -114,6 +114,7 @@ MVP 范围只包含上面两个闭环。深度要求：每条结论都要有失�
 - 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
 - Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
 - Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
+- 每个节点只做种自己的 CID drive：drive 名由本节点私密种子派生（桌面为节点种子，移动为 `cid-drive-secret`），他人无法为其签名；下载者经 `most-cid-drive/2` 通道向 peer 询问 drive key，逐个读取并按 CID 校验。不要恢复共享密钥 drive，记录中的 `driveName` 不可作为依据。协议见 `docs/cid-drive-protocol.md`。
 - 用户文件列表和目录结构由 `published-files.json` 维护；做种持有记录由 `node-holdings.json` 维护，避免污染用户文件管理视图。
 - 不实现上链存储协议、智能合约、USDT 支付、质押、订单、赏金猎人、fraud proof、Treasury 或云端下单。
 
