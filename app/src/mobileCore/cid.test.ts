@@ -44,6 +44,15 @@ describe('mobile UnixFS CID', () => {
         ),
         expected: 'bafybeiexg2oqkfnj56l7fcmawswqbijt5shq4b5rg6a546uwpkqqzwjioi',
       },
+      {
+        // 174 leaves + 1 byte: first file needing a second DAG layer.
+        // Confirmed by kubo 0.43.1 (`npm run test:cid-oracle`).
+        name: 'layer+1',
+        content: Buffer.alloc(174 * 256 * 1024 + 1).map(
+          (_, index) => index % 251
+        ),
+        expected: 'bafybeib4y7ghw2rq7bracc4xwtxrbzo7cfvagdpte2tmrkgwl6dyard3cm',
+      },
     ]
 
     for (const sample of samples) {

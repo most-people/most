@@ -69,6 +69,33 @@
 - 兼容性：v2 与 v1 客户端之间无法互传，需统一升级。
 - 未覆盖：真实网络与真机（含蜂窝、跨 NAT）、截断/极慢/谎报大小的坏 peer、大文件迁移耗时。
 
+## 2026-11-16 外部 CID 对照（F4）
+
+基线提交 `a244314`，Windows 11 x64，Node v26.13.0，kubo 0.43.1（`kubo_v0.43.1_windows-amd64.zip`，SHA-512 与发布文件一致）。命令：`KUBO_BIN=<ipfs> npm run test:cid-oracle`。样本第 i 字节为 `i % 251`；kubo 参数为 `--cid-version=1 --raw-leaves --chunker=size-262144 --max-file-links=174`，与两端 importer 默认（256KiB 分块、每层 174 个子节点、balanced）一致。
+
+13 个样本桌面引擎、移动核心与 kubo 全部一致（表中为三方相同的 CID）：
+
+| 样本     | 字节数      | CID                                                           |
+| -------- | ----------- | ------------------------------------------------------------- |
+| empty    | 0           | `bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku` |
+| one-byte | 1           | `bafkreidogqfzz75tpkmjzjke425xqcrmpcib2p5tg44hnbirumdbpl5adu` |
+| chunk-1  | 262143      | `bafkreiagptg6ztonoojy4wflk3wwusl5xt4vcy6uult4wa7oemsjtxhjsu` |
+| chunk    | 262144      | `bafkreibruh455iawsviqslif5c7uurdcfdemh22mtnytyzvnzn75kpejxy` |
+| chunk+1  | 262145      | `bafybeiexg2oqkfnj56l7fcmawswqbijt5shq4b5rg6a546uwpkqqzwjioi` |
+| layer-1  | 45613055    | `bafybeihq7k7e5vdrnuuzu3rrsvjotsdjvaf7neht7uw4j5dhywvk5bwqyq` |
+| layer    | 45613056    | `bafybeihpe5snhzneq7xs53nivmsopto5lrogo3wjynauqylqeym5a3irbm` |
+| layer+1  | 45613057    | `bafybeib4y7ghw2rq7bracc4xwtxrbzo7cfvagdpte2tmrkgwl6dyard3cm` |
+| 2GiB-1   | 2147483647  | `bafybeifopdxj2txa25bybznssx4wosdivjvfmhdl3egazadnn7rm4xs5d4` |
+| 2GiB     | 2147483648  | `bafybeiap3nvn74czd3riug3ziq5y2edrinly5gfwxeo26rpcy2ovwaz27u` |
+| 4GiB-1   | 4294967295  | `bafybeih5gnck3x6kkor7sg7ymrpekebvzmsuhd2e3fxlckfv4d34a7vjfm` |
+| 4GiB     | 4294967296  | `bafybeifnvweghzfpn2wxvdvd7c2cg23r24tpnqhezpd3aezu3v7pre7xke` |
+| 10GiB    | 10737418240 | `bafybeid3lylyqw4v7xoux73qdeenkts54ifm4fmxzykpwz3g3bpxjhdhhm` |
+
+- 对照有区分力：同一 `layer+1` 文件改用 `--max-file-links=1024` 时 kubo 给出不同 CID。
+- 互通：kubo 0.43.1 新建仓库后直接 `ipfs add --cid-version=1` 与 MostBox CID 相同；不加 `--cid-version=1` 得到 CIDv0，使用 `unixfs-v1-2025` 配置（1MiB 分块、1024 子节点）得到不同 CID。
+- 移动端运行的是 `app/backend/mobile-core.mjs`（importer 17.0.1），桌面为 17.1.1；对照覆盖的是实际生产代码，非 `app/src/mobileCore/cid.ts`。
+- 未覆盖：集合（目录）CID；Bare 运行时本身（对照在 Node 宿主执行，Bare 包使用同一源码）。
+
 ## 当前未完成
 
 - 移动实时通话：已有 offer / answer / candidate 信令，但尚无双真机原生媒体轨道、实时音频、音频路由与挂断释放的完整证据；本机模式信令桥接也待完成。

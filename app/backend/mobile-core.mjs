@@ -274,7 +274,7 @@ function normalizeFileUri(uri) {
   return value
 }
 
-async function calculateCid(input, onProgress) {
+export async function calculateCid(input, onProgress) {
   const blockstore = createDummyBlockstore()
   let rootCid = null
   let size = 0
