@@ -14,6 +14,8 @@ import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid, calculateDirectoryCid } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
+import { cidDriveName } from '../../src/core/cidDriveExchange.js'
+import { loadOrCreateNodeSeed } from '../../src/node/nodeIdentity.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -32,6 +34,42 @@ async function waitForHoldingStatus(
     await sleep(25)
   }
   throw new Error(`Holding ${cid} did not reach ${expectedStatus}`)
+}
+
+// Prepares a data directory whose node seeds `bytes` under `cid` from its own
+// v2 drive, as a misbehaving peer would.
+async function seedOwnDriveWithBytes(dataPath, cid, bytes) {
+  const setup = new MostBoxEngine({ dataPath, disableNetwork: true })
+  await setup.start()
+  await setup.stop()
+  const { topicHex } = getCidInfo(cid)
+  const store = new Corestore(dataPath, {
+    primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+    unsafe: true,
+  })
+  const drive = new Hyperdrive(
+    store.namespace(cidDriveName(loadOrCreateNodeSeed(dataPath), topicHex))
+  )
+  await drive.ready()
+  await drive.put('/' + cid, bytes)
+  await drive.close()
+  await store.close()
+  fs.writeFileSync(
+    path.join(dataPath, 'node-holdings.json'),
+    JSON.stringify([
+      { cid, fileName: 'bad.bin', size: bytes.length, source: 'manual' },
+    ])
+  )
+}
+
+async function waitForSeedActive(engine, cid, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const holding = engine.listHoldings().find(item => item.cid === cid)
+    if (holding?.joined) return holding
+    await sleep(50)
+  }
+  throw new Error(`Seed for ${cid} did not become active`)
 }
 
 async function waitForHoldingMetric(
@@ -2500,7 +2538,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
     })
 
-    it('does not trust or seed blocks left by a peer that served wrong bytes', async () => {
+    it('skips a seed drive with wrong bytes and downloads from an honest seed', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-bad-peer-'))
       const engines = []
       const links = []
@@ -2520,21 +2558,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const good = Buffer.alloc(256 * 1024, 'a')
         const seeder = await makeEngine('seeder')
         const { cid } = await seeder.publishFile(good, 'seed.bin')
-
-        // The CID drive key derives from the public shared seed, so any peer
-        // that knows the CID can sign different bytes at /<cid>.
-        const badStore = new Corestore(path.join(tmpDir, 'bad-peer'), {
-          primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
-          unsafe: true,
-        })
-        const badDrive = new Hyperdrive(
-          badStore.namespace(getCidInfo(cid).driveName)
+        await seedOwnDriveWithBytes(
+          path.join(tmpDir, 'bad-peer'),
+          cid,
+          Buffer.alloc(good.length, 'b')
         )
-        await badDrive.ready()
-        await badDrive.put('/' + cid, Buffer.alloc(good.length, 'b'))
-        await badDrive.close()
-        await badStore.close()
         const badPeer = await makeEngine('bad-peer')
+        await waitForSeedActive(badPeer, cid)
 
         const downloader = await makeEngine('downloader')
         const pullInput = { cid, fileName: 'seed.bin', timeout: 5000 }
@@ -2550,24 +2580,69 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           null
         )
 
-        // Retrying against an honest seeder must never report or seed the
-        // wrong bytes. The leftover forked blocks may still make it fail.
+        links.push(badPeer.replicateWith(downloader))
         links.push(seeder.replicateWith(downloader))
-        const retry = await downloader.pullByCid(pullInput).then(
-          value => ({ value }),
-          error => ({ error })
-        )
-        if (retry.error) {
-          assert.ok(!downloader.listHoldings().some(h => h.cid === cid))
-        } else {
-          assert.strictEqual(retry.value.localAvailable, true)
-          assert.deepStrictEqual(
-            (await downloader.readFileRaw(cid)).buffer,
-            good
-          )
-        }
+        const result = await downloader.pullByCid(pullInput)
+        assert.strictEqual(result.localAvailable, true)
+        assert.deepStrictEqual((await downloader.readFileRaw(cid)).buffer, good)
+        assert.ok(downloader.listHoldings().some(h => h.cid === cid))
       } finally {
         for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('downloads correct bytes when an honest and a bad seed are both connected', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-mixed-peers-'))
+      const engines = []
+
+      try {
+        const makeEngine = async name => {
+          const nextEngine = new MostBoxEngine({
+            dataPath: path.join(tmpDir, name),
+            disableNetwork: true,
+            downloadTimeout: 5000,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const good = Buffer.alloc(128 * 1024, 'a')
+        const seeder = await makeEngine('seeder')
+        const { cid } = await seeder.publishFile(good, 'seed.bin')
+        await seedOwnDriveWithBytes(
+          path.join(tmpDir, 'bad-peer'),
+          cid,
+          Buffer.alloc(good.length, 'b')
+        )
+        const badPeer = await makeEngine('bad-peer')
+        await waitForSeedActive(badPeer, cid)
+
+        for (let run = 0; run < 5; run += 1) {
+          const downloader = await makeEngine(`downloader-${run}`)
+          const runLinks =
+            run % 2 === 0
+              ? [
+                  badPeer.replicateWith(downloader),
+                  seeder.replicateWith(downloader),
+                ]
+              : [
+                  seeder.replicateWith(downloader),
+                  badPeer.replicateWith(downloader),
+                ]
+          try {
+            await downloader.pullByCid({ cid, fileName: 'seed.bin' })
+            assert.deepStrictEqual(
+              (await downloader.readFileRaw(cid)).buffer,
+              good
+            )
+          } finally {
+            for (const link of runLinks) link.close()
+          }
+        }
+      } finally {
         await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
         fs.rmSync(tmpDir, { recursive: true, force: true })
       }

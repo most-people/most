@@ -11,6 +11,7 @@
 | iOS 构建、真机与恢复验收       | [iOS 验收](mobile-ios-feasibility.md)                          |
 | 已有验证结论、证据位置与限制   | [验证状态](validation-status.md)                               |
 | HTTP/WebSocket 聊天契约        | [原生聊天协议](native-chat-protocol.md)                        |
+| 文件传输 drive 密钥与密钥交换  | [CID drive 协议 v2](cid-drive-protocol.md)                     |
 | 身份标签与成员资料契约         | [聊天身份标签](chat-mentions-and-identity-design.md)           |
 | 第三方邀请接入                 | [ST 邀请集成](st-chat-join-integration.md)                     |
 | MCP 接口                       | [MCP](mcp.md)                                                  |
