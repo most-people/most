@@ -215,7 +215,7 @@ npm run build
 - 做种配置：`server/src/node/config.js`
 - CID / 链接：`server/src/core/cid.js`
 - 配置：`server/src/config.js`
-- Electron：`electron/main.js`、`electron/preload.js`
+- Electron：`electron/main.js`、`electron/preload.cjs`
 - 工具模块：
   - 钱包工具：`server/src/utils/mostWallet.js`
   - 安全工具：`server/src/utils/security.js`
