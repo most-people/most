@@ -1976,7 +1976,7 @@ export class MostBoxEngine extends EventEmitter {
             }
           }
         } finally {
-          await sourceDrive?.close().catch(() => {})
+          if (!source?.local) await sourceDrive?.close().catch(() => {})
         }
       }
     } finally {
@@ -2169,7 +2169,7 @@ export class MostBoxEngine extends EventEmitter {
         size,
       }
     } finally {
-      await drive.close().catch(() => {})
+      if (!source.local) await drive.close().catch(() => {})
     }
   }
 
@@ -6265,6 +6265,18 @@ export class MostBoxEngine extends EventEmitter {
   async #waitForRemoteCidDrive(cid, timeout, options = {}) {
     const { triedKeys = new Set(), taskId = null, taskState = null } = options
     const { topic, topicHex } = this.#getCidInfo(cid)
+    // This node's own drive is only written after verification; it is tried
+    // first, is not closed by the caller, and goes through the same CID check.
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    const ownKeyHex = b4a.toString(own.key, 'hex')
+    if (
+      !triedKeys.has(ownKeyHex) &&
+      (await this.#hasLocalDriveContent(own, '/' + cid))
+    ) {
+      triedKeys.add(ownKeyHex)
+      const entry = await own.entry('/' + cid, { wait: false })
+      if (entry) return { drive: own, entry, keyHex: ownKeyHex, local: true }
+    }
     const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
     const offers = this.#cidDriveOffers.get(topicHex) || new Set()
     this.#cidDriveOffers.set(topicHex, offers)
