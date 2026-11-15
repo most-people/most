@@ -602,17 +602,14 @@ describe('mobile file downloads', () => {
         return originalReadStream.call(this, name, opts)
       }
       if (cache === 'corrupt') {
-        await assert.rejects(
-          restarted.downloadLink({ link: published.transfer.link }),
-          /CID mismatch/
-        )
-        assert.equal(restarted.getSnapshot().holdings.length, 0)
-        await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
+        // The corrupt cache fails verification, is discarded, and the same
+        // source is read again from byte 0.
         const repaired = await restarted.downloadLink({
           link: published.transfer.link,
         })
         assert.equal(await fs.readFile(repaired.savedPath, 'utf8'), content)
         assert.equal(offset, 0)
+        await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
       } else {
         const result = await restarted.downloadLink({
           link: published.transfer.link,
@@ -724,8 +721,8 @@ describe('mobile file downloads', () => {
       /not available for export/
     )
     await assert.rejects(
-      core.downloadLink({ link: published.transfer.link }),
-      /timeout|timed out|stalled/i
+      core.downloadLink({ link: published.transfer.link, timeout: 1000 }),
+      /No online seed was found/
     )
     assert.equal(core.getSnapshot().transfers[0].status, 'failed')
     assert.equal(core.getSnapshot().holdings[0].status, 'error')

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
@@ -46,6 +47,7 @@ import {
   verifyChannelTopicProof,
 } from './channel-protocol.mjs'
 import { P2PPingManager } from './p2p-ping.mjs'
+import { attachCidDriveChannel, cidDriveName } from './cid-drive-exchange.mjs'
 import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
@@ -133,6 +135,19 @@ function fileExists(filePath) {
   } catch {
     return false
   }
+}
+
+// Secret that names this node's own CID drives; losing it equals losing the
+// drive data, so it lives with the store.
+function loadOrCreateCidDriveSecret(storagePath) {
+  const filePath = path.join(storagePath, 'cid-drive-secret')
+  try {
+    const existing = b4a.from(fs.readFileSync(filePath, 'utf8').trim(), 'hex')
+    if (existing.byteLength === 32) return existing
+  } catch {}
+  const secret = randomBytes(32)
+  atomicWrite(filePath, b4a.toString(secret, 'hex'))
+  return secret
 }
 
 function atomicWrite(filePath, data) {
@@ -273,6 +288,8 @@ async function calculateCid(input, onProgress) {
     const stat = fs.statSync(filePath)
     size = stat.size || 0
     content = fs.createReadStream(filePath)
+  } else if (input.stream) {
+    content = input.stream
   } else {
     throw new Error('File content is required')
   }
@@ -506,6 +523,11 @@ export class MobileP2PCore {
   #seedStates = new Map()
   #transfers = []
   #activeDownloadCids = new Set()
+  #cidDriveSecret = null
+  #cidDrivePeers = new Set()
+  #cidDriveOffers = new Map()
+  #cidDriveWants = new Map()
+  #cidDriveOfferWaiters = new Set()
   #logs = []
   #createSwarm
   #relayThrough = null
@@ -595,6 +617,7 @@ export class MobileP2PCore {
     this.#swarm.on('connection', conn => {
       conn.on('error', () => {})
       this.#store.replicate(conn)
+      this.#attachCidDrivePeer(conn)
       this.#emitNetworkStatus()
     })
     this.#swarm.on('update', () => this.#emitNetworkStatus())
@@ -645,6 +668,7 @@ export class MobileP2PCore {
       },
     })
 
+    this.#cidDriveSecret = loadOrCreateCidDriveSecret(this.#storagePath)
     this.#transfers = this.#loadTransfers()
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {
@@ -724,6 +748,9 @@ export class MobileP2PCore {
     this.#drives.clear()
     this.#drivePromises.clear()
     this.#discoveries.clear()
+    this.#cidDrivePeers.clear()
+    this.#cidDriveOffers.clear()
+    this.#cidDriveWants.clear()
 
     if (this.#store) {
       await this.#store.close()
@@ -1104,7 +1131,7 @@ export class MobileP2PCore {
       })
       const cid = result.cid
       const size = result.size || Number(input.size) || 0
-      const { driveName } = getCidInfo(cid)
+      const { driveName } = this.#getCidInfo(cid)
       const driveKey = `/${cid}`
       const drive = await this.#getOrCreateDrive(driveName)
 
@@ -1165,7 +1192,7 @@ export class MobileP2PCore {
     const parsed = splitMostLink(input.link)
     const cid = parsed.cid
     const fileName = sanitizeFilename(parsed.fileName)
-    const { driveName } = getCidInfo(cid)
+    const { driveName } = this.#getCidInfo(cid)
     const driveKey = `/${cid}`
     const tempPath = path.join(this.#downloadPath, `${cid}.part`)
 
@@ -1219,82 +1246,110 @@ export class MobileP2PCore {
         message: 'Finding peers',
       })
 
-      const entry = await this.#waitForDriveEntry(
-        drive,
-        driveKey,
-        input.timeout || DOWNLOAD_DISCOVERY_TIMEOUT,
-        requestId
-      )
-
-      if (!entry) {
-        throw new Error('No online seed was found for this CID')
-      }
-
-      const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
-      const savePath = uniqueSavePath(this.#downloadPath, fileName)
-      let resumeBytes = fileExists(tempPath) ? fs.statSync(tempPath).size : 0
-      if (resumeBytes > totalBytes) {
-        safeRm(tempPath)
-        resumeBytes = 0
-      }
-
-      this.#upsertTransfer({
-        ...transfer,
-        progress: 20,
-        phase: 'downloading',
-        totalBytes,
-        completedBytes: resumeBytes,
-        message: resumeBytes ? 'Resuming downloaded bytes' : 'Downloading file',
-      })
-
-      const readStream = drive.createReadStream(driveKey, {
-        start: resumeBytes,
-      })
-      let loaded = 0
-      await pipeDriveToFile(readStream, tempPath, {
-        timeout: STREAM_READ_TIMEOUT,
-        append: resumeBytes > 0,
-        onProgress: nextLoaded => {
-          this.#assertDownloadActive(requestId)
-          loaded = resumeBytes + nextLoaded
-          if (totalBytes > 0) {
-            const progress = 20 + Math.round((loaded / totalBytes) * 60)
-            this.#upsertTransfer({
-              ...transfer,
-              progress: Math.min(progress, 80),
-              completedBytes: loaded,
-              message: 'Downloading file',
-            })
+      const discoveryDeadline =
+        Date.now() + (input.timeout || DOWNLOAD_DISCOVERY_TIMEOUT)
+      const triedKeys = new Set()
+      let sourceMismatch = null
+      let totalBytes = 0
+      let savePath = ''
+      let downloaded = null
+      for (;;) {
+        const source = await this.#waitForRemoteCidDrive(
+          cid,
+          discoveryDeadline - Date.now(),
+          requestId,
+          triedKeys
+        )
+        if (!source) {
+          throw (
+            sourceMismatch || new Error('No online seed was found for this CID')
+          )
+        }
+        try {
+          const entry = source.entry
+          totalBytes = Number(entry?.value?.blob?.byteLength) || 0
+          savePath = uniqueSavePath(this.#downloadPath, fileName)
+          let resumeBytes = fileExists(tempPath)
+            ? fs.statSync(tempPath).size
+            : 0
+          if (resumeBytes > totalBytes) {
+            safeRm(tempPath)
+            resumeBytes = 0
           }
-        },
-      })
 
-      this.#assertDownloadActive(requestId)
+          this.#upsertTransfer({
+            ...transfer,
+            progress: 20,
+            phase: 'downloading',
+            totalBytes,
+            completedBytes: resumeBytes,
+            message: resumeBytes
+              ? 'Resuming downloaded bytes'
+              : 'Downloading file',
+          })
 
-      this.#upsertTransfer({
-        ...transfer,
-        progress: 85,
-        phase: 'verifying',
-        completedBytes: totalBytes,
-        message: 'Verifying CID',
-      })
+          const readStream = source.drive.createReadStream(driveKey, {
+            start: resumeBytes,
+          })
+          let loaded = 0
+          await pipeDriveToFile(readStream, tempPath, {
+            timeout: STREAM_READ_TIMEOUT,
+            append: resumeBytes > 0,
+            onProgress: nextLoaded => {
+              this.#assertDownloadActive(requestId)
+              loaded = resumeBytes + nextLoaded
+              if (totalBytes > 0) {
+                const progress = 20 + Math.round((loaded / totalBytes) * 60)
+                this.#upsertTransfer({
+                  ...transfer,
+                  progress: Math.min(progress, 80),
+                  completedBytes: loaded,
+                  message: 'Downloading file',
+                })
+              }
+            },
+          })
 
-      const downloaded = await calculateCid(
-        { filePath: tempPath },
-        (loaded, total) => {
           this.#assertDownloadActive(requestId)
-          this.#patchTransfer(requestId, {
-            progress: total > 0 ? 85 + Math.round((loaded / total) * 10) : 95,
+
+          this.#upsertTransfer({
+            ...transfer,
+            progress: 85,
+            phase: 'verifying',
+            completedBytes: totalBytes,
             message: 'Verifying CID',
           })
+
+          downloaded = await calculateCid(
+            { filePath: tempPath },
+            (loaded, total) => {
+              this.#assertDownloadActive(requestId)
+              this.#patchTransfer(requestId, {
+                progress:
+                  total > 0 ? 85 + Math.round((loaded / total) * 10) : 95,
+                message: 'Verifying CID',
+              })
+            }
+          )
+          this.#assertDownloadActive(requestId)
+          if (downloaded.cid !== cid) {
+            safeRm(tempPath)
+            sourceMismatch = new Error(
+              `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
+            )
+            this.#log(
+              'warn',
+              `Seed drive ${source.keyHex.slice(0, 16)} served wrong content for ${cid.slice(0, 16)}`
+            )
+            // Resumed bytes came from an earlier attempt, so the mismatch
+            // may be the cache's; retry this source from byte 0.
+            if (resumeBytes > 0) triedKeys.delete(source.keyHex)
+            continue
+          }
+          break
+        } finally {
+          if (!source.local) await source.drive.close().catch(() => {})
         }
-      )
-      this.#assertDownloadActive(requestId)
-      if (downloaded.cid !== cid) {
-        safeRm(tempPath)
-        throw new Error(
-          `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
-        )
       }
 
       fs.renameSync(tempPath, savePath)
@@ -1383,14 +1438,14 @@ export class MobileP2PCore {
 
   async deleteHolding(input = {}) {
     this.#ensureReady()
-    const { cid, driveName } = getCidInfo(input.cid)
+    const { cid, driveName } = this.#getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
     if (!existing) {
       throw new Error('This CID is not available in local holdings')
     }
 
     await this.#leaveCidTopic(cid)
-    await this.#clearLocalCidContent(cid, existing.driveName || driveName)
+    await this.#clearLocalCidContent(cid, driveName)
 
     for (const cleanupPath of getInternalHoldingCleanupPaths(
       {
@@ -1413,7 +1468,7 @@ export class MobileP2PCore {
 
   async exportHolding(input = {}) {
     this.#ensureReady()
-    const { cid, driveName } = getCidInfo(input.cid)
+    const { cid, driveName } = this.#getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
     if (!existing) {
       throw new Error('This CID is not available in local holdings')
@@ -1424,7 +1479,7 @@ export class MobileP2PCore {
     )
     let exportPath = existing.localPath || ''
     let holding = existing
-    const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+    const drive = await this.#getOrCreateDrive(driveName)
     const driveKey = `/${cid}`
     if (!(await this.#hasLocalCidContent(drive, driveKey))) {
       await this.#leaveCidTopic(cid)
@@ -2941,6 +2996,173 @@ export class MobileP2PCore {
     }
   }
 
+  #getCidInfo(cid) {
+    const info = getCidInfo(cid)
+    return {
+      ...info,
+      driveName: cidDriveName(this.#cidDriveSecret, info.topicHex),
+    }
+  }
+
+  #attachCidDrivePeer(stream) {
+    const peer = attachCidDriveChannel(stream, {
+      onWant: (topic, from) => {
+        this.#answerCidDriveWant(topic, from).catch(() => {})
+      },
+      onHave: (topic, driveKey) => {
+        const topicHex = b4a.toString(topic, 'hex')
+        if (!this.#cidDriveWants.has(topicHex)) return
+        this.#cidDriveOffers.get(topicHex)?.add(b4a.toString(driveKey, 'hex'))
+        for (const wake of this.#cidDriveOfferWaiters) wake()
+      },
+      onClose: closed => this.#cidDrivePeers.delete(closed),
+    })
+    if (!peer) return
+    this.#cidDrivePeers.add(peer)
+    for (const topicHex of this.#cidDriveWants.keys()) {
+      peer.want(b4a.from(topicHex, 'hex'))
+    }
+  }
+
+  // Answer only for content this node seeds: joined topic plus a holding whose
+  // /<cid> is readable from its own drive.
+  async #answerCidDriveWant(topic, peer) {
+    const topicHex = b4a.toString(topic, 'hex')
+    let cid = null
+    for (const [joinedCid, discovery] of this.#discoveries) {
+      if (discovery.topic === topicHex) cid = joinedCid
+    }
+    if (!cid || !this.#holdings.some(holding => holding.cid === cid)) return
+    const drive = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    if (await this.#hasLocalCidContent(drive, `/${cid}`)) {
+      peer.have(topic, drive.key)
+    }
+  }
+
+  /**
+   * Waits for a peer that offers a drive with /<cid>. Keys in `triedKeys` are
+   * skipped, and every returned key is added to it. The caller closes the
+   * returned read-only drive.
+   */
+  async #waitForRemoteCidDrive(cid, timeout, transferId, triedKeys) {
+    const { topic, topicHex } = this.#getCidInfo(cid)
+    // This node's own drive is only written after verification; it is tried
+    // first, is not closed by the caller, and goes through the same CID check.
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    const ownKeyHex = b4a.toString(own.key, 'hex')
+    if (
+      !triedKeys.has(ownKeyHex) &&
+      (await this.#hasLocalCidContent(own, `/${cid}`))
+    ) {
+      triedKeys.add(ownKeyHex)
+      const entry = await own.entry(`/${cid}`, { wait: false })
+      if (entry) return { drive: own, entry, keyHex: ownKeyHex, local: true }
+    }
+    const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
+    const offers = this.#cidDriveOffers.get(topicHex) || new Set()
+    this.#cidDriveOffers.set(topicHex, offers)
+    this.#cidDriveWants.set(
+      topicHex,
+      (this.#cidDriveWants.get(topicHex) || 0) + 1
+    )
+    let lastWantAt = 0
+
+    try {
+      while (Date.now() < deadline) {
+        this.#assertDownloadActive(transferId)
+        if (Date.now() - lastWantAt >= DRIVE_UPDATE_INTERVAL) {
+          lastWantAt = Date.now()
+          for (const peer of this.#cidDrivePeers) peer.want(topic)
+        }
+
+        const keyHex = [...offers].find(key => !triedKeys.has(key))
+        if (!keyHex) {
+          const hasPeers = this.#peerCount() > 0
+          const elapsed = Math.round((deadline - Date.now()) / 1000)
+          this.#patchTransfer(transferId, {
+            progress: hasPeers ? 15 : 10,
+            message: hasPeers
+              ? `Waiting for seeds (${elapsed}s)`
+              : `Finding peers (${elapsed}s)`,
+          })
+          await new Promise(resolve => {
+            const wake = () => {
+              clearTimeout(timer)
+              this.#cidDriveOfferWaiters.delete(wake)
+              resolve()
+            }
+            const timer = setTimeout(wake, DOWNLOAD_POLL_INTERVAL_MIN)
+            this.#cidDriveOfferWaiters.add(wake)
+          })
+          continue
+        }
+        triedKeys.add(keyHex)
+
+        const drive = new Hyperdrive(
+          this.#store.session(),
+          b4a.from(keyHex, 'hex')
+        )
+        try {
+          await drive.ready()
+          const entry = await this.#waitForDriveEntry(
+            drive,
+            `/${cid}`,
+            Math.min(STREAM_READ_TIMEOUT, deadline - Date.now()),
+            transferId
+          )
+          if (entry) return { drive, entry, keyHex }
+        } catch (err) {
+          if (this.#cancelledDownloads.has(transferId)) {
+            await drive.close().catch(() => {})
+            throw err
+          }
+        }
+        await drive.close().catch(() => {})
+      }
+      return null
+    } finally {
+      const remaining = this.#cidDriveWants.get(topicHex) - 1
+      if (remaining > 0) {
+        this.#cidDriveWants.set(topicHex, remaining)
+      } else {
+        this.#cidDriveWants.delete(topicHex)
+        this.#cidDriveOffers.delete(topicHex)
+      }
+    }
+  }
+
+  // One-time move from the v1 shared-key drive. Only content that recomputes
+  // to its CID is copied; anything else stays missing and reports an error.
+  async #migrateLegacyCidDrive(cid, drive) {
+    const driveKey = `/${cid}`
+    const legacy = new Hyperdrive(
+      this.#store.namespace(getCidInfo(cid).driveName)
+    )
+    try {
+      await legacy.ready()
+      if (!(await this.#hasLocalCidContent(legacy, driveKey))) return
+      const actual = await calculateCid({
+        stream: legacy.createReadStream(driveKey, { wait: false }),
+      })
+      if (actual.cid !== cid) return
+      await new Promise((resolve, reject) => {
+        const writeStream = drive.createWriteStream(driveKey)
+        writeStream.on('finish', resolve)
+        writeStream.on('error', reject)
+        legacy
+          .createReadStream(driveKey, { wait: false })
+          .on('error', reject)
+          .pipe(writeStream)
+      })
+      await legacy.clear(driveKey).catch(() => {})
+      this.#log('info', `Migrated ${cid.slice(0, 16)} to its own seed drive`)
+    } catch (err) {
+      this.#log('warn', `Failed to migrate ${cid.slice(0, 16)}: ${err.message}`)
+    } finally {
+      await legacy.close().catch(() => {})
+    }
+  }
+
   async #clearLocalCidContent(cid, driveName) {
     try {
       const drive = await this.#getOrCreateDrive(driveName)
@@ -2961,8 +3183,11 @@ export class MobileP2PCore {
   }
 
   async #restoreHolding(cid) {
-    const { driveName } = getCidInfo(cid)
+    const { driveName } = this.#getCidInfo(cid)
     const drive = await this.#getOrCreateDrive(driveName)
+    if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
+      await this.#migrateLegacyCidDrive(cid, drive)
+    }
     if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
       this.#setSeedState(cid, {
         status: 'error',
@@ -2975,7 +3200,7 @@ export class MobileP2PCore {
   }
 
   async #joinCidTopic(cid) {
-    const { topic, topicHex, driveName } = getCidInfo(cid)
+    const { topic, topicHex, driveName } = this.#getCidInfo(cid)
 
     this.#setSeedState(cid, {
       status: 'joining',
@@ -3089,7 +3314,7 @@ export class MobileP2PCore {
   }
 
   #normalizeHolding(record = {}) {
-    const { cid, topicHex, driveName } = getCidInfo(record.cid)
+    const { cid, topicHex, driveName } = this.#getCidInfo(record.cid)
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
       throw new Error('Holding size must be a non-negative number')
@@ -3099,7 +3324,7 @@ export class MobileP2PCore {
       fileName: sanitizeFilename(record.fileName || cid),
       size,
       topic: record.topic || topicHex,
-      driveName: record.driveName || driveName,
+      driveName,
       localPath: normalizeFileUri(record.localPath || ''),
       source: record.source === 'downloaded' ? 'downloaded' : 'published',
       createdAt: record.createdAt || nowIso(),
