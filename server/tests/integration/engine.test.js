@@ -2500,6 +2500,79 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
     })
 
+    it('does not trust or seed blocks left by a peer that served wrong bytes', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-bad-peer-'))
+      const engines = []
+      const links = []
+
+      try {
+        const makeEngine = async name => {
+          const nextEngine = new MostBoxEngine({
+            dataPath: path.join(tmpDir, name),
+            disableNetwork: true,
+            downloadTimeout: 5000,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const good = Buffer.alloc(256 * 1024, 'a')
+        const seeder = await makeEngine('seeder')
+        const { cid } = await seeder.publishFile(good, 'seed.bin')
+
+        // The CID drive key derives from the public shared seed, so any peer
+        // that knows the CID can sign different bytes at /<cid>.
+        const badStore = new Corestore(path.join(tmpDir, 'bad-peer'), {
+          primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+          unsafe: true,
+        })
+        const badDrive = new Hyperdrive(
+          badStore.namespace(getCidInfo(cid).driveName)
+        )
+        await badDrive.ready()
+        await badDrive.put('/' + cid, Buffer.alloc(good.length, 'b'))
+        await badDrive.close()
+        await badStore.close()
+        const badPeer = await makeEngine('bad-peer')
+
+        const downloader = await makeEngine('downloader')
+        const pullInput = { cid, fileName: 'seed.bin', timeout: 5000 }
+
+        const link = badPeer.replicateWith(downloader)
+        await assert.rejects(downloader.pullByCid(pullInput), {
+          name: 'IntegrityError',
+        })
+        link.close()
+        assert.ok(!downloader.listHoldings().some(h => h.cid === cid))
+        assert.strictEqual(
+          await downloader.getLocalCidAvailability(`most://${cid}`),
+          null
+        )
+
+        // Retrying against an honest seeder must never report or seed the
+        // wrong bytes. The leftover forked blocks may still make it fail.
+        links.push(seeder.replicateWith(downloader))
+        const retry = await downloader.pullByCid(pullInput).then(
+          value => ({ value }),
+          error => ({ error })
+        )
+        if (retry.error) {
+          assert.ok(!downloader.listHoldings().some(h => h.cid === cid))
+        } else {
+          assert.strictEqual(retry.value.localAvailable, true)
+          assert.deepStrictEqual(
+            (await downloader.readFileRaw(cid)).buffer,
+            good
+          )
+        }
+      } finally {
+        for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('fails within timeout when a connected topic peer has no content', async () => {
       const timeoutTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-empty-topic-peer-')

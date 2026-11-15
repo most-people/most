@@ -3696,10 +3696,11 @@ export class MostBoxEngine extends EventEmitter {
       (options.public
         ? this.#allPublishedRecords().find(f => f.cid === cid)
         : null)
-    if (!options.allowHoldingFallback && !fileRecord) {
+    const holding = this.#holdings.find(item => item.cid === cid)
+    // Blocks without a publish record or holding were never CID-verified here.
+    if (!fileRecord && !(options.allowHoldingFallback && holding)) {
       return null
     }
-    const holding = this.#holdings.find(item => item.cid === cid)
     const { driveName } = this.#getCidInfo(cid)
     const probeTimeoutMs = Number(options.probeTimeoutMs)
     const timeoutEnabled = Number.isFinite(probeTimeoutMs) && probeTimeoutMs > 0
