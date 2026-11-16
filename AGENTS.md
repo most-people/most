@@ -18,7 +18,7 @@ Most.Box 是一个以去中心化聊天为核心、文件传输为辅的 P2P 工
 
 它不是云盘、备份服务或付费存储市场。用户需要自己保存好重要数据；MostBox 只帮助在线用户把文件传播出去，并在仍有种子在线时让其他人下载。
 
-Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 聊天、文件传输或做种主流程。
+Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 聊天、文件传输或做种主流程；按长期方案阶段 5 移出主仓库。
 
 当前对外定位是 **MostBox · 去中心化聊天与文件传输**。DChat 是产品方向名称；当前聊天模型沿用 P2P 频道，不承诺端到端加密、无服务器或永久在线。
 
@@ -112,7 +112,7 @@ MVP 范围只包含上面两个闭环。深度要求：每条结论都要有失�
 - MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
 - 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
 - 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
-- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
+- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。长期方案阶段 2 将统一修改此规则（见 `docs/decentralization-plan.md`），在那之前不得零散改动。
 - Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
 - 每个节点只做种自己的 CID drive：drive 名由本节点私密种子派生（桌面为节点种子，移动为 `cid-drive-secret`），他人无法为其签名；下载者经 `most-cid-drive/2` 通道向 peer 询问 drive key，逐个读取并按 CID 校验。不要恢复共享密钥 drive，记录中的 `driveName` 不可作为依据。协议见 `docs/cid-drive-protocol.md`。
 - 用户文件列表和目录结构由 `published-files.json` 维护；做种持有记录由 `node-holdings.json` 维护，避免污染用户文件管理视图。

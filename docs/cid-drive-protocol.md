@@ -13,7 +13,9 @@
 
 ## 不变的部分
 
-`most://` 链接、CID 身份、topic（`cid.multihash.digest`）、drive 内路径 `/<cid>`、下载后重算 CID、成功后默认做种、`published-files.json` / `node-holdings.json` 的职责、Corestore 主密钥（频道依赖它，不改）。
+`most://` 链接、CID 身份、topic（`cid.multihash.digest`）、drive 内路径 `/<cid>`、下载后重算 CID、成功后默认做种、`published-files.json` / `node-holdings.json` 的职责、Corestore 主密钥（频道依赖它）。
+
+其中 topic 与 Corestore 主密钥将在[长期方案](decentralization-plan.md)阶段 2 修改。
 
 ## 设计
 
