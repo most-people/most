@@ -931,7 +931,10 @@ export class MobileP2PCore {
     for (const [coreKeyHex, core] of coresMap) {
       for (let i = 0; i < core.length; i++) {
         try {
-          const entry = await core.get(i)
+          // Only blocks held locally: a writer whose block has not arrived
+          // may be offline, and waiting would hang the read.
+          const entry = await core.get(i, { wait: false })
+          if (entry === null) break
           if (!this.#isChannelActive(channel.channelKey)) return []
           if (entry && entry.type === 'message') {
             const message = this.#normalizeIncomingChannelMessage(entry)
@@ -1968,6 +1971,9 @@ export class MobileP2PCore {
         valueEncoding: 'json',
       })
       await core.ready()
+      // Fetch every block, now and as the writer appends; history reads
+      // only use local blocks and do not request missing ones.
+      core.download({ start: 0, end: -1 })
       const normalizedCoreKey = b4a.toString(core.key, 'hex')
       coresMap.set(normalizedCoreKey, core)
       this.#setupChannelAppendListener(core, channelKey)

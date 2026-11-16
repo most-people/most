@@ -2202,3 +2202,122 @@ describe('mobile channel metadata management', () => {
     assert.equal(recreated.writerCoreKeys.includes(oldWriterCoreKey), false)
   })
 })
+
+describe('mobile channel cores with missing blocks', () => {
+  // Another writer's core held here only in part, with the writer offline:
+  // start and reads must not wait for the missing block, and the block must
+  // be fetched once a peer that has it connects.
+  it('starts and reads with a remote block missing, then refetches it', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-partial-core-')
+    )
+    const writerPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-partial-writer-')
+    )
+    const stores = []
+    const cores = []
+    t.after(async () => {
+      await Promise.allSettled(cores.map(core => core.stop()))
+      await Promise.allSettled(stores.map(store => store.close()))
+      await fs.rm(storagePath, { recursive: true, force: true })
+      await fs.rm(writerPath, { recursive: true, force: true })
+    })
+    const openStore = directory => {
+      const store = new Corestore(directory, {
+        primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+        unsafe: true,
+      })
+      stores.push(store)
+      return store
+    }
+    const contents = async core =>
+      (
+        await core.getChannelMessages({
+          channelName: channel.channelKey,
+          limit: 100,
+        })
+      ).map(message => message.content)
+
+    const first = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    cores.push(first)
+    await first.start()
+    const channel = await first.createChannel({
+      name: 'android-partial-core',
+      discover: false,
+    })
+    await first.stop()
+
+    // The remote writer, in its own store.
+    const writerStore = openStore(writerPath)
+    const writerCore = writerStore
+      .namespace(`channel-${channel.channelKey}`)
+      .get({ name: 'remote-writer', valueEncoding: 'json' })
+    await writerCore.ready()
+    for (const content of ['one', 'two', 'three']) {
+      await writerCore.append({
+        type: 'message',
+        author: DIAGNOSTIC_AUTHOR,
+        authorName: 'Remote',
+        content,
+        timestamp: Date.now(),
+      })
+    }
+    const writerKey = b4a.toString(writerCore.key, 'hex')
+
+    // Copy it into the phone's store, then drop the middle block.
+    const phoneStore = openStore(storagePath)
+    const copy = phoneStore
+      .namespace(`channel-${channel.channelKey}`)
+      .get({ key: writerCore.key, valueEncoding: 'json' })
+    await copy.ready()
+    const left = writerStore.replicate(true)
+    const right = phoneStore.replicate(false)
+    left.pipe(right).pipe(left)
+    await copy.download({ start: 0, end: 3 }).done()
+    left.destroy()
+    right.destroy()
+    await copy.clear(1)
+    assert.equal(await copy.has(1), false)
+    await phoneStore.close()
+    stores.splice(stores.indexOf(phoneStore), 1)
+
+    const channelsPath = path.join(storagePath, CHANNELS_FILE)
+    const persisted = JSON.parse(await fs.readFile(channelsPath, 'utf8'))
+    persisted[0].writerCoreKeys = [...persisted[0].writerCoreKeys, writerKey]
+    await fs.writeFile(channelsPath, JSON.stringify(persisted))
+
+    const swarms = []
+    const phone = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    cores.push(phone)
+    const timeout = label =>
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(label)), 10000)
+      )
+    await Promise.race([phone.start(), timeout('start hung')])
+    const partial = await Promise.race([contents(phone), timeout('read hung')])
+    assert.ok(partial.includes('one'))
+    assert.ok(!partial.includes('three'))
+
+    // A peer holding the writer's core connects on the file swarm.
+    const local = Hypercore.createProtocolStream(true)
+    const remote = Hypercore.createProtocolStream(false)
+    local.pipe(remote).pipe(local)
+    writerStore.replicate(local)
+    swarms[0].emit('connection', remote)
+    t.after(() => {
+      local.destroy()
+      remote.destroy()
+    })
+    const deadline = Date.now() + 10000
+    while (!(await contents(phone)).includes('three')) {
+      assert.ok(Date.now() < deadline, 'missing block was not fetched again')
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+  })
+})

@@ -4233,7 +4233,10 @@ export class MostBoxEngine extends EventEmitter {
     for (const [coreKeyHex, core] of coresMap) {
       for (let i = 0; i < core.length; i++) {
         try {
-          const entry = await core.get(i)
+          const entry = await core.get(i, { wait: false })
+          // Only blocks held locally: a writer whose block has not arrived
+          // may be offline, and waiting would hang the read.
+          if (entry === null) break
           if (isChannelHistoryEntry(entry)) {
             allMessages.push({
               ...entry,
@@ -5308,7 +5311,8 @@ export class MostBoxEngine extends EventEmitter {
     const entries = []
     for (let i = 0; i < core.length; i++) {
       try {
-        const entry = await core.get(i)
+        const entry = await core.get(i, { wait: false })
+        if (entry === null) break
         if (isChannelMemberProfileEventEntry(entry)) {
           entries.push(entry)
         }
@@ -5377,11 +5381,14 @@ export class MostBoxEngine extends EventEmitter {
       for (; i < core.length; i++) {
         let entry
         try {
-          entry = await core.get(i)
+          entry = await core.get(i, { wait: false })
         } catch (error) {
           if (strict) throw error
           break
         }
+        // Stop at the first block not held locally; it is scanned again
+        // on the next call.
+        if (entry === null) break
         if (!isChannelHistoryEntry(entry)) continue
         index.maxTimestamp = Math.max(
           index.maxTimestamp,
@@ -7192,6 +7199,9 @@ export class MostBoxEngine extends EventEmitter {
         valueEncoding: 'json',
       })
       await core.ready()
+      // Fetch every block, now and as the writer appends; history reads
+      // only use local blocks and do not request missing ones.
+      core.download({ start: 0, end: -1 })
       const normalizedCoreKey = b4a.toString(core.key, 'hex')
       coresMap.set(normalizedCoreKey, core)
       this.#setupChannelAppendListener(core, channelKey)
