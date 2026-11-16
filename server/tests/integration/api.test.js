@@ -425,7 +425,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(Array.isArray(data.holdings))
       assert.strictEqual('remoteInvites' in data.config, false)
       assert.strictEqual(typeof data.config.remoteInviteCount, 'number')
-      assert.strictEqual(data.config.relayConfigured, false)
+      assert.strictEqual(data.config.relayConfigured, true)
       assert.deepStrictEqual(Object.keys(data.policy).sort(), [
         'maxFileSizeBytes',
       ])

@@ -152,6 +152,7 @@ import {
   DOWNLOAD_POLL_INTERVAL_MIN,
   DOWNLOAD_POLL_INTERVAL_MAX,
   DRIVE_UPDATE_INTERVAL,
+  TOPIC_LOOKUP_INTERVAL,
   HOLDING_REJOIN_BATCH_SIZE,
   HOLDING_REJOIN_BATCH_DELAY,
   PROGRESS_THROTTLE,
@@ -6297,6 +6298,7 @@ export class MostBoxEngine extends EventEmitter {
       (this.#cidDriveWants.get(topicHex) || 0) + 1
     )
     let lastWantAt = 0
+    let lastLookupAt = Date.now()
 
     try {
       while (Date.now() < deadline) {
@@ -6307,6 +6309,16 @@ export class MostBoxEngine extends EventEmitter {
         }
 
         const keyHex = [...offers].find(key => !triedKeys.has(key))
+        // Hyperswarm looks a topic up again only every 10 minutes. A seed
+        // that announced after our first lookup (e.g. a link shared right
+        // after publishing) would never be found within the timeout.
+        if (!keyHex && Date.now() - lastLookupAt >= TOPIC_LOOKUP_INTERVAL) {
+          lastLookupAt = Date.now()
+          this.#fileDiscoveries
+            .get(cid)
+            ?.discovery.refresh()
+            .catch(() => {})
+        }
         if (!keyHex) {
           await new Promise(resolve => {
             const wake = () => {

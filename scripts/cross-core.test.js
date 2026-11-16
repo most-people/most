@@ -7,6 +7,90 @@ import Hyperswarm from 'hyperswarm'
 import createTestnet from 'hyperdht/testnet.js'
 import { MostBoxEngine } from '../server/src/index.js'
 import { MobileP2PCore } from '../app/backend/mobile-core.mjs'
+import { createRequire } from 'node:module'
+import b4a from 'b4a'
+import { calculateCid } from '../server/src/core/cid.js'
+import { getCidInfo } from '../server/src/core/cidTopic.js'
+
+// createSwarm below gives the mobile core this package's Hyperswarm.
+const DHT = createRequire(createRequire(import.meta.url).resolve('hyperswarm'))(
+  'hyperdht'
+)
+
+it(
+  'mobile core finds the seed after its first topic lookup missed it',
+  { timeout: 120000 },
+  async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'most-cross-miss-'))
+    const testnet = await createTestnet(3)
+    const original = {
+      announce: DHT.prototype.announce,
+      lookup: DHT.prototype.lookup,
+    }
+    const nodes = []
+    t.after(async () => {
+      Object.assign(DHT.prototype, original)
+      await Promise.allSettled(nodes.map(node => node.stop()))
+      await testnet.destroy()
+      fs.rmSync(directory, { recursive: true, force: true })
+    })
+
+    const content = Buffer.from('found by the mobile core on a later lookup')
+    const { topic } = getCidInfo((await calculateCid(content)).cid.toString())
+    // Every query the mobile core makes for the topic in its first 3 seconds
+    // returns no peers, so only a later lookup can find the desktop. The
+    // desktop's DHT is left alone.
+    const desktopDhts = new Set()
+    let mobileStartedAt = 0
+    let missed = 0
+    for (const method of ['announce', 'lookup']) {
+      DHT.prototype[method] = function (...args) {
+        const query = original[method].apply(this, args)
+        if (!b4a.equals(args[0], topic)) return query
+        if (!mobileStartedAt) desktopDhts.add(this)
+        if (
+          !mobileStartedAt ||
+          desktopDhts.has(this) ||
+          Date.now() - mobileStartedAt > 3000
+        ) {
+          return query
+        }
+        missed += 1
+        return {
+          get closestNodes() {
+            return query.closestNodes
+          },
+          destroy: () => query.destroy(),
+          async *[Symbol.asyncIterator]() {
+            for await (const data of query) yield { ...data, peers: [] }
+          },
+        }
+      }
+    }
+
+    const desktop = new MostBoxEngine({
+      dataPath: path.join(directory, 'desktop'),
+      bootstrap: testnet.bootstrap,
+    })
+    await desktop.start()
+    nodes.push(desktop)
+    const { cid } = await desktop.publishFile(content, 'late.txt')
+    mobileStartedAt = Date.now()
+    const mobile = new MobileP2PCore({
+      storagePath: path.join(directory, 'mobile'),
+      createSwarm: options =>
+        new Hyperswarm({ ...options, bootstrap: testnet.bootstrap }),
+    })
+    await mobile.start()
+    nodes.push(mobile)
+    const download = await mobile.downloadLink({
+      link: `most://${cid}?filename=late.txt`,
+      timeout: 20000,
+    })
+    assert.ok(missed > 0)
+    assert.deepEqual(fs.readFileSync(download.savedPath), content)
+  }
+)
 
 // Desktop engine and mobile core are separate implementations of the CID
 // drive protocol; they must exchange files in both directions over a real

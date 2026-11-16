@@ -12,7 +12,7 @@ import {
   createNodeConfigStore,
   normalizeNodeConfig,
 } from '../../src/node/config.js'
-import { MAX_FILE_SIZE } from '../../src/config.js'
+import { DEFAULT_RELAY_PUBLIC_KEY, MAX_FILE_SIZE } from '../../src/config.js'
 
 const CONFIG_CLAIM_WORKER = fileURLToPath(
   new URL('../fixtures/configClaimWorker.js', import.meta.url)
@@ -89,7 +89,7 @@ describe('normalizeNodeConfig', () => {
     assert.strictEqual(config.capacityBytes, 100 * 1024 * 1024 * 1024)
     assert.strictEqual(config.maxFileSizeBytes, MAX_FILE_SIZE)
     assert.deepStrictEqual(config.remoteInvites, [])
-    assert.strictEqual(config.relayPublicKey, '')
+    assert.strictEqual(config.relayPublicKey, DEFAULT_RELAY_PUBLIC_KEY)
     assert.strictEqual(config.adminAddress, '')
   })
 

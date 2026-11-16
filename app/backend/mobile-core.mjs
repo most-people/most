@@ -76,6 +76,8 @@ const FILE_WRITE_CHUNK_SIZE = 64 * 1024
 const DOWNLOAD_POLL_INTERVAL_MIN = 500
 const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 const DRIVE_UPDATE_INTERVAL = 2000
+// Re-run the DHT lookup for a topic this often while a download has no source.
+const TOPIC_LOOKUP_INTERVAL = 5000
 const PROGRESS_THROTTLE = 500
 const HOLDINGS_FILE = 'node-holdings.json'
 const TRANSFERS_FILE = 'transfers.json'
@@ -3066,6 +3068,7 @@ export class MobileP2PCore {
       (this.#cidDriveWants.get(topicHex) || 0) + 1
     )
     let lastWantAt = 0
+    let lastLookupAt = Date.now()
 
     try {
       while (Date.now() < deadline) {
@@ -3076,6 +3079,16 @@ export class MobileP2PCore {
         }
 
         const keyHex = [...offers].find(key => !triedKeys.has(key))
+        // Hyperswarm looks a topic up again only every 10 minutes. A seed
+        // that announced after our first lookup (e.g. a link shared right
+        // after publishing) would never be found within the timeout.
+        if (!keyHex && Date.now() - lastLookupAt >= TOPIC_LOOKUP_INTERVAL) {
+          lastLookupAt = Date.now()
+          this.#discoveries
+            .get(cid)
+            ?.discovery.refresh()
+            .catch(() => {})
+        }
         if (!keyHex) {
           const hasPeers = this.#peerCount() > 0
           const elapsed = Math.round((deadline - Date.now()) / 1000)

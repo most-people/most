@@ -351,6 +351,10 @@ mostbox.example.com {
 
 文件以 **P2P 方式** 保存在分享者和接收者的设备上。每个做种节点都持有完整文件副本；MostBox 不会把文件集中上传到云端服务器。
 
+### 双方都无法打洞时怎么办？
+
+客户端默认使用 Most.Box 运营的盲中继（`scripts/blind-relay.js`）：只在本机 NAT 随机分配端口或打洞失败时转发双方的加密连接（之后若打洞成功会改为直连），看不到文件和消息内容，但能看到双方 IP、公钥、连接时间和流量。桌面/daemon 可在节点配置中把 `relayPublicKey` 设为空字符串关闭。详见[隐私政策](PRIVACY.md)。
+
 ### 如何分享文件给其他人？
 
 1. 打开 MostBox 桌面客户端，或运行 `npx most-box@latest` 后打开本机 Web 界面

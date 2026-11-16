@@ -199,6 +199,8 @@ npm run build
 - Channel append 监听用 `lastCoreLength` 只处理新消息，避免重复推旧消息。
 - 双方都拥有频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 复制。
 - WebSocket 订阅要等 `peerId` 就绪；未就绪时暂存频道名，随后补发订阅。
+- Hyperswarm 每 10 分钟才重查已加入的 topic；下载等待来源时两端每 `TOPIC_LOOKUP_INTERVAL`（5s）调用 `discovery.refresh()`，不要删除。
+- 默认中继公钥为 `server/src/config.js` 的 `DEFAULT_RELAY_PUBLIC_KEY`（x.most.red 上 pm2 `most-relay` 运行 `scripts/blind-relay.js`）；换中继要同时改公钥，并核对 `PRIVACY.md` 的中继披露。
 
 ## 关键入口
 

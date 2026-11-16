@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { MAX_FILE_SIZE } from '../config.js'
+import { DEFAULT_RELAY_PUBLIC_KEY, MAX_FILE_SIZE } from '../config.js'
 import { normalizeAddress } from '../core/shared.js'
 
 const DEFAULT_CONFIG_DIR_NAME = '.most-box'
@@ -31,7 +31,8 @@ export function getDefaultNodeConfig() {
     capacityBytes: DEFAULT_CAPACITY_BYTES,
     maxFileSizeBytes: MAX_FILE_SIZE,
     remoteInvites: [],
-    relayPublicKey: '',
+    // An explicit empty string in config.json turns the relay off.
+    relayPublicKey: DEFAULT_RELAY_PUBLIC_KEY,
     adminAddress: '',
   }
 }
