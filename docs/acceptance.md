@@ -142,7 +142,7 @@ cd app/android
 
 ### 隐私边界实测
 
-用第三个节点只凭 CID 在 DHT 上 lookup 对应 topic，记录能枚举到的做种者地址，确认与隐私政策披露一致。
+用第三个节点只凭 CID 在 DHT 上 lookup 对应 topic，记录能枚举到的做种者地址，确认与隐私政策披露一致。`node scripts/dht-enumerate.js '<most://链接>'` 先 lookup topic 列出公告记录，再像普通下载者一样逐个连接，记录连接的对端地址（经中继时为中继地址）。结果见[验证状态](validation-status.md)。
 
 ### 平台原始证据
 

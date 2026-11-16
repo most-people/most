@@ -33,7 +33,9 @@ and daemon users can disable it by setting `relayPublicKey` to an empty string
 in the node configuration.
 
 Files published or seeded by a user are transferred to peers that know the
-corresponding `most://` link or CID. Channel messages and presence information
+corresponding `most://` link or CID. Anyone who knows a link can find the peers
+currently seeding it through the DHT and learn their IP addresses within
+seconds by connecting to them. Channel messages and presence information
 are replicated to peers participating in the corresponding channel. CIDs,
 `most://` links, and channel identifiers act as capabilities and should be
 shared accordingly.
