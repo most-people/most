@@ -200,6 +200,7 @@ npm run build
 - 双方都拥有频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 复制。
 - WebSocket 订阅要等 `peerId` 就绪；未就绪时暂存频道名，随后补发订阅。
 - Hyperswarm 每 10 分钟才重查已加入的 topic；下载等待来源时两端每 `TOPIC_LOOKUP_INTERVAL`（5s）调用 `discovery.refresh()`，不要删除。
+- 读频道历史（含启动时重放、发送前索引扫描）只用 `core.get(i, { wait: false })`，缺块即停；远端频道 core 打开时 `core.download({ start: 0, end: -1 })`。否则作者离线时启动/读取/发送会挂起，见 `channelPartialCore.test.js`。
 - 默认中继公钥为 `server/src/config.js` 的 `DEFAULT_RELAY_PUBLIC_KEY`（x.most.red 上 pm2 `most-relay` 运行 `scripts/blind-relay.js`）；换中继要同时改公钥，并核对 `PRIVACY.md` 的中继披露。
 
 ## 关键入口
