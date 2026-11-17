@@ -1,6 +1,12 @@
 export const CHANNEL_ID_MIN_LENGTH = 3
 export const CHANNEL_ID_MAX_LENGTH = 30
 export const CHANNEL_ID_REGEX = /^[a-z0-9_-]+$/
+// Protocol v2 private channel credential: 32 random bytes in base32.
+export const CHANNEL_CREDENTIAL_REGEX = /^[a-z2-7]{52}$/
+
+export function isChannelCredential(value) {
+  return CHANNEL_CREDENTIAL_REGEX.test(normalizeChatChannelId(value))
+}
 
 const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567'
 
@@ -37,7 +43,7 @@ export function createRandomChannelId(getRandomValues) {
     throw new Error('Secure random number generation is unavailable')
   }
 
-  const bytes = new Uint8Array(16)
+  const bytes = new Uint8Array(32)
   fillRandomValues(bytes)
   return encodeBase32(bytes)
 }

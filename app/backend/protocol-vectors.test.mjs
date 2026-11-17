@@ -103,12 +103,19 @@ describe('protocol vectors (mobile core)', () => {
     }
   })
 
-  it('encodes random channel IDs', () => {
-    for (const item of readVectors('channels.json').randomIds) {
-      const bytes = b4a.from(item.bytes, 'hex')
+  it('creates random channel IDs as v2 credentials', () => {
+    // Protocol v2: a new channel is 32 random bytes encoded as a credential.
+    const v2 = JSON.parse(
+      fs.readFileSync(
+        new URL('../../docs/protocol/vectors/v2/channel.json', import.meta.url),
+        'utf8'
+      )
+    )
+    for (const item of v2.channels) {
+      const bytes = b4a.from(item.key, 'hex')
       assert.equal(
         createRandomChannelId(target => target.set(bytes)),
-        item.channelId
+        item.credential
       )
     }
   })

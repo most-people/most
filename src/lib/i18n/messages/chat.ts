@@ -87,6 +87,8 @@ export const zhCNChatMessages = {
   'chat.details.members': '成员 ({count})',
   'chat.details.showAddressSuffix': '显示 #地址后四位',
   'chat.details.channelId': '频道 ID',
+  'chat.details.publicNotice':
+    '公开频道：任何知道这个名字的人都能加入和阅读。私密聊天请新建频道，它会使用随机凭证。',
   'chat.details.copyId': '复制 ID',
   'chat.details.copyLink': '复制链接',
   'chat.error.messages': '无法读取聊天消息',
@@ -197,6 +199,8 @@ export const zhTWChatMessages = {
   'chat.details.members': '成員 ({count})',
   'chat.details.showAddressSuffix': '顯示 #地址後四位',
   'chat.details.channelId': '頻道 ID',
+  'chat.details.publicNotice':
+    '公開頻道：任何知道這個名稱的人都能加入和閱讀。私密聊天請新建頻道，它會使用隨機憑證。',
   'chat.details.copyId': '複製 ID',
   'chat.details.copyLink': '複製連結',
   'chat.error.messages': '無法讀取聊天訊息',
@@ -308,6 +312,8 @@ export const enChatMessages = {
   'chat.details.members': 'Members ({count})',
   'chat.details.showAddressSuffix': 'Show #address suffix',
   'chat.details.channelId': 'Channel ID',
+  'chat.details.publicNotice':
+    'Public channel: anyone who knows this name can join and read it. For a private chat, create a new channel; it uses a random credential.',
   'chat.details.copyId': 'Copy ID',
   'chat.details.copyLink': 'Copy link',
   'chat.error.messages': 'Failed to read chat messages',

@@ -1,5 +1,5 @@
 {
-  "description": "Channel topics (discovery.md §3.2), channel proofs (chat.md §3.2) and random channel IDs (identifiers.md §3). randomIds.bytes is the 16-byte random input in hex.",
+  "description": "Channel topics (discovery.md §3.2) and channel proofs (chat.md §3.2).",
   "topics": [
     {
       "channelId": "general",
@@ -28,20 +28,6 @@
       "proverPublicKey": "2222222222222222222222222222222222222222222222222222222222222222",
       "verifierPublicKey": "3333333333333333333333333333333333333333333333333333333333333333",
       "proof": "ce2f7d7a28ad522db1409094db8e3c95debc995f28635acb538f47514728af09"
-    }
-  ],
-  "randomIds": [
-    {
-      "bytes": "00000000000000000000000000000000",
-      "channelId": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
-    },
-    {
-      "bytes": "ffffffffffffffffffffffffffffffff",
-      "channelId": "77777777777777777777777774"
-    },
-    {
-      "bytes": "00112233445566778899aabbccddeeff",
-      "channelId": "aaisem2ekvthpcezvk54zxpo74"
     }
   ]
 }

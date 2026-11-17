@@ -1348,7 +1348,7 @@ describe('frontend smoke checks', () => {
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
     const inputModalSource = readSource(SOURCE_PATHS.inputModal)
 
-    assert.match(chatRoomSource, /new Uint8Array\(16\)/)
+    assert.match(chatRoomSource, /new Uint8Array\(32\)/)
     assert.match(chatRoomSource, /buildChatSharePath/)
     assert.match(
       chatRoomSource,

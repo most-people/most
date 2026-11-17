@@ -3,7 +3,7 @@ import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { shortAddress } from '~/lib/format'
 import { messageMentionsAddress } from '~/lib/chatMentions.js'
 import type { MemberTag } from '~/lib/localizedTag'
-import { getChannelIdFromHash } from '~/lib/chatRoom.js'
+import { getChannelIdFromHash, isChannelCredential } from '~/lib/chatRoom.js'
 
 export const CHAT_FILE_ROOT = 'chat-file'
 
@@ -107,7 +107,10 @@ export function getSocketEventChannelKeys(data: unknown) {
 export function getChannelTitle(
   channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null
 ) {
-  return channel?.remark || getChannelId(channel)
+  const id = getChannelId(channel)
+  // A 52-character private credential is too long to read as a title.
+  const title = isChannelCredential(id) ? `${id.slice(0, 8)}…` : id
+  return channel?.remark || title
 }
 
 export function getRequestedChannelNameFromLocation() {

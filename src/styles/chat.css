@@ -1055,6 +1055,13 @@
   word-break: break-all;
 }
 
+.channel-detail-public-notice {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--warning);
+}
+
 .channel-detail-footer {
   padding: 20px;
   border-top: 1px solid var(--glass-border);

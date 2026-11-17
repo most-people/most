@@ -7,7 +7,7 @@
 | `cid.json`           | CID 黄金样本与文件 topic                                                    | [identifiers.md](../identifiers.md) §1、[discovery.md](../discovery.md) §3.1                             |
 | `file-transfer.json` | CID drive 名、`want` / `have` 载荷                                          | [file-transfer.md](../file-transfer.md) §3–4                                                             |
 | `links.json`         | `most://` 解析与生成（两端一致的用例）                                      | [identifiers.md](../identifiers.md) §2                                                                   |
-| `channels.json`      | 三个频道 topic、频道持有证明、随机频道 ID                                   | [discovery.md](../discovery.md) §3.2、[chat.md](../chat.md) §3.2、[identifiers.md](../identifiers.md) §3 |
+| `channels.json`      | 三个频道 topic、频道持有证明（v1）；新建频道的随机凭证见 `v2/channel.json`  | [discovery.md](../discovery.md) §3.2、[chat.md](../chat.md) §3.2、[identifiers.md](../identifiers.md) §3 |
 | `p2p-ping.json`      | P2P Ping topic 与三种帧                                                     | [connection.md](../connection.md) §4                                                                     |
 | `node.json`          | 节点种子 → 文件 swarm 公钥（peerId）                                        | [connection.md](../connection.md) §2                                                                     |
 | `account.json`       | 用户名 + 密码 → seed、地址、syncKey、syncTopic、账号同步聊天 topic          | [identifiers.md](../identifiers.md) §4、[discovery.md](../discovery.md) §3.3                             |
@@ -26,11 +26,11 @@
 
 ## 读取方
 
-| 端       | 测试                                         | 覆盖                                                                                                            |
-| -------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 桌面     | `server/tests/unit/protocolVectors.test.js`  | 全部文件                                                                                                        |
-| 移动核心 | `app/backend/protocol-vectors.test.mjs`      | CID、drive 名与 want/have、频道 topic 与证明、随机频道 ID、P2P Ping、聊天帧、hello、附件、clientMessageId、历史 |
-| 移动 App | `app/src/mobileCore/protocolVectors.test.ts` | 文件 topic、链接、账号地址与 syncKey                                                                            |
+| 端       | 测试                                         | 覆盖                                                                                                                   |
+| -------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 桌面     | `server/tests/unit/protocolVectors.test.js`  | 全部文件                                                                                                               |
+| 移动核心 | `app/backend/protocol-vectors.test.mjs`      | CID、drive 名与 want/have、频道 topic 与证明、随机频道凭证（v2）、P2P Ping、聊天帧、hello、附件、clientMessageId、历史 |
+| 移动 App | `app/src/mobileCore/protocolVectors.test.ts` | 文件 topic、链接、账号地址与 syncKey                                                                                   |
 
 移动端不测的部分及原因：提及、账号同步、语音事件规范化——移动端没有实现；节点种子——移动端文件 swarm 不使用种子。
 

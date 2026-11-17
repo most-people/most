@@ -101,6 +101,7 @@ import {
   buildChatSharePath,
   buildChatShareUrl,
   createRandomChannelId,
+  isChannelCredential,
   parseChatChannelInput,
 } from '~/lib/chatRoom.js'
 import {
@@ -1323,6 +1324,7 @@ function ChatPage() {
   }, [clearChannelMessages, userIdentity?.address])
 
   function getChannelNameValidationError(name) {
+    if (isChannelCredential(name)) return ''
     if (name.length < CHANNEL_ID_MIN_LENGTH) {
       return t('chat.validation.nameMin', {
         count: CHANNEL_ID_MIN_LENGTH,
@@ -2744,6 +2746,11 @@ function ChatPage() {
                   >
                     {getChannelId(activeChannel)}
                   </div>
+                  {activeChannel?.public && (
+                    <p className="channel-detail-public-notice">
+                      {t('chat.details.publicNotice')}
+                    </p>
+                  )}
                   <div className="channel-detail-copy-actions">
                     <CopyButton
                       text={getChannelId(activeChannel)}

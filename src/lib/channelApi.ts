@@ -45,6 +45,9 @@ export interface Channel {
   localWriterCoreKey?: string
   writerCoreKeys?: string[]
   type?: string
+  /** Protocol v2: private (credential), legacy (v1 random ID) or public (name). */
+  kind?: 'private' | 'legacy' | 'public'
+  public?: boolean
   peerCount?: number
   pinned?: boolean
 }
