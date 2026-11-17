@@ -10,6 +10,7 @@ import {
   encodeEvent,
 } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
+import { benchmarkNativeScrypt } from './scrypt-native.mjs'
 
 const { IPC } = BareKit
 
@@ -53,6 +54,13 @@ async function handleCommand(command) {
     if (command.type === COMMANDS.NODE_STOP) {
       await getCore().stop()
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
+      return
+    }
+
+    // Dev only: native scrypt timing for docs/protocol/v2/signatures.md §7.2.
+    if (command.type === COMMANDS.DEV_SCRYPT_BENCHMARK) {
+      const runs = await benchmarkNativeScrypt()
+      send(EVENTS.DEV_SCRYPT_BENCHMARK_RESULT, { runs }, requestId)
       return
     }
 

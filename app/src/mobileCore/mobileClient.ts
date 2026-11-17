@@ -297,6 +297,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#active.startP2PPing(input)
   }
 
+  runNativeScryptBenchmark() {
+    return this.#local.runNativeScryptBenchmark()
+  }
+
   cancelP2PPing(input: CancelP2PPingInput = {}) {
     return this.#active.cancelP2PPing(input)
   }

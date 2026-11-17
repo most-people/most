@@ -295,7 +295,13 @@ export function NodeScreen({
           )
         ) : null}
         {diagnosticsOpen && SHOW_SCRYPT_BENCHMARK ? (
-          <ScryptBenchmarkPanel />
+          <ScryptBenchmarkPanel
+            runNative={
+              client.runNativeScryptBenchmark
+                ? () => client.runNativeScryptBenchmark!()
+                : undefined
+            }
+          />
         ) : null}
       </View>
 

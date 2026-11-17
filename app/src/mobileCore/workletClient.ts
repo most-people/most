@@ -29,6 +29,7 @@ import type {
   P2PPing,
   StartP2PPingInput,
   CancelP2PPingInput,
+  NativeScryptRun,
 } from './types'
 
 type BareWorkletMostBoxCoreOptions = {
@@ -341,6 +342,18 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     const ping = extractP2PPing(result)
     if (!ping) throw new Error('P2P core did not create a Ping')
     return ping
+  }
+
+  /** Dev only: native scrypt timing in the Bare backend. */
+  async runNativeScryptBenchmark(): Promise<NativeScryptRun[]> {
+    await this.#ensureStarted()
+    const result = (await this.#request(
+      COMMANDS.DEV_SCRYPT_BENCHMARK,
+      {},
+      [EVENTS.DEV_SCRYPT_BENCHMARK_RESULT],
+      600000
+    )) as { runs?: NativeScryptRun[] }
+    return Array.isArray(result?.runs) ? result.runs : []
   }
 
   async cancelP2PPing(input: CancelP2PPingInput = {}): Promise<P2PPing | null> {

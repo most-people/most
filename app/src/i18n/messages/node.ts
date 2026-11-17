@@ -292,6 +292,11 @@ export const nodeMessages = {
     'zh-TW': 'scrypt 基準測試',
     en: 'scrypt benchmark',
   },
+  'node.devtools.scryptNative': {
+    'zh-CN': '原生 scrypt 测量（Bare）',
+    'zh-TW': '原生 scrypt 測量（Bare）',
+    en: 'Native scrypt (Bare)',
+  },
   'node.devtools.scryptRunning': {
     'zh-CN': '测量中…',
     'zh-TW': '測量中…',

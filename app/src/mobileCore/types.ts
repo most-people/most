@@ -337,4 +337,14 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
   getNodeHistory: () => NodeHistoryItem[]
   getAccountSync: () => Promise<AccountSyncInfo>
   setAccountSync: (enabled: boolean) => Promise<AccountSyncInfo>
+  /** Dev only: native scrypt timing in the Bare backend. */
+  runNativeScryptBenchmark?: () => Promise<NativeScryptRun[]>
+}
+
+export type NativeScryptRun = {
+  logN: number
+  memoryMiB: number
+  timesMs: number[]
+  medianMs: number | null
+  error?: string
 }
