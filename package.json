@@ -92,6 +92,7 @@
     "ethers": "^6.17.0",
     "eventemitter3": "^5.0.4",
     "hono": "^4.13.13",
+    "hypercore-crypto": "^3.6.1",
     "hyperdrive": "^13.3.4",
     "hyperswarm": "^4.17.2",
     "ipfs-unixfs": "13.1.2",

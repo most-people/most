@@ -3,7 +3,7 @@
 // vectors in docs/protocol/vectors/v2/channel.json keep them equal.
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import b4a from 'b4a'
-import nacl from 'tweetnacl'
+import hypercoreCrypto from 'hypercore-crypto'
 import { H, KDF, MAC } from './protocolV2.js'
 
 export const CHANNEL_KEY_BYTES = 32
@@ -158,11 +158,9 @@ export function channelWriterKeyPair(nodeSecret, channelIdHex, generation = 0) {
     b4a.from(channelIdHex, 'hex'),
     counter
   )
-  const pair = nacl.sign.keyPair.fromSeed(seed)
-  return {
-    publicKey: b4a.from(pair.publicKey),
-    secretKey: b4a.from(pair.secretKey),
-  }
+  // hypercore-crypto: the same ed25519 key pairs Hypercore uses; on Bare it
+  // runs on sodium, where tweetnacl cannot be bundled.
+  return hypercoreCrypto.keyPair(seed)
 }
 
 const LEGACY_RANDOM_ID_REGEX = /^[a-z2-7]{26}$/
