@@ -163,6 +163,8 @@ scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_module
 
 - 真机：安装开发版（`npx expo run:android`），打开「节点 → 诊断详情」，点「scrypt 基准测试」。依次测 N=2^14 至 2^17，每档两次，取中位数；单次超过 15 秒或出错（例如内存不足）即停止加档。结果可选中复制。
 - 桌面基线：在 `app/` 下运行 `npm run benchmark:scrypt`。2026-11-18 在 i5-12490F、Node 26 上：2^14 约 45 ms，2^15 约 81 ms，2^16 约 165 ms，2^17 约 325 ms。ethers 的 scrypt 是纯 JS，手机上的 Hermes 会慢很多，所以只能参考，不能用来定参数。
+- 2026-11-18 真机实测（小米 MIX 2S，骁龙 845，6 GB，Android 10；release 构建、Hermes、ethers 纯 JS scrypt）：2^14 约 4.7 s，2^15 约 9.4 s，2^16 约 18.6 s；2^16 超过 15 秒后停止，2^17 未测。**没有任何一档能在 3 秒内完成**，比桌面慢约 100 倍。另外，计算期间 JS 线程被占满，界面完全不刷新、不响应点击。
+- 结论：手机上不能在 Hermes 里用纯 JS 派生。可行方向是交给 Bare 后端里的原生 libsodium（`sodium-native` 5.1.0 提供 `crypto_pwhash_scryptsalsa208sha256`），【待核实】其输出与标准 scrypt(N, r=8, p=1) 一致，以及在该机上的耗时；或改用 Argon2id。待负责人决定。
 - 实现：`app/src/devtools/scryptBenchmark.ts`（测量逻辑，手机与桌面共用）、`app/src/devtools/ScryptBenchmarkPanel.tsx`（仅 `__DEV__` 构建显示）。
 
 ### 7.3 密码强度（D4）
