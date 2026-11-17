@@ -1,0 +1,119 @@
+{
+  "description": "Protocol v2 channel keys (v2/channel-keys.md), computed independently in Python (hashlib, hmac, base64 and an RFC 8032 reference ed25519 checked against RFC 8032 test vectors).",
+  "nodeSecret": "5555555555555555555555555555555555555555555555555555555555555555",
+  "channels": [
+    {
+      "key": "0000000000000000000000000000000000000000000000000000000000000000",
+      "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "channelId": "350e18d69b99f57108b071e289d9bb6313da26742956182e5c7f7226c6df2142",
+      "replicationTopic": "50c4558896168ed08b77d2db8c4eada26f4217ef2e26b17d35dd330e89ed4e17",
+      "chatTopic": "5194935a39a7617068113a74d711d413218af1dee14223edc6266477046bf8a4",
+      "proof": {
+        "topic": "5194935a39a7617068113a74d711d413218af1dee14223edc6266477046bf8a4",
+        "challenge": "1111111111111111111111111111111111111111111111111111111111111111",
+        "proverPublicKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "verifierPublicKey": "3333333333333333333333333333333333333333333333333333333333333333",
+        "proof": "8d8eb02c93ff22fc747fe0933ac29767d175e4046aefe6893ec34119ff700d34"
+      },
+      "writers": [
+        {
+          "generation": 0,
+          "publicKey": "567edfdb741483a222eb0c57047b6bf06a3a43d785ef7a083e3f1a1be3556a55"
+        },
+        {
+          "generation": 1,
+          "publicKey": "7f43eefb610721a6b94c2e9ebcf789867d2f26667f670c2c854b869711bfd6f1"
+        }
+      ]
+    },
+    {
+      "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "credential": "aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypq",
+      "channelId": "12ca71f34a378fa1837cd82a178669492557c8c54d030137e5f04edaecc52552",
+      "replicationTopic": "f68b74d2995cc1ec28f1b9aa2c95a13546b1dfc83030c023bec7fbf9c8b689b4",
+      "chatTopic": "4d8c32a107660491ed3b1e7a81e3a8b415292d54ce12eb7d74d623cf7db083aa",
+      "proof": {
+        "topic": "4d8c32a107660491ed3b1e7a81e3a8b415292d54ce12eb7d74d623cf7db083aa",
+        "challenge": "1111111111111111111111111111111111111111111111111111111111111111",
+        "proverPublicKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "verifierPublicKey": "3333333333333333333333333333333333333333333333333333333333333333",
+        "proof": "1c45b9b6ac6ec252549b68a1eda010c74ad88e2512cd8251793a333ebcfc01c1"
+      },
+      "writers": [
+        {
+          "generation": 0,
+          "publicKey": "7ba11d30c228af482649dd616c7902c6c38dd2213469888d5f560fd239aea7f2"
+        },
+        {
+          "generation": 1,
+          "publicKey": "dac9941c5e90ef68488113621815b45d78a900fea4c927222a4effe1b91b4d32"
+        }
+      ]
+    },
+    {
+      "key": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "credential": "777777777777777777777777777777777777777777777777777q",
+      "channelId": "f3114f1e751fc6a2b0c33d2f1acf43680c903a447bfcad87b1fdf67e561abee1",
+      "replicationTopic": "e252ca9152db3330c299cfec09e47a391f697c57cd1f59c5066610e7480fc446",
+      "chatTopic": "998bf6569a0dbe51fb4a7e1367809fb2e80b5783248ddca2fd95dec6a6eb3255",
+      "proof": {
+        "topic": "998bf6569a0dbe51fb4a7e1367809fb2e80b5783248ddca2fd95dec6a6eb3255",
+        "challenge": "1111111111111111111111111111111111111111111111111111111111111111",
+        "proverPublicKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "verifierPublicKey": "3333333333333333333333333333333333333333333333333333333333333333",
+        "proof": "d60efdc837d5412ef3b14481c0fabd753ec6c0341f35abdb4bc4fbbd4ac802da"
+      },
+      "writers": [
+        {
+          "generation": 0,
+          "publicKey": "994c3cc877321e5efc4174447e8a712121712e6cbd29976b59e43d4a63252fef"
+        },
+        {
+          "generation": 1,
+          "publicKey": "fdc405a9cfdd629ddd6439f034b71cdc616c40702b36973867764fad454b73b7"
+        }
+      ]
+    }
+  ],
+  "invalidCredentials": [
+    "",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+  ],
+  "publicChannels": [
+    {
+      "name": "general",
+      "normalized": "general",
+      "key": "ea373818a08820d0860385af1843021fc5fa5ef5a91946786f23f8e9add0d143"
+    },
+    {
+      "name": " General ",
+      "normalized": "general",
+      "key": "ea373818a08820d0860385af1843021fc5fa5ef5a91946786f23f8e9add0d143"
+    },
+    {
+      "name": "chatjoin_support",
+      "normalized": "chatjoin_support",
+      "key": "b66ba06b59dd354ac10d64d357fcbbad1cdf78b1ed66bbf842765f24d99efab4"
+    }
+  ],
+  "invalidPublicNames": [
+    "ab",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "has.dot",
+    "has space",
+    ""
+  ],
+  "legacyChannels": [
+    {
+      "v1ChannelId": "a2b3c4d5e6f7g8h9i0j1k2l3m4",
+      "key": "8674288070b2232542e79f27db69c0406326a14254efa24f44e5c03fffcdfb05"
+    },
+    {
+      "v1ChannelId": "general",
+      "key": "de52a8b021da418f5cbd625aca6ba482a43ad3fdc1ddf2bfb221ee4159e5f65f"
+    }
+  ]
+}

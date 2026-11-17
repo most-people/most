@@ -95,6 +95,8 @@ core    = store.get({ keyPair, valueEncoding: "json" })
 - `nodeSecret`：桌面为节点种子（`node-identity.json`），移动为数据目录中的 32 字节随机密钥（现名 `cid-drive-secret`，实现时改名 `node-secret` 并迁移）。256 位，不上线。
 - `generation`：从 0 开始；本地 writer core 损坏或不可写（v1 的 `#reopenChannelLocalWriter` 场景）时加 1 换新 core，旧 key 仍在 `writerCoreKeys` 中供读取。`generation` 记在本地频道记录里，丢失时从 0 起逐个尝试已知 key 即可恢复。
 - 已核实：Corestore 支持以显式 `keyPair` 打开 core（`node_modules/corestore/index.js` `_auth`：无 `name` 时使用 `opts.keyPair`）。
+- 已实验确认（2026-11-18）：writer core 的 key **不等于** `keyPair.publicKey`，而是 `Hypercore.key({ version: manifestVersion, signers: [{ publicKey }] })`；以 `{ keyPair }` 打开、写入、重启后以同一 `keyPair` 或以 core key 重开，均得到同一个可写 core 与原有数据。
+- 因此实现时打开 writer core 必须显式传 `manifestVersion: 1`（当前两端 Corestore 默认值均为 1），使 core key 不随库默认值变化；hello 中交换的是 core key，不是公钥。
 - 由此 writer core 不再依赖 Corestore 主密钥。主密钥保持现值不变：改它需要整体迁移存储（Corestore 拒绝打开主密钥不同的存储，`server/src/index.js` 约 610 行），而 v2 后已没有任何需要保密的 core 依赖它（CID drive 名含 256 位节点密钥，账号同步 core 名含 128 位随机数）。
 
 ### 6.2 加密（D2）
