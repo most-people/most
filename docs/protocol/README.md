@@ -9,7 +9,7 @@
 | 主题     | 文件                                 | 状态   |
 | -------- | ------------------------------------ | ------ |
 | 标识符   | [identifiers.md](identifiers.md)     | 初稿   |
-| 发现     | `discovery.md`                       | 未开始 |
+| 发现     | [discovery.md](discovery.md)         | 初稿   |
 | 连接     | `connection.md`                      | 未开始 |
 | 文件传输 | [file-transfer.md](file-transfer.md) | 初稿   |
 | 聊天     | `chat.md`                            | 未开始 |
