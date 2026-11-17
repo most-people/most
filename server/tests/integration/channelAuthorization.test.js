@@ -8,11 +8,12 @@ import path from 'node:path'
 import { Duplex } from 'node:stream'
 import Hyperswarm from 'hyperswarm'
 import { MostBoxEngine } from '../../src/index.js'
-import { CHANNEL_NAME_PREFIX } from '../../src/config.js'
+import { CHANNEL_PROOF_VERSION } from '../../src/core/channelHello.js'
 import {
-  CHANNEL_PROOF_VERSION,
-  createChannelTopicProof,
-} from '../../src/core/channelHello.js'
+  channelTopics,
+  createChannelProof,
+  resolveChannelHandle,
+} from '../../src/core/channelKeysV2.js'
 
 const alice = `0x${'1'.repeat(40)}`
 const bob = `0x${'2'.repeat(40)}`
@@ -78,18 +79,13 @@ async function expectPresence(first, second, channel, sessionId) {
   )
 }
 
-function idTopic(channelId) {
-  return crypto
-    .createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}id:${channelId}:candidates`)
-    .digest('hex')
+// v2: the public channel ID that replaces a channel handle on the wire.
+function channelKey(handle) {
+  return resolveChannelHandle(handle).channelKey
 }
 
-function chatTopic(channelId) {
-  return crypto
-    .createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}channel:${channelId}:chat`)
-    .digest('hex')
+function chatTopic(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).chat.toString('hex')
 }
 
 function mockDiscovery(context) {
@@ -139,26 +135,26 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
       info.topics = topics.map(topic => Buffer.from(topic, 'hex'))
       info.emit('topic')
     },
-    proof(channelId, challenge = this.challenge) {
-      const topic = idTopic(channelId)
+    proof(handle, challenge = this.challenge) {
+      const topic = chatTopic(handle)
       return {
         topic,
-        proof: createChannelTopicProof({
-          channelId,
+        proof: createChannelProof({
+          key: resolveChannelHandle(handle).key,
           topic,
           challenge,
           proverPublicKey: publicKey,
           verifierPublicKey: swarm.keyPair.publicKey,
-        }),
+        }).toString('hex'),
       }
     },
-    authorize(channelId) {
-      this.send({ type: 'channel-scope', topics: [idTopic(channelId)] })
+    authorize(handle) {
+      this.send({ type: 'channel-scope', topics: [chatTopic(handle)] })
       this.send({
         type: 'channel-proof',
         version: CHANNEL_PROOF_VERSION,
         challenge: this.challenge,
-        proofs: [this.proof(channelId)],
+        proofs: [this.proof(handle)],
       })
     },
     close() {
@@ -282,7 +278,7 @@ describe('channel authorization cache', () => {
         frame =>
           frame.type === 'channel-hello' &&
           frame.channels.some(
-            channel => channel.channelId === 'imported-channel'
+            channel => channel.channelId === channelKey('imported-channel')
           )
       )
     )
@@ -290,7 +286,7 @@ describe('channel authorization cache', () => {
     await target.clearUserData(alice)
     remote.frames.length = 0
     const removedChatTopic = chatTopic('imported-channel')
-    remote.setTopics([removedChatTopic, idTopic('retained-channel')])
+    remote.setTopics([removedChatTopic, chatTopic('retained-channel')])
     await tick()
     const scopes = remote.frames.filter(frame => frame.type === 'channel-scope')
     assert.ok(scopes.length > 0)
@@ -300,7 +296,7 @@ describe('channel authorization cache', () => {
     assert.ok(
       hellos.every(frame =>
         frame.channels.every(
-          channel => channel.channelId !== 'imported-channel'
+          channel => channel.channelId !== channelKey('imported-channel')
         )
       )
     )
@@ -339,14 +335,14 @@ describe('channel authorization cache', () => {
     for (const remote of [first, second]) {
       remote.send({
         type: 'channel-scope',
-        topics: [idTopic('allowed-channel'), idTopic('private-channel')],
+        topics: [chatTopic('allowed-channel'), chatTopic('private-channel')],
       })
     }
     first.send({
       type: 'channel-proof',
       version: CHANNEL_PROOF_VERSION,
       challenge: first.challenge,
-      proofs: [{ topic: idTopic('allowed-channel'), proof: 'f'.repeat(64) }],
+      proofs: [{ topic: chatTopic('allowed-channel'), proof: 'f'.repeat(64) }],
     })
     await tick()
     engine.joinChannelPresence('allowed-channel', {
@@ -389,7 +385,7 @@ describe('channel authorization cache', () => {
     first.send({
       type: 'channel-voice',
       peerId: 'untrusted-peer',
-      channelId: 'private-channel',
+      channelId: channelKey('private-channel'),
       event: 'join',
       sessionId: 'untrusted-session',
       sender: { address: bob },
@@ -404,7 +400,7 @@ describe('channel authorization cache', () => {
       first.frames.every(
         frame =>
           frame.type !== 'channel-presence' ||
-          frame.channelId !== 'private-channel'
+          frame.channelId !== channelKey('private-channel')
       )
     )
     assert.ok(
@@ -412,7 +408,7 @@ describe('channel authorization cache', () => {
         .filter(frame => frame.type === 'channel-hello')
         .every(frame =>
           frame.channels.every(
-            channel => channel.channelId !== 'private-channel'
+            channel => channel.channelId !== channelKey('private-channel')
           )
         )
     )
@@ -426,7 +422,7 @@ describe('channel authorization cache', () => {
     test.track(replacement)
     replacement.send({
       type: 'channel-scope',
-      topics: [idTopic('allowed-channel')],
+      topics: [chatTopic('allowed-channel')],
     })
     replacement.send({
       type: 'channel-proof',
@@ -447,74 +443,34 @@ describe('channel authorization cache', () => {
     )
   })
 
-  it('includes temporary ID discovery in proofs and expires it before creating a local channel', async context => {
+  it('identifies channels on the wire only by their public channel ID', async context => {
     const discovery = mockDiscovery(context)
     const test = await fixture(context)
     const engine = await test.engine(false)
-    await join(engine, 'permanent-channel')
+    await join(engine, 'wire-channel')
     const remote = remoteConnection(discovery.swarms.at(-1))
     test.track(remote)
-    remote.authorize('permanent-channel')
-    await tick()
-    const temporaryTopic = idTopic('temporary-channel')
-    const pending = engine.createChannel('temporary-channel', 'public', {
+    remote.authorize('wire-channel')
+    engine.joinChannelPresence('wire-channel', {
       ownerAddress: alice,
-      discover: true,
-      discoveryTimeout: 500,
+      sessionId: 'wire',
     })
-    try {
-      await tick()
-      remote.authorize('temporary-channel')
-      await tick()
-      assert.ok(
-        remote.frames.some(
-          frame =>
-            frame.type === 'channel-proof' &&
-            frame.proofs.some(item => item.topic === temporaryTopic)
-        )
-      )
+    await tick()
 
-      // Probe after temporary discovery is removed, before local core creation
-      // can join the permanent discovery topics and authorize that ID again.
-      let acceptedExpiredHello = false
-      engine.on('channel:peer:online', event => {
-        if (event.peerId === 'expired-temporary-peer')
-          acceptedExpiredHello = true
-      })
-      const leave = context.mock.method(
-        Hyperswarm.prototype,
-        'leave',
-        async function (topic) {
-          if (Buffer.from(topic).toString('hex') !== temporaryTopic) return
-          remote.send({
-            type: 'channel-hello',
-            peerId: 'expired-temporary-peer',
-            channels: [{ channelId: 'temporary-channel', writerCoreKeys: [] }],
-          })
-        }
+    const hello = remote.frames.find(frame => frame.type === 'channel-hello')
+    assert.deepEqual(
+      hello.channels.map(channel => channel.channelId),
+      [channelKey('wire-channel')]
+    )
+    assert.equal(hello.channels[0].channelKey, undefined)
+    const presenceFrame = remote.frames.find(
+      frame => frame.type === 'channel-presence'
+    )
+    assert.equal(presenceFrame.channelId, channelKey('wire-channel'))
+    assert.ok(
+      remote.frames.every(
+        frame => !JSON.stringify(frame).includes('wire-channel')
       )
-      await pending
-      assert.ok(
-        leave.mock.calls.some(
-          call =>
-            Buffer.from(call.arguments[0]).toString('hex') === temporaryTopic
-        )
-      )
-      assert.equal(acceptedExpiredHello, false)
-      engine.joinChannelPresence('temporary-channel', {
-        ownerAddress: alice,
-        sessionId: 'permanent',
-      })
-      await tick()
-      assert.ok(
-        remote.frames.some(
-          frame =>
-            frame.type === 'channel-presence' &&
-            frame.channelId === 'temporary-channel'
-        )
-      )
-    } finally {
-      await pending
-    }
+    )
   })
 })

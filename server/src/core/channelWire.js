@@ -12,7 +12,7 @@ export function createChannelPresenceMessage(peerId, event, now = Date.now()) {
   return {
     type: 'channel-presence',
     peerId,
-    channelId: event.channelId,
+    channelId: event.channelKey,
     channelKey: event.channelKey,
     address: event.address,
     status: event.status,

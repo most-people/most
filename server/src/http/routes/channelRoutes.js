@@ -11,7 +11,6 @@ export function registerChannelRoutes(app, { engine }) {
       const channelOptions = {
         ownerAddress: c.get('userAddress'),
         displayName: body.displayName,
-        discover: true,
       }
       if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
         channelOptions.avatar = body.avatar

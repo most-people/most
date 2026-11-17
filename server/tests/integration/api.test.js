@@ -12,6 +12,7 @@ import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginSession } from '../../src/utils/userIdentity.js'
+import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
@@ -3003,8 +3004,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.strictEqual(data.name, 'test-channel')
       assert.ok(data.key)
-      assert.strictEqual(data.channelKey, 'test-channel')
-      assert.ok(!data.channelKey.includes(':'))
+      assert.strictEqual(
+        data.channelKey,
+        resolveChannelHandle('test-channel').channelKey
+      )
+      assert.strictEqual(data.public, true)
     })
 
     it('creates a channel with a localized member tag', async () => {
@@ -3078,7 +3082,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         })
         const data = await res.json()
         assert.strictEqual(res.status, 400)
-        assert.match(data.error, /点号为系统保留/)
+        assert.match(data.error, /频道凭证或名称无效/)
       }
     })
   })

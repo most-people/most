@@ -311,22 +311,30 @@ export function createWebSocketServer({
             if (data.channel && ws.userAddress) {
               try {
                 const channel = String(data.channel).trim().toLowerCase()
-                engine.getChannelPeers(channel, {
+                // Engine events are addressed by the public channel ID.
+                const channelKey = engine.resolveChannelKey(channel, {
                   ownerAddress: ws.userAddress,
                 })
-                subscribeToChannel(ws, channel)
+                subscribeToChannel(ws, channelKey)
                 ws.send(
                   JSON.stringify({
                     event: 'channel:subscribed',
-                    data: { channel },
+                    data: { channel, channelKey },
                   })
                 )
               } catch {}
             }
             break
           case 'channel:unsubscribe':
-            if (data.channel) {
-              unsubscribeFromChannel(ws, data.channel)
+            if (data.channel && ws.userAddress) {
+              try {
+                unsubscribeFromChannel(
+                  ws,
+                  engine.resolveChannelKey(String(data.channel).trim(), {
+                    ownerAddress: ws.userAddress,
+                  })
+                )
+              } catch {}
             }
             break
           case 'channel:presence:join':

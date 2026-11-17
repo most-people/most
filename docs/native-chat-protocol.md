@@ -106,8 +106,8 @@ not log the full URL.
 
 ```json
 {"event":"channel:subscribe","data":{"channel":"example-room"}}
-{"event":"channel:subscribed","data":{"channel":"example-room"}}
-{"event":"channel:message","data":{"channel":"example-room","message":{}}}
+{"event":"channel:subscribed","data":{"channel":"example-room","channelKey":"<64-hex public channel ID>"}}
+{"event":"channel:message","data":{"channel":"<64-hex public channel ID>","message":{}}}
 {"event":"channel:unsubscribe","data":{"channel":"example-room"}}
 ```
 

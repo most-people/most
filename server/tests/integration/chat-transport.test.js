@@ -11,6 +11,7 @@ import { createApp, createWebSocketServer } from '../../index.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { authHeaderFor } from '../helpers/deviceIdentity.js'
+import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 
 const wallet = new Wallet('0x' + '11'.repeat(32))
 const otherWallet = new Wallet('0x' + '22'.repeat(32))
@@ -419,13 +420,15 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       })
     )
     const [ack] = await subscribed
+    const channelKey = resolveChannelHandle('subscribe-room').channelKey
     assert.deepEqual(JSON.parse(ack.toString()), {
       event: 'channel:subscribed',
-      data: { channel: 'subscribe-room' },
+      data: { channel: 'subscribe-room', channelKey },
     })
+    // Engine events are addressed by the public channel ID.
     const incoming = once(socket, 'message')
-    fixture.runtime.wsSendToChannel('subscribe-room', 'channel:message', {
-      channel: 'subscribe-room',
+    fixture.runtime.wsSendToChannel(channelKey, 'channel:message', {
+      channel: channelKey,
       message: { content: 'live' },
     })
     const [event] = await incoming

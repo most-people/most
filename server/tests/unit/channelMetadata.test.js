@@ -11,6 +11,11 @@ import {
   loadChannelsMetadata,
   serializeChannelsMetadata,
 } from '../../src/node/channelMetadata.js'
+import {
+  channelIdFromKey,
+  encodeChannelCredential,
+  resolveChannelHandle,
+} from '../../src/core/channelKeysV2.js'
 
 function withTempDir(run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'most-channels-'))
@@ -37,8 +42,12 @@ describe('channel metadata', () => {
     })
   })
 
-  it('normalizes valid channels and drops invalid persisted records', () => {
+  it('migrates v1 records to v2 channel keys and drops invalid records', () => {
     withTempDir(directory => {
+      const team = resolveChannelHandle('team-room')
+      const legacyId = 'aaisem2ekvthpcezvk54zxpo74'
+      const legacy = resolveChannelHandle(legacyId)
+      const v2Key = Buffer.alloc(32, 7)
       fs.writeFileSync(
         getChannelsMetadataPath(directory),
         JSON.stringify([
@@ -50,11 +59,26 @@ describe('channel metadata', () => {
             writerCoreKeys: [' remote-core ', 'remote-core', ''],
           },
           {
-            channelId: 'wrong-key',
-            channelKey: 'other',
+            channelId: legacyId,
+            channelKey: legacyId,
             writerId: 'writer',
-            localWriterCoreKey: 'local-core',
+            localWriterCoreKey: 'old-core',
           },
+          {
+            channelId: encodeChannelCredential(v2Key),
+            channelKey: channelIdFromKey(v2Key),
+            secretKey: v2Key.toString('hex'),
+            kind: 'private',
+            writerGeneration: 2,
+            localWriterCoreKey: 'v2-core',
+            writerCoreKeys: ['v2-core'],
+          },
+          {
+            channelId: 'mismatch',
+            channelKey: 'f'.repeat(64),
+            secretKey: v2Key.toString('hex'),
+          },
+          { channelId: 'has.dot', channelKey: 'has.dot' },
           null,
         ])
       )
@@ -62,11 +86,33 @@ describe('channel metadata', () => {
       assert.deepEqual(loadChannelsMetadata(directory), [
         {
           channelId: 'team-room',
-          channelKey: 'team-room',
+          channelKey: team.channelKey,
           name: 'team-room',
-          writerId: 'writer',
-          localWriterCoreKey: 'local-core',
-          writerCoreKeys: ['remote-core'],
+          secretKey: team.key.toString('hex'),
+          kind: 'public',
+          writerGeneration: 0,
+          localWriterCoreKey: '',
+          writerCoreKeys: ['remote-core', 'local-core'],
+        },
+        {
+          channelId: legacyId,
+          channelKey: legacy.channelKey,
+          name: legacyId,
+          secretKey: legacy.key.toString('hex'),
+          kind: 'legacy',
+          writerGeneration: 0,
+          localWriterCoreKey: '',
+          writerCoreKeys: ['old-core'],
+        },
+        {
+          channelId: encodeChannelCredential(v2Key),
+          channelKey: channelIdFromKey(v2Key),
+          name: encodeChannelCredential(v2Key),
+          secretKey: v2Key.toString('hex'),
+          kind: 'private',
+          writerGeneration: 2,
+          localWriterCoreKey: 'v2-core',
+          writerCoreKeys: ['v2-core'],
         },
       ])
     })
@@ -74,6 +120,7 @@ describe('channel metadata', () => {
 
   it('merges duplicate records of the same channel key', () => {
     withTempDir(directory => {
+      const support = resolveChannelHandle('support-room')
       fs.writeFileSync(
         getChannelsMetadataPath(directory),
         JSON.stringify([
@@ -125,10 +172,12 @@ describe('channel metadata', () => {
       assert.deepEqual(loadChannelsMetadata(directory), [
         {
           channelId: 'support-room',
-          channelKey: 'support-room',
+          channelKey: support.channelKey,
           name: 'support-room',
-          writerId: 'writer-a',
-          localWriterCoreKey: 'core-a',
+          secretKey: support.key.toString('hex'),
+          kind: 'public',
+          writerGeneration: 0,
+          localWriterCoreKey: '',
           writerCoreKeys: ['core-a', 'core-b', 'core-c'],
           createdAt: '2026-10-07T05:41:14.636Z',
           lastMessageAt: '2026-10-07T05:41:35.791Z',
@@ -156,10 +205,12 @@ describe('channel metadata', () => {
     const serialized = serializeChannelsMetadata([
       {
         channelId: 'team-room',
-        channelKey: 'team-room',
+        channelKey: 'a'.repeat(64),
+        secretKey: 'b'.repeat(64),
+        kind: 'public',
         type: 'group',
         createdAt: '2026-08-31T00:00:00.000Z',
-        writerId: 'writer',
+        writerGeneration: 1,
         localWriterCoreKey: 'local-core',
         writerCoreKeys: ['remote-core', 'remote-core'],
         members: 'invalid',
@@ -170,12 +221,14 @@ describe('channel metadata', () => {
     assert.deepEqual(JSON.parse(serialized), [
       {
         channelId: 'team-room',
-        channelKey: 'team-room',
+        channelKey: 'a'.repeat(64),
         name: 'team-room',
+        secretKey: 'b'.repeat(64),
+        kind: 'public',
         type: 'group',
         createdAt: '2026-08-31T00:00:00.000Z',
         lastMessageAt: '',
-        writerId: 'writer',
+        writerGeneration: 1,
         localWriterCoreKey: 'local-core',
         writerCoreKeys: ['remote-core'],
         members: [],

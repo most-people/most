@@ -45,32 +45,28 @@ import {
   buildChannelHelloMessages,
   chunkChannelScopeTopics,
   createChannelProofChallenge,
-  createChannelTopicProof,
-  isChannelAllowedForConnection,
   normalizeChannelProofChallenge,
   normalizeChannelScopeTopics,
-  selectChannelsForHello,
-  verifyChannelTopicProof,
 } from './core/channelHello.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
 import { attachCidDriveChannel, cidDriveName } from './core/cidDriveExchange.js'
 import { P2PPingManager } from './core/p2pPing.js'
 import {
-  CHANNEL_DISCOVERY_TIMEOUT,
-  CHANNEL_CANDIDATE_TTL,
   normalizeChannelDisplayName,
   normalizeChannelAvatar,
   normalizeChannelId,
-  createChannelWriterId,
-  buildChannelKey,
   normalizeChannelKey,
   isSpecialChannel,
   uniqueStrings,
-  generateChannelDiscoveryKey,
-  generateChannelChatDiscoveryKey,
-  generateChannelIdDiscoveryKey,
 } from './core/channelIdentity.js'
+import {
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+  verifyChannelProof,
+} from './core/channelKeysV2.js'
 import {
   CHANNEL_MEMBER_JOINED_EVENT,
   CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS,
@@ -160,14 +156,14 @@ import {
   HOLDING_REJOIN_BATCH_DELAY,
   PROGRESS_THROTTLE,
   DEFAULT_READ_LIMIT,
-  CHANNEL_NAME_MIN_LENGTH,
-  CHANNEL_NAME_MAX_LENGTH,
-  CHANNEL_NAME_REGEX,
   CHANNEL_MESSAGE_LIMIT,
   MAX_MESSAGE_LENGTH,
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
+// channel-keys.md §5: writer core keys accepted per channel from one hello.
+const MAX_HELLO_WRITER_CORE_KEYS = 256
 const PUBLISH_WRITE_STALL_TIMEOUT = 15 * 1000
 const PUBLISH_DRIVE_RESET_TIMEOUT = 5 * 1000
 const PUBLISH_BUFFER_WRITE_LIMIT = 32 * 1024 * 1024
@@ -267,13 +263,12 @@ export class MostBoxEngine extends EventEmitter {
   #channels = []
   #channelCores = new Map()
   #channelLocalCoreKey = new Map()
+  #channelCoresOpening = new Set()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
-  #channelIdDiscoveries = new Map()
   #channelTopicMap = null
   #channelTopicMapVersion = 0
   #channelPeers = new Map()
-  #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelPresence = null
   #channelCreationQueues = new Map()
@@ -558,7 +553,7 @@ export class MostBoxEngine extends EventEmitter {
           : []),
         localKeyHex,
       ])
-      channel.writerId = createChannelWriterId()
+      channel.writerGeneration = (channel.writerGeneration || 0) + 1
       channel.localWriterCoreKey = ''
     }
 
@@ -780,6 +775,9 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
+      // Persist v1 records migrated to v2 channel keys on load.
+      this.#saveChannelsMetadata()
+
       this.#accountMetadata = this.#loadAccountMetadata()
 
       this.#accountSync = new AccountSync({
@@ -878,9 +876,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelLocalCoreKey.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
-    this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
-    this.#channelCandidateCache.clear()
     for (const stream of [...this.#channelStreams.keys()]) {
       this.#removeChannelStream(stream)
     }
@@ -3834,109 +3830,51 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [type='personal'] - 频道类型
    * @returns {Promise<object>}
    */
-  async createChannel(channelIdInput, type = 'personal', options = {}) {
+  async createChannel(handleInput, type = 'personal', options = {}) {
     this.#ensureInitialized()
-    const channelId = normalizeChannelId(channelIdInput)
-    return this.#runChannelCreationTask(channelId, () =>
-      this.#createChannel(channelId, type, options)
+    const resolved = resolveChannelHandle(handleInput)
+    if (!resolved) {
+      throw new ValidationError('频道凭证或名称无效', 'INVALID_CHANNEL_HANDLE')
+    }
+    return this.#runChannelCreationTask(resolved.channelKey, () =>
+      this.#createChannel(resolved, type, options)
     )
   }
 
-  // 同一 channelId 的创建/加入串行执行，避免并发请求各自写入一条频道记录。
-  async #runChannelCreationTask(channelId, task) {
+  // 同一频道的创建/加入串行执行，避免并发请求各自写入一条频道记录。
+  async #runChannelCreationTask(channelKey, task) {
     const previous =
-      this.#channelCreationQueues.get(channelId) || Promise.resolve()
+      this.#channelCreationQueues.get(channelKey) || Promise.resolve()
     const pending = previous.then(task)
     const completed = pending.then(
       () => undefined,
       () => undefined
     )
-    this.#channelCreationQueues.set(channelId, completed)
+    this.#channelCreationQueues.set(channelKey, completed)
     try {
       return await pending
     } finally {
-      if (this.#channelCreationQueues.get(channelId) === completed) {
-        this.#channelCreationQueues.delete(channelId)
+      if (this.#channelCreationQueues.get(channelKey) === completed) {
+        this.#channelCreationQueues.delete(channelKey)
       }
     }
   }
 
-  async #createChannel(channelIdInput, type, options) {
+  async #createChannel(resolved, type, options) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
-    if (channelId.includes('.')) {
-      throw new Error('点号为系统保留，不能用于手动频道 ID')
-    }
-    if (!CHANNEL_NAME_REGEX.test(channelId)) {
-      throw new Error('频道名只能包含字母、数字、下划线和连字符')
-    }
-    if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
-      throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
-    }
-    if (channelId.length > CHANNEL_NAME_MAX_LENGTH) {
-      throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
-    }
+    const existing = this.#channels.find(
+      channel => channel.channelKey === resolved.channelKey
+    )
+    if (existing) return this.#joinExistingChannel(existing, options)
 
-    const localCandidates = this.#getLocalChannelCandidates(channelId)
-    const remoteCandidates = options.discover
-      ? await this.#discoverChannelCandidates(channelId, {
-          timeout: options.discoveryTimeout,
-        })
-      : []
-    const candidates = this.#mergeChannelCandidates([
-      ...localCandidates,
-      ...remoteCandidates,
-    ])
-
-    if (candidates.length > 0) {
-      const candidate = candidates[0]
-      if (candidate.local) {
-        const existing = this.#channels.find(
-          channel => channel.channelKey === candidate.channelKey
-        )
-        if (existing) {
-          const wasMember = this.#channelHasMember(existing, ownerAddress)
-          const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
-            existing,
-            candidate.writerCoreKeys
-          )
-          const memberChanged = this.#upsertChannelMember(existing, options)
-          if (writerKeysChanged || memberChanged) {
-            existing.syncUpdatedAt = getNextSyncTimestamp(
-              existing.syncUpdatedAt
-            )
-            this.#saveChannelsMetadata()
-            this.#broadcastChannelHello()
-          }
-          if (!wasMember || memberChanged) {
-            await this.#appendChannelMemberProfileMessage(existing, options)
-          }
-          await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-          return this.#formatChannelForResponse(existing, ownerAddress)
-        }
-        const joined = await this.#joinChannelFromCandidate(
-          candidate,
-          channelType,
-          options
-        )
-        return joined
-      }
-      const joined = await this.#joinChannelFromCandidate(
-        candidate,
-        channelType,
-        options
-      )
-      return joined
-    }
-
-    const channelInfo = await this.#createLocalChannel(channelId, channelType, {
+    const channelInfo = await this.#createLocalChannel(resolved, channelType, {
       ...options,
       ownerAddress,
     })
 
-    console.log(`[MostBox] Channel created: ${channelInfo.channelKey}`)
+    console.log(`[MostBox] Channel joined: ${channelInfo.channelKey}`)
     this.emit('channel:joined', {
       channel: channelInfo.channelKey,
       channelKey: channelInfo.channelKey,
@@ -3947,67 +3885,27 @@ export class MostBoxEngine extends EventEmitter {
     return this.#formatChannelForResponse(channelInfo, ownerAddress)
   }
 
-  /**
-   * 通过已发现候选加入频道。
-   * @param {string} channelIdInput - 用户可见短频道 ID
-   * @param {object|string|null} candidateInput - 候选对象或 channelKey
-   * @returns {Promise<object>}
-   */
-  async joinChannel(channelIdInput, candidateInput = null, options = {}) {
-    this.#ensureInitialized()
-    const channelId = normalizeChannelId(channelIdInput)
-    const candidate =
-      candidateInput && typeof candidateInput === 'object'
-        ? candidateInput
-        : candidateInput
-          ? { channelKey: String(candidateInput), channelId }
-          : null
-
-    if (!candidate?.channelKey) {
-      return this.createChannel(channelId, options.type || 'group', options)
+  async #joinExistingChannel(existing, options) {
+    const wasMember = this.#channelHasMember(existing, options.ownerAddress)
+    const memberChanged = this.#upsertChannelMember(existing, options)
+    if (memberChanged) {
+      existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
+      this.#saveChannelsMetadata()
+      this.#broadcastChannelHello()
     }
-
-    return this.#runChannelCreationTask(channelId, () =>
-      this.#joinChannelWithCandidate(channelId, candidate, options)
-    )
+    if (!wasMember || memberChanged) {
+      await this.#appendChannelMemberProfileMessage(existing, options)
+    }
+    await this.#appendChannelWelcomeMessage(existing, options, wasMember)
+    return this.#formatChannelForResponse(existing, options.ownerAddress)
   }
 
-  async #joinChannelWithCandidate(channelId, candidate, options) {
-    const channelKey = buildChannelKey(channelId)
-    const existing = this.#channels.find(c => c.channelKey === channelKey)
-    if (existing) {
-      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
-      const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
-        existing,
-        candidate.writerCoreKeys
-      )
-      const memberChanged = this.#upsertChannelMember(existing, options)
-      if (writerKeysChanged || memberChanged) {
-        existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
-        this.#saveChannelsMetadata()
-        this.#broadcastChannelHello()
-      }
-      if (!wasMember || memberChanged) {
-        await this.#appendChannelMemberProfileMessage(existing, options)
-      }
-      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-      return this.#formatChannelForResponse(existing, options.ownerAddress)
-    }
-
-    const cached =
-      this.#getCachedChannelCandidate(
-        channelId,
-        normalizeChannelKey(candidate.channelKey)
-      ) || this.#getCachedChannelCandidate(channelId, channelKey)
-    const joined = await this.#joinChannelFromCandidate(
-      cached || candidate,
-      'group',
-      {
-        ...options,
-        channelKey,
-      }
-    )
-    return joined
+  /**
+   * 加入频道：v2 中频道句柄（凭证、旧 ID 或公开名）即频道，加入与创建相同。
+   * `_candidate` 为 v1 遗留参数，忽略。
+   */
+  async joinChannel(handleInput, _candidate = null, options = {}) {
+    return this.createChannel(handleInput, options.type || 'group', options)
   }
 
   /**
@@ -4065,26 +3963,6 @@ export class MostBoxEngine extends EventEmitter {
           err.message
         )
       })
-    }
-
-    const hasSameIdChannel = this.#channels.some(
-      (item, itemIndex) =>
-        itemIndex !== index && item.channelId === channel.channelId
-    )
-    if (!hasSameIdChannel) {
-      const idDiscovery = this.#channelIdDiscoveries.get(channel.channelId)
-      if (idDiscovery && this.#chatSwarm) {
-        this.#channelIdDiscoveries.delete(channel.channelId)
-        this.#invalidateChannelTopicMap()
-        this.#chatSwarm
-          .leave(this.#generateChannelIdDiscoveryKey(channel.channelId))
-          .catch(err => {
-            console.warn(
-              `[MostBox] Failed to leave channel ID discovery for ${channel.channelId}:`,
-              err.message
-            )
-          })
-      }
     }
 
     const coresMap = this.#channelCores.get(channel.channelKey)
@@ -4473,6 +4351,16 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @returns {Array<{ peerId: string, authorName: string, lastSeen: number, memberAddresses: string[] }>}
    */
+  /**
+   * Public channel ID (64 hex) for a handle or ID the caller is a member of.
+   * WebSocket subscriptions use it because engine events carry it.
+   */
+  resolveChannelKey(channelInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelInput, options.ownerAddress)
+    return this.#resolveChannel(channelInput, options.ownerAddress).channelKey
+  }
+
   getChannelPeers(channelKeyInput, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
@@ -4561,38 +4449,29 @@ export class MostBoxEngine extends EventEmitter {
     let channel = this.#channels.find(c => c.channelKey === value)
     if (channel) return channel
 
-    channel = this.#channels.find(c => c.channelId === value)
+    const resolvedKey = resolveChannelHandle(value)?.channelKey
+    channel = this.#channels.find(
+      c => c.channelId === value || c.channelKey === resolvedKey
+    )
     if (channel && (!owner || this.#channelHasMember(channel, owner))) {
       return channel
     }
     throw new Error('频道不存在')
   }
 
-  async #createLocalChannel(channelId, type = 'personal', options = {}) {
-    const channelKey = buildChannelKey(channelId)
-    const writerId =
-      String(options.writerId || '').trim() || createChannelWriterId()
-    const ns = this.#store.namespace(`channel-${channelKey}`)
-    const localCore = ns.get({
-      name: `messages-${writerId}`,
-      valueEncoding: 'json',
-    })
-    await localCore.ready()
-    const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
-    const writerCoreKeys = uniqueStrings([
-      ...(Array.isArray(options.writerCoreKeys) ? options.writerCoreKeys : []),
-      localWriterCoreKey,
-    ])
+  async #createLocalChannel(resolved, type = 'personal', options = {}) {
     const channelInfo = {
-      channelId,
-      channelKey,
-      name: channelId,
+      channelId: resolved.handle,
+      channelKey: resolved.channelKey,
+      name: resolved.handle,
+      secretKey: b4a.toString(resolved.key, 'hex'),
+      kind: resolved.kind,
       type: String(type || 'personal').trim() || 'personal',
       createdAt: options.createdAt || new Date().toISOString(),
       lastMessageAt: options.lastMessageAt || '',
-      writerId,
-      localWriterCoreKey,
-      writerCoreKeys,
+      writerGeneration: 0,
+      localWriterCoreKey: '',
+      writerCoreKeys: uniqueStrings(options.writerCoreKeys),
       members: [],
       syncUpdatedAt: Date.now(),
     }
@@ -4608,7 +4487,6 @@ export class MostBoxEngine extends EventEmitter {
     this.#invalidateChannelTopicMap()
     await this.#openChannelRuntime(channelInfo)
     await this.#joinChannelDiscoveryTopics(channelInfo)
-    this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
     this.#saveChannelsMetadata()
     await this.#appendChannelMemberProfileMessage(channelInfo, options)
     await this.#appendChannelWelcomeMessage(channelInfo, options, false)
@@ -4616,93 +4494,25 @@ export class MostBoxEngine extends EventEmitter {
     return channelInfo
   }
 
-  async #joinChannelFromCandidate(
-    candidateInput,
-    type = 'group',
-    options = {}
-  ) {
-    const channelId = normalizeChannelId(
-      candidateInput.channelId || options.channelId
-    )
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) {
-      throw new Error('频道候选缺少身份信息')
-    }
-
-    const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
-    )
-    if (existing) {
-      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
-      const memberChanged = this.#upsertChannelMember(existing, options)
-      if (memberChanged) {
-        this.#saveChannelsMetadata()
-        this.#broadcastChannelHello()
-      }
-      if (!wasMember || memberChanged) {
-        await this.#appendChannelMemberProfileMessage(existing, options)
-      }
-      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-      return this.#formatChannelForResponse(existing, options.ownerAddress)
-    }
-
-    const hasSameIdLocal = this.#channels.some(
-      channel => channel.channelId === channelId
-    )
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const remark =
-      ownerAddress && hasSameIdLocal && !String(options.remark || '').trim()
-        ? `${channelId}-网络`
-        : options.remark
-    const channelInfo = await this.#createLocalChannel(
-      channelId,
-      candidateInput.type || type,
-      {
-        ...options,
-        ownerAddress,
-        createdAt: candidateInput.createdAt,
-        lastMessageAt: candidateInput.lastMessageAt,
-        writerCoreKeys: candidateInput.writerCoreKeys,
-        remark,
-      }
-    )
-
-    console.log(`[MostBox] Joined channel: ${channelInfo.channelKey}`)
-    this.emit('channel:joined', {
-      channel: channelInfo.channelKey,
-      channelKey: channelInfo.channelKey,
-      channelId: channelInfo.channelId,
-      key: channelInfo.channelKey,
-    })
-
-    return this.#formatChannelForResponse(channelInfo, ownerAddress)
-  }
-
   async #openChannelRuntime(channel) {
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
-    let localCore = null
-    let previousLocalWriterCoreKey = ''
-    if (channel.localWriterCoreKey) {
-      previousLocalWriterCoreKey = channel.localWriterCoreKey
-      localCore = ns.get({
-        key: b4a.from(channel.localWriterCoreKey, 'hex'),
-        valueEncoding: 'json',
-      })
-      await localCore.ready()
-      if (localCore.writable === false) {
-        await localCore.close().catch(() => {})
-        localCore = null
-      }
-    }
-    if (!localCore) {
-      if (!channel.writerId) {
-        channel.writerId = createChannelWriterId()
-      }
-      localCore = ns.get({
-        name: `messages-${channel.writerId}`,
-        valueEncoding: 'json',
-      })
-    }
+    const previousLocalWriterCoreKey = channel.localWriterCoreKey || ''
+    const generation = Number.isInteger(channel.writerGeneration)
+      ? channel.writerGeneration
+      : 0
+    channel.writerGeneration = generation
+    const keyPair = channelWriterKeyPair(
+      this.#cidDriveSecret,
+      channel.channelKey,
+      generation
+    )
+    // Explicit manifest: the core key is the manifest hash, so pinning its
+    // version keeps this node's writer core key stable across library updates.
+    const localCore = ns.get({
+      keyPair,
+      manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
+      valueEncoding: 'json',
+    })
     await localCore.ready()
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
     const localWriterChanged = channel.localWriterCoreKey !== localWriterCoreKey
@@ -4782,135 +4592,6 @@ export class MostBoxEngine extends EventEmitter {
       this.#channelChatDiscoveries.set(channel.channelKey, chatDiscovery)
       this.#invalidateChannelTopicMap()
     }
-
-    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
-      const idDiscovery = this.#chatSwarm.join(
-        this.#generateChannelIdDiscoveryKey(channel.channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channel.channelId, idDiscovery)
-      this.#invalidateChannelTopicMap()
-    }
-  }
-
-  #getLocalChannelCandidates(channelId, options = {}) {
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    return this.#channels
-      .filter(channel => channel.channelId === channelId)
-      .filter(channel => {
-        if (!ownerAddress) return true
-        return this.#channelHasMember(channel, ownerAddress)
-      })
-      .map(channel => this.#channelToCandidate(channel, true))
-  }
-
-  async #discoverChannelCandidates(channelId, options = {}) {
-    const getCachedCandidates = () => {
-      const now = Date.now()
-      return [
-        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
-      ].filter(
-        candidate =>
-          candidate.local ||
-          !candidate.lastSeen ||
-          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
-      )
-    }
-    if (this.#options.disableNetwork) return getCachedCandidates()
-    const timeout =
-      Number(options.timeout) >= 0
-        ? Number(options.timeout)
-        : CHANNEL_DISCOVERY_TIMEOUT
-    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
-    if (!hadDiscovery) {
-      const discovery = this.#chatSwarm.join(
-        this.#generateChannelIdDiscoveryKey(channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channelId, discovery)
-      this.#invalidateChannelTopicMap()
-    }
-    await sleep(timeout)
-    const candidates = getCachedCandidates()
-    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
-      this.#channelIdDiscoveries.delete(channelId)
-      this.#invalidateChannelTopicMap()
-      this.#chatSwarm
-        .leave(this.#generateChannelIdDiscoveryKey(channelId))
-        .catch(() => {})
-    }
-    return candidates
-  }
-
-  #mergeChannelCandidates(candidates) {
-    const byKey = new Map()
-    for (const candidate of candidates) {
-      if (!candidate?.channelKey) continue
-      const existing = byKey.get(candidate.channelKey)
-      if (!existing) {
-        byKey.set(candidate.channelKey, {
-          ...candidate,
-          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
-        })
-        continue
-      }
-      byKey.set(candidate.channelKey, {
-        ...existing,
-        ...candidate,
-        local: existing.local || candidate.local,
-        writerCoreKeys: uniqueStrings([
-          ...existing.writerCoreKeys,
-          ...(candidate.writerCoreKeys || []),
-        ]),
-      })
-    }
-    return [...byKey.values()]
-  }
-
-  #channelToCandidate(channel, local = false) {
-    return {
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-      local,
-    }
-  }
-
-  #cacheChannelCandidate(candidate) {
-    const channelId = normalizeChannelId(candidate?.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) return
-    if (!this.#channelCandidateCache.has(channelId)) {
-      this.#channelCandidateCache.set(channelId, new Map())
-    }
-    const cache = this.#channelCandidateCache.get(channelId)
-    const existing = cache.get(channelKey)
-    cache.set(channelKey, {
-      ...existing,
-      ...candidate,
-      channelId,
-      channelKey,
-      writerCoreKeys: uniqueStrings([
-        ...(existing?.writerCoreKeys || []),
-        ...(candidate.writerCoreKeys || []),
-      ]),
-      lastSeen: Date.now(),
-    })
-  }
-
-  #getCachedChannelCandidate(channelId, channelKey) {
-    const normalizedChannelId = normalizeChannelId(channelId)
-    const normalizedChannelKey = buildChannelKey(normalizedChannelId)
-    const cache = this.#channelCandidateCache.get(normalizedChannelId)
-    const candidate = cache?.get(channelKey) || cache?.get(normalizedChannelKey)
-    if (candidate) return candidate
-    const local = this.#channels.find(
-      channel => channel.channelKey === normalizedChannelKey
-    )
-    return local ? this.#channelToCandidate(local, true) : null
   }
 
   #formatChannelForResponse(channel, ownerAddress = '') {
@@ -4926,6 +4607,8 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       type: channel.type,
+      kind: channel.kind,
+      public: channel.kind === 'public',
       peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
       remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
       pinned: Boolean(owner && channel.pinnedBy?.[owner]),
@@ -5724,11 +5407,11 @@ export class MostBoxEngine extends EventEmitter {
     if (!owner || !record || typeof record !== 'object') {
       return { changed: false, added: false, updated: false }
     }
-    const channelId = normalizeChannelId(record.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) {
+    const resolved = resolveChannelHandle(record.channelId)
+    if (!resolved) {
       return { changed: false, added: false, updated: false }
     }
+    const { channelKey } = resolved
 
     const updatedAt = getSyncTimestamp(record.updatedAt || record.syncUpdatedAt)
     let channel = this.#channels.find(item => item.channelKey === channelKey)
@@ -5741,9 +5424,11 @@ export class MostBoxEngine extends EventEmitter {
     let changed = false
     if (!channel) {
       channel = {
-        channelId,
+        channelId: resolved.handle,
         channelKey,
-        name: channelId,
+        name: resolved.handle,
+        secretKey: b4a.toString(resolved.key, 'hex'),
+        kind: resolved.kind,
         createdAt:
           typeof record.createdAt === 'string'
             ? record.createdAt
@@ -5751,7 +5436,7 @@ export class MostBoxEngine extends EventEmitter {
         lastMessageAt:
           typeof record.lastMessageAt === 'string' ? record.lastMessageAt : '',
         type: String(record.type || 'personal').trim() || 'personal',
-        writerId: createChannelWriterId(),
+        writerGeneration: 0,
         localWriterCoreKey: '',
         writerCoreKeys: uniqueStrings(record.writerCoreKeys),
         members: [],
@@ -6947,16 +6632,17 @@ export class MostBoxEngine extends EventEmitter {
     this.#scheduleAccountSyncReconcile()
   }
 
+  #channelSecretKey(channelKey) {
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    return channel?.secretKey ? b4a.from(channel.secretKey, 'hex') : null
+  }
+
   #generateChannelDiscoveryKey(channelKey) {
-    return generateChannelDiscoveryKey(channelKey)
+    return channelTopics(this.#channelSecretKey(channelKey)).replication
   }
 
   #generateChannelChatDiscoveryKey(channelKey) {
-    return generateChannelChatDiscoveryKey(channelKey)
-  }
-
-  #generateChannelIdDiscoveryKey(channelId) {
-    return generateChannelIdDiscoveryKey(channelId)
+    return channelTopics(this.#channelSecretKey(channelKey)).chat
   }
 
   #addChannelTopicMapping(topicMap, topic, channelIdInput) {
@@ -6986,14 +6672,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#addChannelTopicMapping(
         topicMap,
         this.#generateChannelChatDiscoveryKey(channelKey),
-        channel.channelId
-      )
-    }
-    for (const [channelId] of this.#channelIdDiscoveries) {
-      this.#addChannelTopicMapping(
-        topicMap,
-        this.#generateChannelIdDiscoveryKey(channelId),
-        channelId
+        channel.channelKey
       )
     }
     this.#channelTopicMap = topicMap
@@ -7088,16 +6767,18 @@ export class MostBoxEngine extends EventEmitter {
     const proofs = []
     for (const topic of topics) {
       if (record.proofSentTopics.has(topic)) continue
-      const channelId = topicMap.get(topic)?.values().next().value
-      if (!channelId) continue
-      const proof = createChannelTopicProof({
-        channelId,
+      const channelKey = topicMap.get(topic)?.values().next().value
+      const key = channelKey ? this.#channelSecretKey(channelKey) : null
+      if (!key) continue
+      const proofBytes = createChannelProof({
+        key,
         topic,
         challenge: record.remoteChallenge,
         proverPublicKey: localPublicKey,
         verifierPublicKey: remotePublicKey,
       })
-      if (!proof) continue
+      if (!proofBytes) continue
+      const proof = b4a.toString(proofBytes, 'hex')
       record.proofSentTopics.add(topic)
       proofs.push({ topic, proof })
     }
@@ -7127,10 +6808,9 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #isChannelAllowedForStream(stream, channelId) {
-    return isChannelAllowedForConnection(
-      channelId,
-      this.#getAuthorizedChannelIds(stream)
+  #isChannelAllowedForStream(stream, channelKey) {
+    return this.#getAuthorizedChannelIds(stream).has(
+      normalizeChannelKey(channelKey)
     )
   }
 
@@ -7189,6 +6869,10 @@ export class MostBoxEngine extends EventEmitter {
     const coresMap = this.#channelCores.get(channelKey)
     if (!coresMap) return
     if (coresMap.has(coreKeyHex)) return
+    // Hellos can arrive back to back; open each remote core only once.
+    const openingKey = `${channelKey}:${coreKeyHex}`
+    if (this.#channelCoresOpening.has(openingKey)) return
+    this.#channelCoresOpening.add(openingKey)
 
     try {
       const ns = this.#store.namespace(`channel-${channelKey}`)
@@ -7233,18 +6917,19 @@ export class MostBoxEngine extends EventEmitter {
         `[MostBox] Failed to open remote channel core for ${channelKey}:`,
         err.message
       )
+    } finally {
+      this.#channelCoresOpening.delete(openingKey)
     }
   }
 
   #buildChannelHelloMessages(stream) {
-    const selectedChannels = selectChannelsForHello(
-      this.#channels,
-      this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    const selectedChannels = this.#channels.filter(channel =>
+      authorized.has(channel.channelKey)
     )
+    // On the wire a channel is identified only by its public ID.
     const channels = selectedChannels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
+      channelId: channel.channelKey,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       memberAddresses: this.#getChannelMemberAddresses(channel),
@@ -7319,8 +7004,8 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
+    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
     try {
       stream.write(
         `${JSON.stringify(
@@ -7351,8 +7036,8 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
+    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
     try {
       stream.write(
         `${JSON.stringify(
@@ -7437,19 +7122,23 @@ export class MostBoxEngine extends EventEmitter {
       ) {
         continue
       }
-      const channelIds = topicMap.get(topic) || []
-      const valid = [...channelIds].some(channelId =>
-        verifyChannelTopicProof(
-          {
-            channelId,
-            topic,
-            challenge: record.localChallenge,
-            proverPublicKey: remotePublicKey,
-            verifierPublicKey: localPublicKey,
-          },
-          item?.proof
+      const channelKeys = topicMap.get(topic) || []
+      const valid = [...channelKeys].some(channelKey => {
+        const key = this.#channelSecretKey(channelKey)
+        return (
+          key &&
+          verifyChannelProof(
+            {
+              key,
+              topic,
+              challenge: record.localChallenge,
+              proverPublicKey: remotePublicKey,
+              verifierPublicKey: localPublicKey,
+            },
+            String(item?.proof || '')
+          )
         )
-      )
+      })
       if (!valid) continue
       record.authorizedTopics.add(topic)
       changed = true
@@ -7470,21 +7159,16 @@ export class MostBoxEngine extends EventEmitter {
 
     const onlineChannels = []
     const remoteChannels = []
-    const allowedChannelIds = this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
     for (const channel of Array.isArray(msg.channels) ? msg.channels : []) {
       if (!channel || typeof channel !== 'object') continue
-      const channelId = normalizeChannelId(channel.channelId)
-      const declaredType = String(channel.type || 'public').trim() || 'public'
-      if (
-        !channelId ||
-        !isChannelAllowedForConnection(channelId, allowedChannelIds)
-      ) {
+      // v2: channelId on the wire is the 64-hex public channel ID.
+      const channelKey = normalizeChannelKey(channel.channelId)
+      if (!HEX_64_REGEX.test(channelKey) || !authorized.has(channelKey)) {
         continue
       }
       remoteChannels.push({
-        channelId,
-        channelKey: buildChannelKey(channelId),
-        type: declaredType,
+        channelKey,
         createdAt:
           typeof channel.createdAt === 'string' ? channel.createdAt : '',
         lastMessageAt:
@@ -7498,19 +7182,17 @@ export class MostBoxEngine extends EventEmitter {
               )
             : []
         ),
-        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+        writerCoreKeys: uniqueStrings(
+          Array.isArray(channel.writerCoreKeys) ? channel.writerCoreKeys : []
+        )
+          .filter(key => HEX_64_REGEX.test(key))
+          .slice(0, MAX_HELLO_WRITER_CORE_KEYS),
       })
     }
     if (remoteChannels.length === 0) return null
 
     let writerKeysChanged = false
     for (const remoteChannel of remoteChannels) {
-      this.#cacheChannelCandidate({
-        ...remoteChannel,
-        local: false,
-        peerId,
-      })
-
       const localChannel = this.#channels.find(
         channel => channel.channelKey === remoteChannel.channelKey
       )
@@ -7559,7 +7241,7 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === presence.channelKey
     )
     if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
+    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
       return null
     }
 
@@ -7587,7 +7269,7 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === context.channelKey
     )
     if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
+    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
       return null
     }
 

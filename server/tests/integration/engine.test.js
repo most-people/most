@@ -16,6 +16,7 @@ import { getCidInfo } from '../../src/core/cidTopic.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 import { cidDriveName } from '../../src/core/cidDriveExchange.js'
 import { loadOrCreateNodeSeed } from '../../src/node/nodeIdentity.js'
+import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -3929,8 +3930,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const result = await engine.createChannel(`test-${uid}`)
       assert.strictEqual(result.name, `test-${uid}`)
       assert.ok(result.key)
-      assert.strictEqual(result.channelKey, result.name)
-      assert.ok(!result.channelKey.includes(':'))
+      // v2: the internal key is the public channel ID derived from the handle.
+      assert.strictEqual(
+        result.channelKey,
+        resolveChannelHandle(`test-${uid}`).channelKey
+      )
+      assert.match(result.channelKey, /^[0-9a-f]{64}$/)
+      assert.strictEqual(result.public, true)
     })
 
     it('uses one canonical channel identity regardless of input case', async () => {
@@ -3954,13 +3960,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     })
 
     it('rejects invalid channel names', async () => {
-      await assert.rejects(engine.createChannel('ab'), /至少 3 个字/)
+      await assert.rejects(engine.createChannel('ab'), /频道凭证或名称无效/)
     })
 
     it('rejects channel names with invalid characters', async () => {
       await assert.rejects(
         engine.createChannel('invalid name!'),
-        /只能包含字母/
+        /频道凭证或名称无效/
       )
     })
 
@@ -3970,12 +3976,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
       await assert.rejects(
         engine.createChannel(dottedName, removedType),
-        /点号为系统保留/
+        /频道凭证或名称无效/
       )
     })
 
     it('rejects channel names that are too long', async () => {
-      await assert.rejects(engine.createChannel('a'.repeat(31)), /最多 30 个字/)
+      await assert.rejects(
+        engine.createChannel('a'.repeat(31)),
+        /频道凭证或名称无效/
+      )
     })
   })
 
@@ -4822,7 +4831,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const alice = `0x${'e'.repeat(40)}`
       const events = []
       const onVoice = event => {
-        if (event.channelKey === channelName) events.push(event)
+        if (event.channelKey === resolveChannelHandle(channelName).channelKey)
+          events.push(event)
       }
 
       engine.on('channel:voice', onVoice)
@@ -4871,7 +4881,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const alice = `0x${'c'.repeat(40)}`
       const events = []
       const onPresence = event => {
-        if (event.channelKey === channelName) events.push(event)
+        if (event.channelKey === resolveChannelHandle(channelName).channelKey)
+          events.push(event)
       }
 
       engine.on('channel:presence', onPresence)
@@ -5242,9 +5253,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         ),
       ])
 
+      const channelKey = resolveChannelHandle(channelId).channelKey
       const records = engine
         .listChannels()
-        .filter(channel => channel.channelKey === channelId)
+        .filter(channel => channel.channelKey === channelKey)
       assert.strictEqual(records.length, 1)
       assert.deepEqual(
         results.map(result => result.status),
@@ -5254,7 +5266,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.ok(
           engine
             .listChannels({ ownerAddress: address })
-            .some(channel => channel.channelKey === channelId)
+            .some(channel => channel.channelKey === channelKey)
         )
       }
     })
@@ -5308,21 +5320,17 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         emptyEngine.on('channel:sync:available', event => {
           syncEvents.push(event)
         })
-        await emptyEngine.joinChannel(
-          channelName,
-          toChannelCandidate(sourceChannel)
-        )
 
-        assert.strictEqual(syncEvents.length, 1)
-        assert.strictEqual(syncEvents[0].channelKey, emptyChannel.channelKey)
-        assert.strictEqual(syncEvents[0].channelId, channelName)
-        assert.strictEqual(
-          syncEvents[0].writerCoreKey,
-          sourceChannel.localWriterCoreKey
-        )
-
+        // v2: writer cores are learned only from hello after the channel proof.
         replication = sourceEngine.replicateWith(emptyEngine)
         await waitForChannelMessage(emptyEngine, channelName, 'before sync')
+
+        const sourceEvents = syncEvents.filter(
+          event => event.writerCoreKey === sourceChannel.localWriterCoreKey
+        )
+        assert.strictEqual(sourceEvents.length, 1)
+        assert.strictEqual(sourceEvents[0].channelKey, emptyChannel.channelKey)
+        assert.strictEqual(sourceEvents[0].channelId, channelName)
       } finally {
         replication?.close()
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
@@ -5373,7 +5381,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const metadataPath = path.join(joinDataPath, 'channels.json')
         const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
         const channel = metadata.find(c => c.name === channelName)
-        assert.ok(channel.writerCoreKeys.includes(created.localWriterCoreKey))
+        assert.ok(channel.writerCoreKeys.includes(joined.localWriterCoreKey))
         assert.strictEqual(channel.channelKey, joined.key)
       } finally {
         await joinEngine.stop().catch(() => {})
@@ -5407,8 +5415,14 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const first = await firstEngine.createChannel(channelName, 'public')
         const second = await secondEngine.createChannel(channelName, 'public')
 
-        assert.strictEqual(first.channelKey, channelName)
-        assert.strictEqual(second.channelKey, channelName)
+        assert.strictEqual(
+          first.channelKey,
+          resolveChannelHandle(channelName).channelKey
+        )
+        assert.strictEqual(
+          second.channelKey,
+          resolveChannelHandle(channelName).channelKey
+        )
         assert.strictEqual(first.channelKey, second.channelKey)
 
         await firstEngine.sendMessage(first.channelKey, 'from first')
@@ -5551,8 +5565,14 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
             }
           )
 
-          assert.strictEqual(first.channelKey, channelName)
-          assert.strictEqual(second.channelKey, channelName)
+          assert.strictEqual(
+            first.channelKey,
+            resolveChannelHandle(channelName).channelKey
+          )
+          assert.strictEqual(
+            second.channelKey,
+            resolveChannelHandle(channelName).channelKey
+          )
 
           const firstMessage = `from first ${channelName}`
           const secondMessage = `from second ${channelName}`

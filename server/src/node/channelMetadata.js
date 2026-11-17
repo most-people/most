@@ -1,12 +1,11 @@
 import path from 'node:path'
 
-import { CHANNEL_NAME_REGEX } from '../config.js'
+import b4a from 'b4a'
+import { uniqueStrings } from '../core/channelIdentity.js'
 import {
-  buildChannelKey,
-  normalizeChannelId,
-  normalizeChannelKey,
-  uniqueStrings,
-} from '../core/channelIdentity.js'
+  channelIdFromKey,
+  resolveChannelHandle,
+} from '../core/channelKeysV2.js'
 import { normalizeOwnerAddress } from '../core/ownerMetadata.js'
 import { readMetadataFile } from './metadataFile.js'
 
@@ -43,31 +42,55 @@ export function loadChannelsMetadata(dataPath) {
       }
       return channels
         .filter(channel => channel && typeof channel === 'object')
-        .map(channel => {
-          const channelId = normalizeChannelId(channel.channelId)
-          const channelKey = normalizeChannelKey(channel.channelKey)
-          return {
-            ...channel,
-            channelId,
-            channelKey,
-            expectedChannelKey: buildChannelKey(channelId),
-            name: channelId,
-            writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-          }
-        })
-        .filter(
-          channel =>
-            CHANNEL_NAME_REGEX.test(channel.channelId) &&
-            channel.channelKey === channel.expectedChannelKey &&
-            channel.writerId &&
-            channel.localWriterCoreKey
-        )
-        .map(
-          ({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel
-        )
+        .map(normalizeChannelRecord)
+        .filter(Boolean)
         .reduce(mergeDuplicateChannel, [])
     },
   })
+}
+
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
+
+// v2 records carry the channel secret key and derive the public channel key
+// from it. v1 records (no secretKey) are migrated: the old ID is resolved as a
+// channel handle (channel-keys.md §3.1, §7); its writer cores stay readable and
+// a new v2 writer core is opened on next start.
+function normalizeChannelRecord(channel) {
+  const writerCoreKeys = uniqueStrings(channel.writerCoreKeys)
+  if (
+    typeof channel.secretKey === 'string' &&
+    HEX_64_REGEX.test(channel.secretKey)
+  ) {
+    const channelKey = channelIdFromKey(b4a.from(channel.secretKey, 'hex'))
+    if (channel.channelKey !== channelKey || !channel.channelId) return null
+    return {
+      ...channel,
+      name: channel.channelId,
+      writerGeneration: Number.isInteger(channel.writerGeneration)
+        ? channel.writerGeneration
+        : 0,
+      writerCoreKeys,
+    }
+  }
+
+  const resolved = resolveChannelHandle(channel.channelId)
+  if (!resolved) return null
+  const rest = { ...channel }
+  delete rest.writerId
+  return {
+    ...rest,
+    channelId: resolved.handle,
+    channelKey: resolved.channelKey,
+    name: resolved.handle,
+    secretKey: b4a.toString(resolved.key, 'hex'),
+    kind: resolved.kind,
+    writerGeneration: 0,
+    localWriterCoreKey: '',
+    writerCoreKeys: uniqueStrings([
+      ...writerCoreKeys,
+      channel.localWriterCoreKey,
+    ]),
+  }
 }
 
 // 旧版本并发创建可能留下同一 channelKey 的多条记录：保留第一条作为本地写入者，
@@ -127,10 +150,12 @@ export function serializeChannelsMetadata(channels) {
       channelId: channel.channelId,
       channelKey: channel.channelKey,
       name: channel.channelId,
+      secretKey: channel.secretKey,
+      kind: channel.kind,
       type: channel.type,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
-      writerId: channel.writerId,
+      writerGeneration: channel.writerGeneration || 0,
       localWriterCoreKey: channel.localWriterCoreKey,
       writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
       members: Array.isArray(channel.members) ? channel.members : [],
