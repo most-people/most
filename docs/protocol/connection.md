@@ -140,4 +140,4 @@ JSON 键顺序为 `type, version, direction, nonce, proof`；接收方不依赖�
 
 ## 5. 待补
 
-- 向量：节点种子 → 文件 swarm 公钥 / peerId；Ping topic 与三种帧。
+- 向量见 [vectors/](vectors/README.md)（`node.json`、`p2p-ping.json`）。

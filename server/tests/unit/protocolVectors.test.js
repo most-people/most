@@ -5,6 +5,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import b4a from 'b4a'
 import c from 'compact-encoding'
+import Hyperswarm from 'hyperswarm'
+import { createRandomChannelId } from '../../../src/lib/chatRoom.js'
+import { chatTopicFor } from '../../src/node/accountSync.js'
 import {
   buildMostLink,
   calculateCid,
@@ -17,13 +20,32 @@ import {
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
 } from '../../src/core/channelIdentity.js'
-import { verifyChannelTopicProof } from '../../src/core/channelHello.js'
+import {
+  buildChannelHelloMessages,
+  verifyChannelTopicProof,
+} from '../../src/core/channelHello.js'
+import { consumeChannelFrames } from '../../src/core/channelFrames.js'
+import { normalizeChannelAttachment } from '../../src/core/channelAttachment.js'
+import {
+  getChannelHistoryDedupeKey,
+  isChannelHistoryEntry,
+  isChannelMemberProfileEventEntry,
+  normalizeChannelMentionList,
+  normalizeClientMessageId,
+} from '../../src/core/channelMessage.js'
+import { compareChannelHistoryEntries } from '../../src/core/channelHistory.js'
+import { normalizeChannelVoiceEvent } from '../../src/core/channelVoice.js'
 import {
   deriveP2PPingTopic,
   encodeP2PPingFrame,
 } from '../../src/core/p2pPing.js'
 import { mostWallet } from '../../src/utils/mostWallet.js'
-import { deriveAccountSyncKeys } from '../../src/utils/accountSync.js'
+import {
+  deriveAccountSyncKeys,
+  mergeAccountEntries,
+  openAccountEntry,
+  sealAccountEntry,
+} from '../../src/utils/accountSync.js'
 
 function readVectors(name) {
   const url = new URL(`../../../docs/protocol/vectors/${name}`, import.meta.url)
@@ -142,5 +164,168 @@ describe('protocol vectors (desktop)', () => {
     const { syncKey, topic } = deriveAccountSyncKeys(wallet.danger)
     assert.equal(syncKey, vectors.syncKey)
     assert.equal(topic, vectors.syncTopic)
+    assert.equal(
+      b4a.toString(chatTopicFor(topic), 'hex'),
+      vectors.syncChatTopic
+    )
+  })
+
+  it('encodes random channel IDs', () => {
+    for (const item of readVectors('channels.json').randomIds) {
+      const bytes = b4a.from(item.bytes, 'hex')
+      assert.equal(
+        createRandomChannelId(target => target.set(bytes)),
+        item.channelId
+      )
+    }
+  })
+
+  it('derives the file swarm key pair from the node seed', async () => {
+    const vectors = readVectors('node.json')
+    const swarm = new Hyperswarm({
+      seed: b4a.from(vectors.seed, 'hex'),
+      bootstrap: [],
+    })
+    try {
+      assert.equal(
+        b4a.toString(swarm.keyPair.publicKey, 'hex'),
+        vectors.publicKey
+      )
+    } finally {
+      await swarm.destroy()
+    }
+  })
+
+  it('splits chat swarm frames', () => {
+    for (const item of readVectors('chat.json').frames) {
+      const run = () => {
+        let remainder = Buffer.alloc(0)
+        const frames = []
+        for (const chunk of item.chunks) {
+          const result = consumeChannelFrames(
+            remainder,
+            Buffer.from(chunk),
+            item.maxFrameBytes
+          )
+          remainder = result.remainder
+          frames.push(...result.frames)
+        }
+        return { frames, remainder: remainder.toString('utf8') }
+      }
+      if (item.error) {
+        assert.throws(run, { code: item.error })
+      } else {
+        assert.deepEqual(run(), {
+          frames: item.frames,
+          remainder: item.remainder,
+        })
+      }
+    }
+  })
+
+  it('splits channel-hello across frames', () => {
+    const { base, channels, cases, empty } = readVectors('chat.json').hello
+    for (const item of [...cases, empty]) {
+      const list = item === empty ? [] : channels
+      const build = () =>
+        buildChannelHelloMessages(base, list, item.maxFrameBytes)
+      if (item.error) {
+        assert.throws(build, new RegExp(`hello ${item.error}`))
+        continue
+      }
+      const messages = build()
+      assert.deepEqual(
+        messages.map(message =>
+          message.channels.map(channel => channel.channelId)
+        ),
+        item.frames
+      )
+      for (const message of messages) {
+        assert.ok(
+          Buffer.byteLength(JSON.stringify(message)) <= item.maxFrameBytes
+        )
+      }
+    }
+  })
+
+  it('normalizes attachments, clientMessageIds and mentions', () => {
+    const vectors = readVectors('chat.json')
+    for (const item of vectors.attachments.valid) {
+      assert.deepEqual(normalizeChannelAttachment(item.input), item.output)
+    }
+    for (const item of vectors.attachments.invalid) {
+      assert.throws(() => normalizeChannelAttachment(item.input), item.reason)
+    }
+    for (const item of vectors.clientMessageIds) {
+      assert.equal(normalizeClientMessageId(item.input), item.output)
+    }
+    for (const item of vectors.mentions) {
+      assert.deepEqual(
+        normalizeChannelMentionList(item.input, item.content),
+        item.output
+      )
+    }
+  })
+
+  it('dedupes and orders channel history', () => {
+    const { entries, desktop } = readVectors('chat.json').history
+    const seen = new Set()
+    const history = entries
+      .map(item => ({
+        ...item.entry,
+        _coreKey: item.coreKey,
+        _index: item.index,
+        _id: item.id,
+      }))
+      .filter(isChannelHistoryEntry)
+      .filter(message => {
+        const key = getChannelHistoryDedupeKey(message)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .sort(compareChannelHistoryEntries)
+      .filter(message => !isChannelMemberProfileEventEntry(message))
+    assert.deepEqual(
+      history.map(message => message._id),
+      desktop
+    )
+  })
+
+  it('opens and merges account sync entries', () => {
+    const vectors = readVectors('account-sync.json')
+    assert.deepEqual(
+      openAccountEntry(vectors.envelope, vectors.syncKey),
+      vectors.entry
+    )
+    assert.equal(openAccountEntry(vectors.envelope, vectors.wrongSyncKey), null)
+    const sealed = sealAccountEntry(vectors.entry, vectors.syncKey)
+    assert.deepEqual(openAccountEntry(sealed, vectors.syncKey), vectors.entry)
+    const winners = mergeAccountEntries(vectors.merge.entries)
+    assert.deepEqual(Object.fromEntries(winners), vectors.merge.winners)
+  })
+
+  it('normalizes channel-voice events', () => {
+    const vectors = readVectors('voice.json')
+    const expand = value =>
+      JSON.parse(JSON.stringify(value), (_key, field) =>
+        field && typeof field === 'object' && 'repeat' in field
+          ? field.repeat.repeat(field.count)
+          : field
+      )
+    for (const item of vectors.valid) {
+      assert.deepEqual(
+        normalizeChannelVoiceEvent(item.channel, item.input, {
+          timestamp: item.timestamp,
+        }),
+        item.output
+      )
+    }
+    for (const item of vectors.invalid) {
+      assert.throws(
+        () => normalizeChannelVoiceEvent(item.channel, expand(item.input)),
+        item.reason
+      )
+    }
   })
 })

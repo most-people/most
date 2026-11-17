@@ -168,5 +168,5 @@ syncTopic = HMAC-SHA256(key = syncKey, msg = "most-box-account-sync-topic-v1")
 
 ## 5. 待补
 
-- 向量：链接解析正反例、随机频道 ID 编码、账号派生（给定用户名与密码 → seed、address、syncKey、syncTopic）。
+- 向量见 [vectors/](vectors/README.md)（`cid.json`、`links.json`、`channels.json`、`account.json`）。
 - 是否把 CID 字符串规范为 base32（§1.4 已知问题）：属于协议变更，留给阶段 2 决定。

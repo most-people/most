@@ -171,4 +171,4 @@ drive 中只能有精确的 `/<cid>`；文件名、用户路径和 metadata 不�
 ## 8. 待补
 
 - 下载截止时间默认值。
-- 测试向量：真实 CID → topic → driveName（给定 secret）→ `want`/`have` 字节。
+- 向量见 [vectors/](vectors/README.md)（`cid.json`、`file-transfer.json`）。

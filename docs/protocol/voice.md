@@ -40,18 +40,18 @@
 }
 ```
 
-| 字段              | 说明                                                                                            |
-| ----------------- | ----------------------------------------------------------------------------------------------- |
-| `peerId`          | 发送节点的 peerId；等于接收方自己时忽略                                                         |
-| `channel`         | 与 `channelKey` 相同（兼容字段）                                                                |
-| `channelKey`      | 频道 key；接收方用 `channelId \|\| channelKey` 规范化后查找本地频道                             |
-| `event`           | `join`、`state`、`heartbeat`、`leave`、`signal` 之一                                            |
-| `sessionId`       | 发送方客户端的语音会话 ID，匹配 `^[a-zA-Z0-9_-]{3,80}$`                                         |
-| `sender.address`  | 账号地址，必填；`displayName`（≤50 字符）、`avatar`（≤4096 字符）、`profileUpdatedAt`（>0）可选 |
-| `timestamp`       | 毫秒；接收方沿用帧中的值，缺失时取本机时间                                                      |
-| `micMuted`        | 可选布尔                                                                                        |
-| `targetSessionId` | `signal` 必填，其他事件可选；格式同 `sessionId`                                                 |
-| `signal`          | 仅 `signal` 事件，见 §3                                                                         |
+| 字段              | 说明                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `peerId`          | 发送节点的 peerId；等于接收方自己时忽略                                                                               |
+| `channel`         | 与 `channelKey` 相同（兼容字段）                                                                                      |
+| `channelKey`      | 频道 key；接收方用 `channelId \|\| channelKey` 规范化后查找本地频道                                                   |
+| `event`           | `join`、`state`、`heartbeat`、`leave`、`signal` 之一                                                                  |
+| `sessionId`       | 发送方客户端的语音会话 ID，匹配 `^[a-zA-Z0-9_-]{3,80}$`                                                               |
+| `sender.address`  | 账号地址，必填；`displayName`（≤50 字符，缺省为地址前 10 字符）、`avatar`（≤4096 字符）、`profileUpdatedAt`（>0）可选 |
+| `timestamp`       | 毫秒；接收方沿用帧中的值，缺失时取本机时间                                                                            |
+| `micMuted`        | 可选布尔                                                                                                              |
+| `targetSessionId` | `signal` 必填，其他事件可选；格式同 `sessionId`                                                                       |
+| `signal`          | 仅 `signal` 事件，见 §3                                                                                               |
 
 整个规范化后的事件 JSON 不得超过 65536 字节（64 KiB），`signal` 对象本身也不得超过。
 
@@ -91,4 +91,4 @@ Web：`src/hooks/useVoiceRoom.ts:4-8`、`73-75`、`192-254`、`260-385`、`440-5
 
 ## 6. 待补
 
-- 向量：各事件的规范化正反例（会话 ID 格式、64 KiB 上限、signal 字段）。
+- 向量见 [vectors/](vectors/README.md)（`voice.json`）。

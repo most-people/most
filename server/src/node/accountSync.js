@@ -45,7 +45,7 @@ function normalizeSyncKey(input) {
   return prefixed
 }
 
-function chatTopicFor(topicHex) {
+export function chatTopicFor(topicHex) {
   return crypto.createHash('sha256').update(`${topicHex}:chat`).digest()
 }
 

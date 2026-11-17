@@ -8,12 +8,18 @@ import c from 'compact-encoding'
 import { calculateCid } from './mobile-core.mjs'
 import { cidDriveName } from './cid-drive-exchange.mjs'
 import {
+  buildChannelHelloMessages,
+  consumeChannelFrames,
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
+  normalizeChannelAttachment,
+  normalizeChannelMessage,
+  sortChannelMessages,
   verifyChannelTopicProof,
 } from './channel-protocol.mjs'
 import { deriveP2PPingTopic, encodeP2PPingFrame } from './p2p-ping.mjs'
+import { createRandomChannelId } from './protocol.mjs'
 
 function readVectors(name) {
   const url = new URL(`../../docs/protocol/vectors/${name}`, import.meta.url)
@@ -95,5 +101,98 @@ describe('protocol vectors (mobile core)', () => {
         `${frame}\n`
       )
     }
+  })
+
+  it('encodes random channel IDs', () => {
+    for (const item of readVectors('channels.json').randomIds) {
+      const bytes = b4a.from(item.bytes, 'hex')
+      assert.equal(
+        createRandomChannelId(target => target.set(bytes)),
+        item.channelId
+      )
+    }
+  })
+
+  it('splits chat swarm frames', () => {
+    for (const item of readVectors('chat.json').frames) {
+      const run = () => {
+        let remainder = b4a.alloc(0)
+        const frames = []
+        for (const chunk of item.chunks) {
+          const result = consumeChannelFrames(
+            remainder,
+            b4a.from(chunk),
+            item.maxFrameBytes
+          )
+          remainder = result.remainder
+          frames.push(...result.frames)
+        }
+        return { frames, remainder: b4a.toString(remainder, 'utf8') }
+      }
+      if (item.error) {
+        assert.throws(run, { code: item.error })
+      } else {
+        assert.deepEqual(run(), {
+          frames: item.frames,
+          remainder: item.remainder,
+        })
+      }
+    }
+  })
+
+  it('splits channel-hello across frames', () => {
+    const { base, channels, cases, empty } = readVectors('chat.json').hello
+    for (const item of [...cases, empty]) {
+      const list = item === empty ? [] : channels
+      const build = () =>
+        buildChannelHelloMessages(base, list, item.maxFrameBytes)
+      if (item.error) {
+        assert.throws(build, new RegExp(`hello ${item.error}`))
+        continue
+      }
+      assert.deepEqual(
+        build().map(message =>
+          message.channels.map(channel => channel.channelId)
+        ),
+        item.frames
+      )
+    }
+  })
+
+  it('normalizes attachments and clientMessageIds', () => {
+    const vectors = readVectors('chat.json')
+    for (const item of vectors.attachments.valid) {
+      assert.deepEqual(normalizeChannelAttachment(item.input), item.output)
+    }
+    for (const item of vectors.attachments.invalid) {
+      assert.equal(
+        normalizeChannelAttachment(item.input),
+        undefined,
+        item.reason
+      )
+    }
+    for (const item of vectors.clientMessageIds) {
+      const message = normalizeChannelMessage({
+        content: 'hi',
+        clientMessageId: item.input,
+      })
+      assert.equal(message.clientMessageId || '', item.output)
+    }
+  })
+
+  it('dedupes and orders channel history', () => {
+    const { entries, mobile } = readVectors('chat.json').history
+    const messages = sortChannelMessages(
+      entries.map(item => ({
+        ...item.entry,
+        _coreKey: item.coreKey,
+        _index: item.index,
+        _id: item.id,
+      }))
+    )
+    assert.deepEqual(
+      messages.map(message => message._id),
+      mobile
+    )
   })
 })

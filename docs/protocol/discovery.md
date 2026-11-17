@@ -126,4 +126,4 @@ Hyperswarm 只在以下情况经中继连接：HyperDHT 要求强制中继（打
 ## 6. 待补
 
 - Hyperswarm/HyperDHT 自身的宣告、查找与打洞报文：引用上游，不在本仓库重述（见 [connection.md](connection.md) §1）。
-- 向量：文件 topic、三个频道 topic、账号同步两个 topic、Ping topic。
+- 向量见 [vectors/](vectors/README.md)（`cid.json`、`channels.json`、`account.json`、`p2p-ping.json`）。

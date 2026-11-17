@@ -1,0 +1,5 @@
+{
+  "description": "Desktop node seed to file swarm key pair (connection.md §2.1): ed25519 crypto_sign_seed_keypair. peerId is the public key in hex.",
+  "seed": "5555555555555555555555555555555555555555555555555555555555555555",
+  "publicKey": "c6822637c7d310ec57627be00ba259d253749f4aaf644470cffbe53a35f73242"
+}

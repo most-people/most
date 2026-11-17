@@ -346,5 +346,5 @@ envelope = "ma://1" ‖ "." ‖ base64(nonce) ‖ "." ‖ base64(secretbox(JSON(
 
 ## 9. 待补
 
-- 向量：持有证明、hello 拆帧、消息条目、去重键、账号同步信封（给定 nonce）。
+- 向量见 [vectors/](vectors/README.md)（`channels.json`、`chat.json`、`account-sync.json`）；成员资料事件尚无向量。
 - 已知问题汇总（移动 writerId 熵、时间戳无未来上限、`author` 无签名、两端排序与去重差异）留给阶段 2 统一处理。
