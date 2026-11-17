@@ -15,6 +15,8 @@
 | `account-sync.json`  | 账号同步信封解密、错误密钥、合并                                            | [chat.md](../chat.md) §8                                                                                 |
 | `voice.json`         | `channel-voice` 事件规范化正反例                                            | [voice.md](../voice.md) §2–3                                                                             |
 
+协议 v2 的向量在 `v2/` 子目录（由独立实现计算，例如 Python hashlib），桌面 `server/tests/unit/protocolV2.test.js` 与移动 `app/backend/protocol-v2.test.mjs` 读取。
+
 ## 来源
 
 - CID 由 kubo 0.43.1 独立确认（`npm run test:cid-oracle`）。
