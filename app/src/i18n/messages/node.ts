@@ -287,6 +287,28 @@ export const nodeMessages = {
     'zh-TW': '{count} 筆記錄',
     en: '{count} record',
   },
+  'node.devtools.scrypt': {
+    'zh-CN': 'scrypt 基准测试',
+    'zh-TW': 'scrypt 基準測試',
+    en: 'scrypt benchmark',
+  },
+  'node.devtools.scryptRunning': {
+    'zh-CN': '测量中…',
+    'zh-TW': '測量中…',
+    en: 'Measuring…',
+  },
+  'node.devtools.scryptHint': {
+    'zh-CN':
+      '开发版专用：测量本机派生聊天身份所需时间（N=2^14 到 2^17，每档两次），完成后复制结果。测量期间请保持应用在前台。',
+    'zh-TW':
+      '開發版專用：測量本機衍生聊天身分所需時間（N=2^14 到 2^17，每檔兩次），完成後複製結果。測量期間請保持應用在前景。',
+    en: 'Dev builds only: measures how long this device takes to derive the chat identity (N=2^14 to 2^17, twice each). Copy the result when done and keep the app in the foreground meanwhile.',
+  },
+  'node.devtools.scryptProgress': {
+    'zh-CN': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    'zh-TW': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    en: 'N=2^{logN} run {attempt}: {percent}%',
+  },
   'node.diagnostics.title': {
     'zh-CN': '诊断详情',
     'zh-TW': '診斷詳情',

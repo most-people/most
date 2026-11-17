@@ -38,6 +38,7 @@ import {
 } from '../../ui/theme'
 import { NodeConnectionPanel } from './NodeConnectionPanel'
 import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
+import { ScryptBenchmarkPanel } from '../../devtools/ScryptBenchmarkPanel'
 import { BackgroundServicePanel } from './BackgroundServicePanel'
 
 export type NodeScreenProps = {
@@ -288,6 +289,7 @@ export function NodeScreen({
             </Text>
           )
         ) : null}
+        {diagnosticsOpen && __DEV__ ? <ScryptBenchmarkPanel /> : null}
       </View>
 
       <View style={styles.section}>

@@ -159,6 +159,12 @@ v2 中 writer core 只包含 `type: "signed"` 条目。
 
 scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_modules/ethers/lib.esm/crypto/scrypt.js` 与移动 `app/node_modules/ethers/lib.esm/crypto/scrypt.js` 都存在）。`N` 【待核实】：在低端 Android 上实测，取单次派生 ≤ 3 秒的最大 2 的幂（预计 2^15–2^17），实测后写死进规范。
 
+测量方法（2026-11-18 起可用）：
+
+- 真机：安装开发版（`npx expo run:android`），打开「节点 → 诊断详情」，点「scrypt 基准测试」。依次测 N=2^14 至 2^17，每档两次，取中位数；单次超过 15 秒或出错（例如内存不足）即停止加档。结果可选中复制。
+- 桌面基线：在 `app/` 下运行 `npm run benchmark:scrypt`。2026-11-18 在 i5-12490F、Node 26 上：2^14 约 45 ms，2^15 约 81 ms，2^16 约 165 ms，2^17 约 325 ms。ethers 的 scrypt 是纯 JS，手机上的 Hermes 会慢很多，所以只能参考，不能用来定参数。
+- 实现：`app/src/devtools/scryptBenchmark.ts`（测量逻辑，手机与桌面共用）、`app/src/devtools/ScryptBenchmarkPanel.tsx`（仅 `__DEV__` 构建显示）。
+
 ### 7.3 密码强度（D4）
 
 决定：**不强制**最低密码强度，维持现状——少于 18 个字符时只提示、不拦截（`app/src/remoteNode/identity.ts` `isPasswordShort`）。
