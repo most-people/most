@@ -13,7 +13,7 @@
 | 连接     | [connection.md](connection.md)       | 初稿   |
 | 文件传输 | [file-transfer.md](file-transfer.md) | 初稿   |
 | 聊天     | [chat.md](chat.md)                   | 初稿   |
-| 语音信令 | `voice.md`                           | 未开始 |
+| 语音信令 | [voice.md](voice.md)                 | 初稿   |
 | 测试向量 | `vectors/`                           | 未开始 |
 
 ## 约定

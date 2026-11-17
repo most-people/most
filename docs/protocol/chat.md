@@ -1,6 +1,6 @@
 # 聊天
 
-本文定义频道在线上如何握手、交换 writer core、存储和排序消息、同步在线状态，以及账号同步帧。topic 见 [discovery.md](discovery.md)，节点密钥与 peerId 见 [connection.md](connection.md)，语音信令见 `voice.md`（待写）。
+本文定义频道在线上如何握手、交换 writer core、存储和排序消息、同步在线状态，以及账号同步帧。topic 见 [discovery.md](discovery.md)，节点密钥与 peerId 见 [connection.md](connection.md)，语音信令见 [voice.md](voice.md)。
 
 ## 1. 模型
 
@@ -22,15 +22,15 @@
 
 ### 2.1 帧类型
 
-| `type`                    | 方向 | 需要持有证明 | 用途                     | 本文       |
-| ------------------------- | ---- | ------------ | ------------------------ | ---------- |
-| `channel-proof-challenge` | 双向 | 否           | 发出本端挑战             | §3         |
-| `channel-scope`           | 双向 | 否           | 声明本端持有的 topic     | §3         |
-| `channel-proof`           | 双向 | 否           | 对对方挑战的证明         | §3         |
-| `channel-hello`           | 双向 | 是           | 频道元数据与 writer core | §4         |
-| `channel-presence`        | 双向 | 是           | 在线状态                 | §7         |
-| `channel-voice`           | 双向 | 是           | 语音信令（仅桌面）       | `voice.md` |
-| `account-hello`           | 双向 | 否（加密）   | 账号同步（仅桌面）       | §8         |
+| `type`                    | 方向 | 需要持有证明 | 用途                     | 本文                 |
+| ------------------------- | ---- | ------------ | ------------------------ | -------------------- |
+| `channel-proof-challenge` | 双向 | 否           | 发出本端挑战             | §3                   |
+| `channel-scope`           | 双向 | 否           | 声明本端持有的 topic     | §3                   |
+| `channel-proof`           | 双向 | 否           | 对对方挑战的证明         | §3                   |
+| `channel-hello`           | 双向 | 是           | 频道元数据与 writer core | §4                   |
+| `channel-presence`        | 双向 | 是           | 在线状态                 | §7                   |
+| `channel-voice`           | 双向 | 是           | 语音信令（仅桌面）       | [voice.md](voice.md) |
+| `account-hello`           | 双向 | 否（加密）   | 账号同步（仅桌面）       | §8                   |
 
 处理顺序：`account-hello` → `channel-scope` → `channel-proof-challenge` → `channel-proof` → `channel-presence` / `channel-voice` / `channel-hello`。
 
