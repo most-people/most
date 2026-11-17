@@ -53,9 +53,11 @@ KDF(key, purpose)          = HMAC-SHA256(key, label(purpose))          // 32 字
 | `channel/proof`                                          | 持有证明                           | channel-keys §5 |
 | `channel/writer`                                         | 本节点 writer core 密钥种子        | channel-keys §6 |
 | `channel/encryption`                                     | 预留：频道加密密钥                 | channel-keys §6 |
-| `chat/message`                                           | 用户内容签名                       | signatures §4   |
+| `chat/message`                                           | 消息签名                           | signatures §4   |
+| `chat/profile`                                           | 成员资料签名                       | signatures §4   |
 | `chat/presence`                                          | 在线状态签名                       | signatures §4   |
-| `voice/event`                                            | 语音事件签名                       | voice §3        |
+| `chat/voice`                                             | 语音事件签名                       | voice §3        |
+| `identity`                                               | 聊天身份 scrypt 盐前缀             | signatures §7   |
 | `account/sync-key`                                       | 账号同步子密钥                     | signatures §7   |
 | `topic/account-sync`                                     | 账号同步 topic（文件 swarm）       | signatures §7   |
 | `topic/account-sync-chat`                                | 账号同步 hello topic（聊天 swarm） | signatures §7   |
