@@ -84,6 +84,18 @@ function settleUnlock(seed: string | null) {
   for (const resolve of waiters) resolve(seed)
 }
 
+// 邀请链接身份由 uid 和空密码生成，用户不知道也无法输入“密码”。
+function deriveEmptyPasswordSeed(identity: UserIdentity) {
+  try {
+    const wallet = mostWallet(identity.username, '', identity.iterations)
+    return wallet.address.toLowerCase() === identity.address.toLowerCase()
+      ? wallet.danger
+      : null
+  } catch {
+    return null
+  }
+}
+
 function getDefaultDisplayName(
   identity: Pick<UserIdentity, 'username' | 'address'>
 ) {
@@ -301,6 +313,11 @@ export const useUserStore = create<UserState>((set, get) => ({
     const { seed, identity } = get()
     if (seed) return Promise.resolve(seed)
     if (!identity) return Promise.resolve(null)
+    const inviteSeed = deriveEmptyPasswordSeed(identity)
+    if (inviteSeed) {
+      set({ seed: inviteSeed })
+      return Promise.resolve(inviteSeed)
+    }
     return new Promise(resolve => {
       unlockWaiters.push(resolve)
       set({ unlockOpen: true, unlockError: '' })

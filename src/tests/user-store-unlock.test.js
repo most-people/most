@@ -173,3 +173,20 @@ test('a fresh certificate does not prompt for the password', async () => {
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(useUserStore.getState().unlockOpen, false)
 })
+
+test('an invite identity with an empty password unlocks without a prompt', async () => {
+  const { useUserStore } = await loadModules()
+  const { createLoginSession } =
+    await import('../../server/src/utils/userIdentity.js')
+  const { identity, danger } = await createLoginSession('invite-uid', '')
+  const state = () => useUserStore.getState()
+  state().setUserIdentity(identity, danger)
+
+  state().initializeUser()
+  assert.equal(state().seed, null)
+
+  const seed = await state().unlockSeed()
+  assert.equal(seed, danger)
+  assert.equal(state().unlockOpen, false)
+  assert.equal(state().seed, danger)
+})
