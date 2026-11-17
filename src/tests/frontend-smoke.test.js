@@ -1146,12 +1146,33 @@ describe('frontend smoke checks', () => {
 
   it('keeps chat page event and mention normalization in a testable model', async () => {
     const {
+      dedupeChannels,
       formatMentionCandidateLabel,
       getSocketEventChannelKeys,
       normalizeMemberAddress,
       shouldShowChannelMentionUnread,
     } = await importBundledSource(SOURCE_PATHS.chatPageModel)
     const address = `0x${'ab'.repeat(20)}`
+
+    assert.deepEqual(
+      dedupeChannels([
+        { name: 'b8c436952eb246d8', channelKey: 'b8c436952eb246d8' },
+        { name: 'other', channelKey: 'other' },
+        {
+          name: 'b8c436952eb246d8',
+          channelKey: 'b8c436952eb246d8',
+          remark: 'UID:46116',
+        },
+      ]),
+      [
+        {
+          name: 'b8c436952eb246d8',
+          channelKey: 'b8c436952eb246d8',
+          remark: 'UID:46116',
+        },
+        { name: 'other', channelKey: 'other' },
+      ]
+    )
 
     assert.deepEqual(
       getSocketEventChannelKeys({

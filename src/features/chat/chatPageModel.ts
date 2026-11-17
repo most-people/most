@@ -55,6 +55,21 @@ export function getChannelKey(
   return channel?.channelKey || channel?.name || ''
 }
 
+// 列表以 channelKey 作为 React key；重复项会让列表渲染出多余或残留的行。
+export function dedupeChannels(channels: Channel[]) {
+  const byKey = new Map<string, Channel>()
+  for (const channel of channels) {
+    const key = getChannelKey(channel)
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, channel)
+    } else if (!existing.remark && channel.remark) {
+      byKey.set(key, { ...existing, remark: channel.remark })
+    }
+  }
+  return [...byKey.values()]
+}
+
 export function getChannelId(
   channel?: Pick<Channel, 'channelId' | 'name'> | null
 ) {

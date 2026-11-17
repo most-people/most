@@ -105,6 +105,7 @@ import {
 } from '~/lib/chatRoom.js'
 import {
   CHAT_FILE_ROOT,
+  dedupeChannels,
   formatChannelMentionPreviewText,
   formatChannelMentionUnreadPreview,
   formatMentionCandidateLabel,
@@ -1347,7 +1348,7 @@ function ChatPage() {
       return
     }
     try {
-      const result = await channelApi.getChannels()
+      const result = dedupeChannels(await channelApi.getChannels())
       setChannels(result)
       setActiveChannel(prev => {
         if (!prev) return prev

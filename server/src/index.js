@@ -3036,9 +3036,9 @@ export class MostBoxEngine extends EventEmitter {
     for (const channel of Array.isArray(backupInput.channels)
       ? backupInput.channels
       : []) {
-      const mergeResult = await this.#mergeAccountChannelRecord(
-        ownerAddress,
-        channel
+      const mergeResult = await this.#runChannelCreationTask(
+        normalizeChannelId(channel?.channelId),
+        () => this.#mergeAccountChannelRecord(ownerAddress, channel)
       )
       if (mergeResult.added) result.channelsAdded += 1
       else if (mergeResult.updated) result.channelsUpdated += 1
@@ -3835,11 +3835,16 @@ export class MostBoxEngine extends EventEmitter {
   async createChannel(channelIdInput, type = 'personal', options = {}) {
     this.#ensureInitialized()
     const channelId = normalizeChannelId(channelIdInput)
-    const previous =
-      this.#channelCreationQueues.get(channelId) || Promise.resolve()
-    const pending = previous.then(() =>
+    return this.#runChannelCreationTask(channelId, () =>
       this.#createChannel(channelId, type, options)
     )
+  }
+
+  // 同一 channelId 的创建/加入串行执行，避免并发请求各自写入一条频道记录。
+  async #runChannelCreationTask(channelId, task) {
+    const previous =
+      this.#channelCreationQueues.get(channelId) || Promise.resolve()
+    const pending = previous.then(task)
     const completed = pending.then(
       () => undefined,
       () => undefined
@@ -3960,6 +3965,12 @@ export class MostBoxEngine extends EventEmitter {
       return this.createChannel(channelId, options.type || 'group', options)
     }
 
+    return this.#runChannelCreationTask(channelId, () =>
+      this.#joinChannelWithCandidate(channelId, candidate, options)
+    )
+  }
+
+  async #joinChannelWithCandidate(channelId, candidate, options) {
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(c => c.channelKey === channelKey)
     if (existing) {

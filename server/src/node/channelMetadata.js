@@ -7,6 +7,7 @@ import {
   normalizeChannelKey,
   uniqueStrings,
 } from '../core/channelIdentity.js'
+import { normalizeOwnerAddress } from '../core/ownerMetadata.js'
 import { readMetadataFile } from './metadataFile.js'
 
 export function getChannelsMetadataPath(dataPath) {
@@ -64,8 +65,60 @@ export function loadChannelsMetadata(dataPath) {
         .map(
           ({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel
         )
+        .reduce(mergeDuplicateChannel, [])
     },
   })
+}
+
+// 旧版本并发创建可能留下同一 channelKey 的多条记录：保留第一条作为本地写入者，
+// 其余记录的写入 core 并入 writerCoreKeys，成员、备注和置顶按地址合并。
+function mergeDuplicateChannel(channels, channel) {
+  const existing = channels.find(item => item.channelKey === channel.channelKey)
+  if (!existing) {
+    channels.push(channel)
+    return channels
+  }
+
+  existing.writerCoreKeys = uniqueStrings([
+    ...existing.writerCoreKeys,
+    ...channel.writerCoreKeys,
+    channel.localWriterCoreKey,
+  ])
+  existing.members = mergeMembers(existing.members, channel.members)
+  existing.remarks = mergeAddressMap(existing.remarks, channel.remarks)
+  existing.pinnedBy = mergeAddressMap(existing.pinnedBy, channel.pinnedBy)
+  if (channel.createdAt && !(existing.createdAt <= channel.createdAt)) {
+    existing.createdAt = channel.createdAt
+  }
+  if (
+    channel.lastMessageAt &&
+    !(existing.lastMessageAt >= channel.lastMessageAt)
+  ) {
+    existing.lastMessageAt = channel.lastMessageAt
+  }
+  return channels
+}
+
+function mergeMembers(current, incoming) {
+  const members = Array.isArray(current) ? [...current] : []
+  for (const member of Array.isArray(incoming) ? incoming : []) {
+    const address = normalizeOwnerAddress(member?.address)
+    if (!address) continue
+    if (
+      !members.some(item => normalizeOwnerAddress(item?.address) === address)
+    ) {
+      members.push(member)
+    }
+  }
+  return members
+}
+
+function mergeAddressMap(current, incoming) {
+  if (!incoming || typeof incoming !== 'object') return current
+  return {
+    ...incoming,
+    ...(current && typeof current === 'object' ? current : {}),
+  }
 }
 
 export function serializeChannelsMetadata(channels) {

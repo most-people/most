@@ -5225,6 +5225,40 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       assert.ok(channels.find(c => c.name === `join-${uid}`))
     })
 
+    it('keeps one channel record when create and candidate join race', async () => {
+      const channelId = `race-join-${uid}`
+      const owner = `0x${'1'.repeat(40)}`
+      const member = `0x${'2'.repeat(40)}`
+
+      const results = await Promise.allSettled([
+        engine.createChannel(channelId, 'public', {
+          ownerAddress: owner,
+          remark: 'Support group',
+        }),
+        engine.joinChannel(
+          channelId,
+          { channelId, channelKey: channelId },
+          { ownerAddress: member }
+        ),
+      ])
+
+      const records = engine
+        .listChannels()
+        .filter(channel => channel.channelKey === channelId)
+      assert.strictEqual(records.length, 1)
+      assert.deepEqual(
+        results.map(result => result.status),
+        ['fulfilled', 'fulfilled']
+      )
+      for (const address of [owner, member]) {
+        assert.ok(
+          engine
+            .listChannels({ ownerAddress: address })
+            .some(channel => channel.channelKey === channelId)
+        )
+      }
+    })
+
     it('creates a new channel when no candidate is supplied', async () => {
       const joined = await engine.joinChannel(`new-join-${uid}`)
       assert.strictEqual(joined.name, `new-join-${uid}`)

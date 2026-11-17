@@ -72,6 +72,86 @@ describe('channel metadata', () => {
     })
   })
 
+  it('merges duplicate records of the same channel key', () => {
+    withTempDir(directory => {
+      fs.writeFileSync(
+        getChannelsMetadataPath(directory),
+        JSON.stringify([
+          {
+            channelId: 'support-room',
+            channelKey: 'support-room',
+            writerId: 'writer-a',
+            localWriterCoreKey: 'core-a',
+            writerCoreKeys: ['core-a'],
+            createdAt: '2026-10-07T05:41:14.636Z',
+            lastMessageAt: '2026-10-07T05:41:35.791Z',
+            members: [
+              {
+                address: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                displayName: 'Owner',
+              },
+            ],
+            remarks: {
+              '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa': 'UID:46116',
+            },
+          },
+          {
+            channelId: 'support-room',
+            channelKey: 'support-room',
+            writerId: 'writer-b',
+            localWriterCoreKey: 'core-b',
+            writerCoreKeys: ['core-b', 'core-c'],
+            createdAt: '2026-10-07T05:41:14.825Z',
+            lastMessageAt: '',
+            members: [
+              {
+                address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                displayName: 'Duplicate',
+              },
+              {
+                address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                displayName: 'Agent',
+              },
+            ],
+            remarks: {
+              '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa': 'other',
+              '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb': 'Agent remark',
+            },
+            pinnedBy: { '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb': true },
+          },
+        ])
+      )
+
+      assert.deepEqual(loadChannelsMetadata(directory), [
+        {
+          channelId: 'support-room',
+          channelKey: 'support-room',
+          name: 'support-room',
+          writerId: 'writer-a',
+          localWriterCoreKey: 'core-a',
+          writerCoreKeys: ['core-a', 'core-b', 'core-c'],
+          createdAt: '2026-10-07T05:41:14.636Z',
+          lastMessageAt: '2026-10-07T05:41:35.791Z',
+          members: [
+            {
+              address: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              displayName: 'Owner',
+            },
+            {
+              address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              displayName: 'Agent',
+            },
+          ],
+          remarks: {
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa': 'UID:46116',
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb': 'Agent remark',
+          },
+          pinnedBy: { '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb': true },
+        },
+      ])
+    })
+  })
+
   it('serializes only the stable channel fields', () => {
     const serialized = serializeChannelsMetadata([
       {
