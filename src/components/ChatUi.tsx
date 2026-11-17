@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import {
   ArrowRight,
@@ -169,7 +170,13 @@ export function ChatChannelNavItem({
   onLeave?: () => void
 }) {
   const { t } = useI18n()
+  const itemRef = useRef<HTMLDivElement>(null)
   const hasActions = Boolean(onTogglePin || onRename || onLeave)
+
+  useEffect(() => {
+    if (active) itemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [active])
+
   const className = [
     'sidebar-nav-btn',
     active ? 'active' : '',
@@ -182,6 +189,7 @@ export function ChatChannelNavItem({
 
   return (
     <div
+      ref={itemRef}
       className={className}
       onClick={onSelect}
       role="button"
