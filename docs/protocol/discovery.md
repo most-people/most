@@ -1,6 +1,6 @@
 # 发现
 
-本文定义节点如何在 HyperDHT 上找到彼此：用哪些 swarm、加入哪些 topic、topic 怎么算、何时重新查找。连接建立后的握手与帧格式见 `connection.md`（待写）；标识符见 [identifiers.md](identifiers.md)。
+本文定义节点如何在 HyperDHT 上找到彼此：用哪些 swarm、加入哪些 topic、topic 怎么算、何时重新查找。连接建立后的握手与帧格式见 [connection.md](connection.md)；标识符见 [identifiers.md](identifiers.md)。
 
 ## 1. DHT 与引导节点
 
@@ -101,7 +101,7 @@ CID  bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e   ("hello world
 
 ### 3.5 P2P Ping topic
 
-用户手动发起的诊断：一方生成 6 位数字 `code`，双方各开一个临时 swarm，按方向 `hostToJoin` / `joinToHost` 加入不同 topic，一端只做 server、另一端只做 client。帧格式与证明在 `connection.md`（待写）描述。
+用户手动发起的诊断：一方生成 6 位数字 `code`，双方各开一个临时 swarm，按方向 `hostToJoin` / `joinToHost` 加入不同 topic，一端只做 server、另一端只做 client。帧格式与证明见 [connection.md](connection.md) §4。
 
 桌面：`server/src/core/p2pPing.js:10-20`；移动：`app/backend/p2p-ping.mjs:10-17`、`147-157`、`350-356`。
 
@@ -125,5 +125,5 @@ Hyperswarm 只在以下情况经中继连接：HyperDHT 要求强制中继（打
 
 ## 6. 待补
 
-- Hyperswarm/HyperDHT 自身的宣告、查找与打洞报文：引用上游规范还是在本仓库描述，待定（`connection.md`）。
+- Hyperswarm/HyperDHT 自身的宣告、查找与打洞报文：引用上游，不在本仓库重述（见 [connection.md](connection.md) §1）。
 - 向量：文件 topic、三个频道 topic、账号同步两个 topic、Ping topic。

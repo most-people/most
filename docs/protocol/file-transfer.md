@@ -22,7 +22,7 @@
 - 桌面：`server/src/index.js:676-684`
 - 移动：`app/backend/mobile-core.mjs:619-622`
 
-文件 swarm 与聊天 swarm 是两个独立的 Hyperswarm 实例，见 `connection.md`（待写）。
+文件 swarm 与聊天 swarm 是两个独立的 Hyperswarm 实例，见 [discovery.md](discovery.md) §2。
 
 ## 3. `most-cid-drive/2` 通道
 
@@ -44,7 +44,7 @@
 - 桌面：`server/src/core/cidDriveExchange.js:24-49`
 - 移动：`app/backend/cid-drive-exchange.mjs:24-49`（与桌面逐行相同）
 
-Protomux 帧本身（通道打开、消息类型前缀、变长整数）在 `connection.md`（待写）描述。
+Protomux 帧本身（通道打开、消息类型前缀、变长整数）遵循上游 Protomux，见 [connection.md](connection.md) §1。
 
 ### 3.1 `want`
 
@@ -170,6 +170,5 @@ drive 中只能有精确的 `/<cid>`；文件名、用户路径和 metadata 不�
 
 ## 8. 待补
 
-- Protomux 与 Hypercore 复制的帧格式（`connection.md`）。
 - 下载截止时间默认值。
 - 测试向量：真实 CID → topic → driveName（给定 secret）→ `want`/`have` 字节。
