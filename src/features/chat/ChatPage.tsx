@@ -249,7 +249,7 @@ function ChatPage() {
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isSendingChannelMessageRef = useRef(false)
   const isBackendReady = hasBackend === true
-  const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
+  const { t, compareStrings, formatDate, formatMessageTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
 
   const showApiError = useCallback(
@@ -2516,7 +2516,7 @@ function ChatPage() {
                     author={displayAuthor}
                     authorTag={displayTag}
                     mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
-                    time={formatTime(msg.timestamp)}
+                    time={formatMessageTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}
                   </ChatMessageItem>

@@ -282,6 +282,7 @@ export const chatMessages = {
     en: 'No matching conversations',
   },
   'chat.draftLabel': { 'zh-CN': '[草稿] ', 'zh-TW': '[草稿] ', en: '[Draft] ' },
+  'chat.yesterday': { 'zh-CN': '昨天', 'zh-TW': '昨天', en: 'Yesterday' },
   'chat.unreadCount': {
     'zh-CN': '{count} 条未读消息',
     'zh-TW': '{count} 則未讀訊息',

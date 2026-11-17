@@ -17,6 +17,7 @@ import {
   type Locale,
 } from './locales'
 import { messages, type MessageKey } from './messages'
+import { formatMessageTime } from './messageTime'
 import { PRODUCT_PROFILE } from '../product/productProfile'
 import {
   interpolateMessage,
@@ -29,6 +30,7 @@ type I18nContextValue = {
   setLocale: (locale: Locale) => void
   t: (key: MessageKey, params?: TranslationParams) => string
   formatDateTime: (value: Date | string | number) => string
+  formatMessageTime: (value: Date | string | number) => string
   formatNumber: (value: number) => string
   compareStrings: (left: string, right: string) => number
 }
@@ -129,6 +131,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
           ? ''
           : dateTimeFormatter.format(date)
       },
+      formatMessageTime: value =>
+        formatMessageTime(
+          value,
+          locale,
+          translateMessage('chat.yesterday', locale)
+        ),
       formatNumber: value => numberFormatter.format(value),
       compareStrings: (left, right) => collator.compare(left, right),
     }

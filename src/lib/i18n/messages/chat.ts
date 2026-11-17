@@ -1,5 +1,6 @@
 export const zhCNChatMessages = {
   'chat.unread': '有新消息',
+  'chat.yesterday': '昨天',
   'chat.mentionUnread': '有人 @ 你',
   'chat.mentionUnreadTag': '有人@我',
   'chat.mentionSuggestions': '选择要 @ 的成员',
@@ -109,6 +110,7 @@ export const zhCNChatMessages = {
 
 export const zhTWChatMessages = {
   'chat.unread': '有新訊息',
+  'chat.yesterday': '昨天',
   'chat.mentionUnread': '有人 @ 你',
   'chat.mentionUnreadTag': '有人@我',
   'chat.mentionSuggestions': '選擇要 @ 的成員',
@@ -218,6 +220,7 @@ export const zhTWChatMessages = {
 
 export const enChatMessages = {
   'chat.unread': 'New messages',
+  'chat.yesterday': 'Yesterday',
   'chat.mentionUnread': 'Someone mentioned you',
   'chat.mentionUnreadTag': '有人@我',
   'chat.mentionSuggestions': 'Mention a member',

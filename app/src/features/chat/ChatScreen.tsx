@@ -294,7 +294,7 @@ export function ChatScreen({
   onOpenAttachment,
   onSaveAttachment,
 }: ChatScreenProps) {
-  const { t, formatDateTime, locale } = useI18n()
+  const { t, formatMessageTime, locale } = useI18n()
   const insets = useSafeAreaInsets()
   const theme = useMostBoxTheme()
   const [draftHeight, setDraftHeight] = useState(42)
@@ -1718,7 +1718,7 @@ export function ChatScreen({
                   <View>
                     {shouldShowMessageTime(item, visibleMessages[index + 1]) ? (
                       <Text style={styles.timestamp}>
-                        {formatDateTime(item.timestamp!)}
+                        {formatMessageTime(item.timestamp!)}
                       </Text>
                     ) : null}
                     <View
