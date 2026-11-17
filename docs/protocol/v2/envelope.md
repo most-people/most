@@ -45,6 +45,8 @@ KDF(key, purpose)          = HMAC-SHA256(key, label(purpose))          // 32 字
 | `file/want`                                              | `want` 证明                        | file-privacy §4 |
 | `cid-drive/name`                                         | 本节点 CID drive 名                | file-privacy §6 |
 | `channel/id`                                             | 频道公开 ID                        | channel-keys §3 |
+| `channel/public`                                         | 公开频道凭证（由名字派生）         | channel-keys §4 |
+| `channel/legacy`                                         | v1 频道迁移凭证                    | channel-keys §7 |
 | `topic/channel-replication`                              | 频道复制 topic（文件 swarm）       | channel-keys §3 |
 | `topic/channel-chat`                                     | 频道聊天 topic（聊天 swarm）       | channel-keys §3 |
 | `channel/proof-key`                                      | 持有证明密钥                       | channel-keys §5 |
