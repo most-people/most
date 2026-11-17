@@ -10,11 +10,6 @@ import {
   encodeEvent,
 } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
-import b4a from 'b4a'
-
-// Same relay as the desktop default (server/src/config.js).
-const DEFAULT_RELAY_PUBLIC_KEY =
-  '831d288c1a079b6bf38698892f7bf47c16650cf1e0fcf2e4bc5959934ad6b487'
 
 const { IPC } = BareKit
 
@@ -32,7 +27,6 @@ function getCore(storagePath = '') {
   if (!core) {
     core = new MobileP2PCore({
       storagePath: storagePath || getInitialStoragePath(),
-      relayThrough: b4a.from(DEFAULT_RELAY_PUBLIC_KEY, 'hex'),
       send: (type, payload) => send(type, payload),
     })
   }

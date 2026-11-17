@@ -48,12 +48,6 @@ export const SWARM_BOOTSTRAP = [
   '138.68.147.8@node3.hyperdht.org:49737',
 ]
 
-// MostBox blind relay (scripts/blind-relay.js on x.most.red). Used only when
-// holepunching fails or this node is behind a randomizing NAT. The relay
-// forwards encrypted bytes and sees peer IP addresses, not content.
-export const DEFAULT_RELAY_PUBLIC_KEY =
-  '831d288c1a079b6bf38698892f7bf47c16650cf1e0fcf2e4bc5959934ad6b487'
-
 export const CHANNEL_NAME_MIN_LENGTH = 3
 export const CHANNEL_NAME_MAX_LENGTH = 30
 export const CHANNEL_NAME_REGEX = /^[a-z0-9_-]+$/

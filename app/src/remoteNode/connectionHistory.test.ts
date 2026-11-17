@@ -12,13 +12,13 @@ import {
 
 describe('remote node history', () => {
   it('builds HTTPS-first candidates for addresses without a protocol', () => {
-    assert.deepEqual(getRemoteUrlCandidates(' x.most.red:1976/base/ '), [
-      'https://x.most.red:1976/base',
-      'http://x.most.red:1976/base',
+    assert.deepEqual(getRemoteUrlCandidates(' node.example.com:1976/base/ '), [
+      'https://node.example.com:1976/base',
+      'http://node.example.com:1976/base',
     ])
     assert.equal(
-      normalizeRemoteUrl('x.most.red:1976/base/'),
-      'https://x.most.red:1976/base'
+      normalizeRemoteUrl('node.example.com:1976/base/'),
+      'https://node.example.com:1976/base'
     )
   })
 

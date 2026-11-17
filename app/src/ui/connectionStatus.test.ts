@@ -123,21 +123,21 @@ test('DHT offline is reported before the alone state', () => {
 
 test('falling back to another node is called out with both addresses', () => {
   const result = getConnectionStatus({
-    node: { ...remote, fallbackFrom: 'http://x.most.red' },
+    node: { ...remote, fallbackFrom: 'http://node.example.com' },
     chatConnected: true,
     hasChannels: true,
   })
   assert.equal(result.level, 'warn')
   assert.equal(result.titleKey, 'status.fallback.title')
   assert.equal(result.detailKey, 'status.fallback.detail')
-  assert.equal(result.params.from, 'x.most.red')
+  assert.equal(result.params.from, 'node.example.com')
 
   const local = getConnectionStatus({
     node: {
       status: 'ready',
       mode: 'local',
       peerCount: 1,
-      fallbackFrom: 'http://x.most.red',
+      fallbackFrom: 'http://node.example.com',
     },
     chatConnected: true,
     hasChannels: true,

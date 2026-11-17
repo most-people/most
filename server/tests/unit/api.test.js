@@ -147,8 +147,11 @@ describe('api browser helpers', () => {
   describe('getBackendConnectionCandidates()', () => {
     it('builds secure-first candidates for an address without a protocol', () => {
       assert.deepStrictEqual(
-        getBackendConnectionCandidates(' x.most.red:1976/base/ '),
-        ['https://x.most.red:1976/base', 'http://x.most.red:1976/base']
+        getBackendConnectionCandidates(' node.example.com:1976/base/ '),
+        [
+          'https://node.example.com:1976/base',
+          'http://node.example.com:1976/base',
+        ]
       )
     })
 

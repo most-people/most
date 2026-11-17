@@ -31,7 +31,7 @@ MostBox 是开源的、完全去中心化的聊天与文件传输应用。**聊�
 | 中继           | 用户自愿把自己的服务器作为中继；可公开，也可只分享给好友 |
 | 公开中继的发现 | 在 DHT 上自行公告，不由官方审核名单                      |
 | 私人中继       | 不公告即私有，把公钥告诉好友即可使用                     |
-| 官方中继       | 降为种子列表中的兜底，不再是唯一中继                     |
+| 官方中继       | 不写入代码（2026-11-17：x.most.red 是负责人个人中继）    |
 | Web3 工具箱    | 移出主仓库                                               |
 | 语音通话       | 只做 Web 与桌面端；移动端原生通话不再列入目标            |
 
@@ -43,23 +43,23 @@ MostBox 是开源的、完全去中心化的聊天与文件传输应用。**聊�
 - 未校验的块不算本地已有；超出声明大小即中止（F2 的一部分）。
 - 崩溃一致性 F3（桌面，`4ccd8b5`）。
 - 桌面、移动、kubo 三方 CID 对照 F4（`0ac89df`）。
-- 发布者退出后的接力统计 F5、topic 重查、默认中继（`e99f16c`）。
+- 发布者退出后的接力统计 F5、topic 重查（`e99f16c`）；默认中继已于 2026-11-17 撤销，代码不内置中继。
 - 设备证书认证、聊天举报与屏蔽。
 
 ### 仍然开放
 
-| 问题                                                                                  | 位置                                                 | 处理阶段 |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------- |
-| 协议只存在于实现里，没有规范                                                          | `server/src/index.js`、`app/backend/mobile-core.mjs` | 1        |
-| 文件 topic 等于 CID 摘要，DHT 节点可见；还原 CID 后发 `want` 即可取得 driveKey 并下载 | `server/src/core/cidTopic.js`                        | 2        |
-| P2P 层消息没有作者签名，`author` 字段自填                                             | `server/src/index.js`、`server/src/core/channel*.js` | 2        |
-| 频道 core 仍由公开的共享主密钥派生；自定义短频道 ID 可枚举；聊天明文                  | `server/src/config.js`、`server/src/index.js`        | 2        |
-| 默认中继是单点、对任何节点开放、无会话上限；移动端关不掉且公钥是第二份常量            | `scripts/blind-relay.js`、`app/backend/backend.mjs`  | 3        |
-| DHT 引导节点只有 `hyperdht.org` 的三台                                                | `server/src/config.js`                               | 3        |
-| 语音写死 Google STUN，打洞失败无提示                                                  | `src/hooks/useVoiceRoom.ts`                          | 3        |
-| 聊天不变量 C1–C5 没有统计验收                                                         | `AGENTS.md`                                          | 4        |
-| F2 截断/极慢/谎报大小的桩、移动端崩溃注入、逐连接路径记录、蜂窝与网络切换未覆盖       | `docs/validation-status.md`                          | 4        |
-| 桌面与移动两套核心实现；`ipfs-unixfs-importer` 版本不同（17.1.1 / 17.0.1）            | `package.json`、`app/package.json`                   | 5        |
+| 问题                                                                                                 | 位置                                                 | 处理阶段 |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------- |
+| 协议只存在于实现里，没有规范                                                                         | `server/src/index.js`、`app/backend/mobile-core.mjs` | 1        |
+| 文件 topic 等于 CID 摘要，DHT 节点可见；还原 CID 后发 `want` 即可取得 driveKey 并下载                | `server/src/core/cidTopic.js`                        | 2        |
+| P2P 层消息没有作者签名，`author` 字段自填                                                            | `server/src/index.js`、`server/src/core/channel*.js` | 2        |
+| 频道 core 仍由公开的共享主密钥派生；自定义短频道 ID 可枚举；聊天明文                                 | `server/src/config.js`、`server/src/index.js`        | 2        |
+| 没有内置中继，对称 NAT 之间无法连通；`blind-relay.js` 对任何节点开放、无会话上限；移动端不能配置中继 | `scripts/blind-relay.js`、`app/backend/backend.mjs`  | 3        |
+| DHT 引导节点只有 `hyperdht.org` 的三台                                                               | `server/src/config.js`                               | 3        |
+| 语音写死 Google STUN，打洞失败无提示                                                                 | `src/hooks/useVoiceRoom.ts`                          | 3        |
+| 聊天不变量 C1–C5 没有统计验收                                                                        | `AGENTS.md`                                          | 4        |
+| F2 截断/极慢/谎报大小的桩、移动端崩溃注入、逐连接路径记录、蜂窝与网络切换未覆盖                      | `docs/validation-status.md`                          | 4        |
+| 桌面与移动两套核心实现；`ipfs-unixfs-importer` 版本不同（17.1.1 / 17.0.1）                           | `package.json`、`app/package.json`                   | 5        |
 
 ## 工作方式
 

@@ -6,11 +6,10 @@
 // the seeder's public IP unless the connection went through a relay. The
 // enumerator's own IP is visible to every seeder it connects to.
 //
-//   node scripts/dht-enumerate.js 'most://<cid>?filename=x' [--no-relay]
+//   node scripts/dht-enumerate.js 'most://<cid>?filename=x' [--relay <public key hex>]
 import { createRequire } from 'node:module'
 import { getCidInfo } from '../server/src/core/cidTopic.js'
 import { parseMostLink } from '../server/src/core/cid.js'
-import { DEFAULT_RELAY_PUBLIC_KEY } from '../server/src/config.js'
 
 const swarmRequire = createRequire(
   createRequire(import.meta.url).resolve('hyperswarm')
@@ -19,7 +18,8 @@ const DHT = swarmRequire('hyperdht')
 const b4a = swarmRequire('b4a')
 
 const link = process.argv[2]
-const noRelay = process.argv.includes('--no-relay')
+const relayIndex = process.argv.indexOf('--relay')
+const relay = relayIndex > 0 ? process.argv[relayIndex + 1] : ''
 const cid = link.startsWith('most://') ? parseMostLink(link).cid : link
 const { topic } = getCidInfo(cid)
 const dht = new DHT()
@@ -48,7 +48,7 @@ await Promise.all(
     const started = Date.now()
     const socket = dht.connect(peer.publicKey, {
       relayAddresses: peer.relayAddresses,
-      relayThrough: noRelay ? null : b4a.from(DEFAULT_RELAY_PUBLIC_KEY, 'hex'),
+      relayThrough: relay ? b4a.from(relay, 'hex') : null,
     })
     socket.on('error', () => {})
     const opened = await new Promise(resolve => {

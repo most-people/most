@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: November 16, 2026
+Last updated: November 17, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -23,14 +23,14 @@ infrastructure and other peers. Network participants and infrastructure
 providers may observe information needed to establish a connection, including
 IP addresses, timing, topics, and traffic volume.
 
-When a device is behind a NAT that randomizes ports, or hole punching between
-two peers fails, MostBox routes their connection through a relay operated
-by Most.Box. The relay is enabled by default. It forwards the bytes of the
-peers' encrypted connection and cannot read files or messages, but it sees both peers' IP addresses
-and public keys, connection timing, and traffic volume. The relay software in
-this repository (`scripts/blind-relay.js`) logs only session counts. Desktop
-and daemon users can disable it by setting `relayPublicKey` to an empty string
-in the node configuration.
+MostBox does not use a relay by default. A desktop or daemon operator can set
+`relayPublicKey` in the node configuration to a relay of their choice. When a
+device is behind a NAT that randomizes ports, or hole punching between two
+peers fails, the connection is then routed through that relay. The relay
+forwards the bytes of the peers' encrypted connection and cannot read files or
+messages, but its operator can see both peers' IP addresses and public keys,
+connection timing, and traffic volume. The relay software in this repository
+(`scripts/blind-relay.js`) logs only session counts.
 
 Files published or seeded by a user are transferred to peers that know the
 corresponding `most://` link or CID. Anyone who knows a link can find the peers

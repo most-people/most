@@ -118,7 +118,7 @@ test('web mode uses the last selected node before the local daemon', async () =>
   const local = { url: 'http://localhost:1976', invite: '' }
   let localStarts = 0
   const result = await startPreferredOrLocal({
-    preferred: { url: 'https://x.most.red', invite: 'invite' },
+    preferred: { url: 'https://node.example.com', invite: 'invite' },
     localConfig: local,
     startRemote: async () => 'remote-node',
     startLocal: async () => {
@@ -136,7 +136,7 @@ test('web mode uses the last selected node before the local daemon', async () =>
 test('web mode falls back to the local daemon and reports the failed node', async () => {
   const local = { url: 'http://localhost:1976', invite: '' }
   const result = await startPreferredOrLocal({
-    preferred: { url: 'https://x.most.red', invite: 'invite' },
+    preferred: { url: 'https://node.example.com', invite: 'invite' },
     localConfig: local,
     startRemote: async () => {
       throw new Error('offline')
@@ -147,7 +147,7 @@ test('web mode falls back to the local daemon and reports the failed node', asyn
   assert.equal(result.mode, 'remote')
   assert.equal(result.node, 'local-daemon')
   assert.deepEqual(result.config, local)
-  assert.equal(result.fallbackFrom, 'https://x.most.red')
+  assert.equal(result.fallbackFrom, 'https://node.example.com')
 })
 
 test('web mode without a saved selection uses the local daemon', async () => {

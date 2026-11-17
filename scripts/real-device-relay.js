@@ -8,7 +8,8 @@
 // --where local runs both engines on this machine (same Wi-Fi as the phone);
 // --where ssh://root@host runs them on that host through scripts/relay-worker.js
 // (the repo must be at --remote-dir there, run by --remote-node). Events use
-// the relay-churn schema:
+// the relay-churn schema. --relay <public key hex> routes the engines through
+// that blind relay when holepunching fails; without it no relay is used.
 //
 //   node scripts/real-device-relay.js --where local --runs 30 --condition real-wifi --out log.jsonl
 //   node scripts/relay-churn.js --summarize log.jsonl
@@ -19,7 +20,6 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { spawnWorkerCommand } from './relay-churn.js'
-import { DEFAULT_RELAY_PUBLIC_KEY } from '../server/src/config.js'
 
 const FILE_SIZE = 256 * 1024
 const PHONE_TIMEOUT = 60000
@@ -84,7 +84,7 @@ async function node(where, remoteDir, dataPath, onStatus) {
   await worker.call('start', {
     dataPath,
     downloadTimeout: DOWNLOAD_TIMEOUT,
-    relayThrough: DEFAULT_RELAY_PUBLIC_KEY,
+    relayThrough: args().relay || '',
   })
   return {
     call: worker.call,

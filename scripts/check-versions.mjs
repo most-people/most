@@ -113,24 +113,6 @@ if (fs.existsSync(nativeIosInfoPlistPath)) {
   }
 }
 
-// The mobile backend bundles its own copy of the default relay key.
-const relayPattern = /DEFAULT_RELAY_PUBLIC_KEY =\s*'([0-9a-f]{64})'/
-const desktopRelay = readMatch(
-  'server/src/config.js',
-  relayPattern,
-  'default relay key'
-)
-const mobileRelay = readMatch(
-  'app/backend/backend.mjs',
-  relayPattern,
-  'default relay key'
-)
-if (desktopRelay !== mobileRelay) {
-  throw new Error(
-    `Default relay key differs: server/src/config.js ${desktopRelay}, app/backend/backend.mjs ${mobileRelay}`
-  )
-}
-
 const tag = getTagArgument()
 if (tag) {
   if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {
