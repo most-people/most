@@ -39,6 +39,11 @@ import {
 import { NodeConnectionPanel } from './NodeConnectionPanel'
 import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 import { ScryptBenchmarkPanel } from '../../devtools/ScryptBenchmarkPanel'
+
+// Dev builds, or a release build made with EXPO_PUBLIC_SCRYPT_BENCHMARK=1 to
+// measure scrypt at release speed on a phone (docs/protocol/v2/signatures.md §7.2).
+const SHOW_SCRYPT_BENCHMARK =
+  __DEV__ || process.env.EXPO_PUBLIC_SCRYPT_BENCHMARK === '1'
 import { BackgroundServicePanel } from './BackgroundServicePanel'
 
 export type NodeScreenProps = {
@@ -289,7 +294,9 @@ export function NodeScreen({
             </Text>
           )
         ) : null}
-        {diagnosticsOpen && __DEV__ ? <ScryptBenchmarkPanel /> : null}
+        {diagnosticsOpen && SHOW_SCRYPT_BENCHMARK ? (
+          <ScryptBenchmarkPanel />
+        ) : null}
       </View>
 
       <View style={styles.section}>
