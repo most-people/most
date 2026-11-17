@@ -115,5 +115,68 @@
       "v1ChannelId": "general",
       "key": "de52a8b021da418f5cbd625aca6ba482a43ad3fdc1ddf2bfb221ee4159e5f65f"
     }
+  ],
+  "handles": [
+    {
+      "input": "aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypq",
+      "result": {
+        "handle": "aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypq",
+        "kind": "private",
+        "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "channelKey": "12ca71f34a378fa1837cd82a178669492557c8c54d030137e5f04edaecc52552"
+      }
+    },
+    {
+      "input": " AAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPQ",
+      "result": {
+        "handle": "aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypq",
+        "kind": "private",
+        "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "channelKey": "12ca71f34a378fa1837cd82a178669492557c8c54d030137e5f04edaecc52552"
+      }
+    },
+    {
+      "input": "a2b3c4d5e6f7g8h9i0j1k2l3m4",
+      "result": {
+        "handle": "a2b3c4d5e6f7g8h9i0j1k2l3m4",
+        "kind": "public",
+        "key": "4e7cecc7887744c62849e734d62803ea77497dbe105a93d620c6e767b352b289",
+        "channelKey": "b8f19d7649c1d03753860119a9c22f3dee68a632745c8254d948b1158c3b28c9"
+      }
+    },
+    {
+      "input": "aaisem2ekvthpcezvk54zxpo74",
+      "result": {
+        "handle": "aaisem2ekvthpcezvk54zxpo74",
+        "kind": "legacy",
+        "key": "25915339021b6dac75a9efba2b967b1f0973149a589d205cbb5851681ec68c32",
+        "channelKey": "a4350feb7ce44405859584a6294c46e3c6e7b3b80be0b3b41ebbca575d50da35"
+      }
+    },
+    {
+      "input": "General",
+      "result": {
+        "handle": "general",
+        "kind": "public",
+        "key": "ea373818a08820d0860385af1843021fc5fa5ef5a91946786f23f8e9add0d143",
+        "channelKey": "652c5061f9a11b4e6fd78149a35279a2359d2727521045687875389b3cd43029"
+      }
+    },
+    {
+      "input": "chatjoin_support",
+      "result": {
+        "handle": "chatjoin_support",
+        "kind": "public",
+        "key": "b66ba06b59dd354ac10d64d357fcbbad1cdf78b1ed66bbf842765f24d99efab4",
+        "channelKey": "269bf14a945cd681be743978c337a4d6751c8832281b8ec87a5fe70a34a92b49"
+      }
+    },
+    { "input": "ab", "result": null },
+    { "input": "has.dot", "result": null },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+      "result": null
+    },
+    { "input": "", "result": null }
   ]
 }

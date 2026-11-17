@@ -14,6 +14,7 @@ import {
   legacyChannelKey,
   normalizePublicChannelName,
   publicChannelKey,
+  resolveChannelHandle,
   verifyChannelProof,
 } from '../../src/core/channelKeysV2.js'
 
@@ -100,6 +101,21 @@ describe('protocol v2 channel keys (desktop)', () => {
       assert.equal(verifyChannelProof(input, item.proof.proof), true)
       const other = { ...input, verifierPublicKey: item.proof.proverPublicKey }
       assert.equal(verifyChannelProof(other, item.proof.proof), false)
+    }
+  })
+
+  it('resolves channel handles', () => {
+    for (const item of vectors.handles) {
+      const result = resolveChannelHandle(item.input)
+      if (!item.result) {
+        assert.equal(result, null, item.input)
+        continue
+      }
+      assert.deepEqual(
+        { ...result, key: hex(result.key) },
+        item.result,
+        item.input
+      )
     }
   })
 

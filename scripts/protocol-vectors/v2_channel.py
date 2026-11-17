@@ -140,5 +140,28 @@ vectors = {
         for v1 in ['a2b3c4d5e6f7g8h9i0j1k2l3m4', 'general']
     ],
 }
+import re
+
+
+def resolve(text):
+    handle = text.strip().lower()
+    if re.fullmatch(r'[a-z2-7]{52}', handle):
+        raw = base64.b32decode(handle.upper() + '====')
+        if credential(raw) == handle:
+            key = raw
+            return {'handle': handle, 'kind': 'private', 'key': key.hex(), 'channelKey': H('channel/id', key).hex()}
+        return None
+    if re.fullmatch(r'[a-z2-7]{26}', handle):
+        key = H('channel/legacy', handle.encode())
+        return {'handle': handle, 'kind': 'legacy', 'key': key.hex(), 'channelKey': H('channel/id', key).hex()}
+    if re.fullmatch(r'[a-z0-9_-]{3,30}', handle):
+        key = H('channel/public', handle.encode())
+        return {'handle': handle, 'kind': 'public', 'key': key.hex(), 'channelKey': H('channel/id', key).hex()}
+    return None
+
+
+handle_inputs = [credential(bytes(range(32))), ' ' + credential(bytes(range(32))).upper(), 'a2b3c4d5e6f7g8h9i0j1k2l3m4', 'aaisem2ekvthpcezvk54zxpo74', 'General', 'chatjoin_support', 'ab', 'has.dot', 'a' * 51 + 'b', '']
+vectors['handles'] = [{'input': text, 'result': resolve(text)} for text in handle_inputs]
+
 with open(sys.argv[1], 'w', encoding='utf-8') as f:
     json.dump(vectors, f, ensure_ascii=False)

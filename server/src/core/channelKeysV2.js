@@ -164,3 +164,34 @@ export function channelWriterKeyPair(nodeSecret, channelIdHex, generation = 0) {
     secretKey: b4a.from(pair.secretKey),
   }
 }
+
+const LEGACY_RANDOM_ID_REGEX = /^[a-z2-7]{26}$/
+
+/**
+ * Resolves what a user typed or pasted to join a channel
+ * (channel-keys.md §3, §4, §7):
+ * - a 52-character credential: a private channel;
+ * - a 26-character v1 random ID: the migrated v1 channel, so old links work;
+ * - any other valid short name: a public channel anyone can derive.
+ * `handle` is what the user shares; `channelKey` is the public channel ID.
+ */
+export function resolveChannelHandle(input) {
+  const handle = String(input || '')
+    .trim()
+    .toLowerCase()
+  const credentialKey = decodeChannelCredential(handle)
+  if (credentialKey) {
+    return channelHandleResult(handle, credentialKey, 'private')
+  }
+  if (LEGACY_RANDOM_ID_REGEX.test(handle)) {
+    return channelHandleResult(handle, legacyChannelKey(handle), 'legacy')
+  }
+  if (normalizePublicChannelName(handle)) {
+    return channelHandleResult(handle, publicChannelKey(handle), 'public')
+  }
+  return null
+}
+
+function channelHandleResult(handle, key, kind) {
+  return { handle, kind, key, channelKey: channelIdFromKey(key) }
+}
