@@ -1,0 +1,49 @@
+{
+  "description": "most:// link cases on which desktop and mobile agree (identifiers.md §2). errorKind is one of: empty, unsupported_query, cid_v1_required, invalid_cid.",
+  "valid": [
+    {
+      "input": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e"
+    },
+    {
+      "input": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=hello%20world.txt",
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "hello world.txt"
+    },
+    {
+      "input": "https://example.com/s/bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a+b",
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "a b"
+    },
+    {
+      "input": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=x&filename=y",
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "x"
+    }
+  ],
+  "invalid": [
+    { "input": "", "errorKind": "empty" },
+    {
+      "input": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?foo=1",
+      "errorKind": "unsupported_query"
+    },
+    {
+      "input": "most://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+      "errorKind": "cid_v1_required"
+    },
+    { "input": "most://notacid", "errorKind": "invalid_cid" }
+  ],
+  "build": [
+    {
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "hello world.txt",
+      "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=hello%20world.txt"
+    },
+    {
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "fileName": "  ",
+      "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e"
+    }
+  ]
+}

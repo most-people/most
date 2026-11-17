@@ -1,0 +1,33 @@
+{
+  "description": "Channel topics (discovery.md §3.2) and channel proofs (chat.md §3.2).",
+  "topics": [
+    {
+      "channelId": "general",
+      "replication": "e6afb000137fb0dea402657db5d88a98ffe2b940c1e75609178d385d10403942",
+      "chat": "ebd4418a7b9077c92cb9e6066e0d1b9f8f47ba243a74bee33b8069e43a419b4c",
+      "candidates": "b253166d54283e7a1977a41bb11caa4229243bc04ec9c764b04b9fbebf3bbdf1"
+    },
+    {
+      "channelId": "abc",
+      "replication": "953e4c2d7efc4b3d0c77f92735c7ca20706fa8ffe426ce34c82b884b3b8919f6",
+      "chat": "ab72098c1e20b4c763e2cce62ea96bf3c528c11092a4e720da49cfbbfb02b723",
+      "candidates": "bc7a9eb8640cd456fb0319358ad7609cbdceea550b9652c2b300986fcc6fe773"
+    },
+    {
+      "channelId": "a2b3c4d5e6f7g8h9i0j1k2l3m4",
+      "replication": "6f5633f634469366e609df39a68c6801d706ee435748baaa1075e3f569148e21",
+      "chat": "2eaae1f6ef15ab051344f03fdd9e75fdf8edf70b2f6ff2c830eb22bd8e33b48e",
+      "candidates": "8d559d4236e811932e101a490754c1bb88ce6e5ff1028c898a7017ecac2eceb8"
+    }
+  ],
+  "proofs": [
+    {
+      "channelId": "general",
+      "topic": "ebd4418a7b9077c92cb9e6066e0d1b9f8f47ba243a74bee33b8069e43a419b4c",
+      "challenge": "1111111111111111111111111111111111111111111111111111111111111111",
+      "proverPublicKey": "2222222222222222222222222222222222222222222222222222222222222222",
+      "verifierPublicKey": "3333333333333333333333333333333333333333333333333333333333333333",
+      "proof": "ce2f7d7a28ad522db1409094db8e3c95debc995f28635acb538f47514728af09"
+    }
+  ]
+}

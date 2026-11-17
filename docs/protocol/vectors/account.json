@@ -1,0 +1,9 @@
+{
+  "description": "Account derivation from username and password (identifiers.md §4.1, §4.4). Test-only credentials.",
+  "username": "alice",
+  "password": "correct horse battery staple",
+  "seed": "0x4b3dc89d94ac8b7dfac567f811278e08d853af3be74ee0582e75350edb831dbf",
+  "address": "0x023B10b4e691580966D160FbF50Dce5596A97D4C",
+  "syncKey": "0x9f8f3de373f36ff63d410183a178b67d30f7ad431859ad63f88a713db9251b40",
+  "syncTopic": "0xa95b6e6189aaee72af7f0b91c749bbf4525fd7c46c51f63a7cc21ee88407f9bc"
+}

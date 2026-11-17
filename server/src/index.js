@@ -67,6 +67,9 @@ import {
   normalizeChannelKey,
   isSpecialChannel,
   uniqueStrings,
+  generateChannelDiscoveryKey,
+  generateChannelChatDiscoveryKey,
+  generateChannelIdDiscoveryKey,
 } from './core/channelIdentity.js'
 import {
   CHANNEL_MEMBER_JOINED_EVENT,
@@ -160,7 +163,6 @@ import {
   CHANNEL_NAME_MIN_LENGTH,
   CHANNEL_NAME_MAX_LENGTH,
   CHANNEL_NAME_REGEX,
-  CHANNEL_NAME_PREFIX,
   CHANNEL_MESSAGE_LIMIT,
   MAX_MESSAGE_LENGTH,
 } from './config.js'
@@ -6946,30 +6948,15 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #generateChannelDiscoveryKey(channelKey) {
-    const normalizedChannelKey = normalizeChannelKey(channelKey)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}`)
-      .digest()
-    return hash
+    return generateChannelDiscoveryKey(channelKey)
   }
 
   #generateChannelChatDiscoveryKey(channelKey) {
-    const normalizedChannelKey = normalizeChannelKey(channelKey)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}:chat`)
-      .digest()
-    return hash
+    return generateChannelChatDiscoveryKey(channelKey)
   }
 
   #generateChannelIdDiscoveryKey(channelId) {
-    const normalizedChannelId = normalizeChannelId(channelId)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}id:${normalizedChannelId}:candidates`)
-      .digest()
-    return hash
+    return generateChannelIdDiscoveryKey(channelId)
   }
 
   #addChannelTopicMapping(topicMap, topic, channelIdInput) {
