@@ -1,6 +1,6 @@
 # 2.5 语音信令
 
-状态：设计稿，待确认。现行格式见 [../voice.md](../voice.md)，签名见 [signatures.md](signatures.md)。
+状态：已确认（2026-11-18）。现行格式见 [../voice.md](../voice.md)，签名见 [signatures.md](signatures.md)。
 
 ## 1. 问题（v1 现状）
 

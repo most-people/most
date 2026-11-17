@@ -1,6 +1,6 @@
 # 2.3 聊天签名与账号
 
-状态：设计稿，待确认。原语与标签见 [envelope.md](envelope.md) §3，频道 ID 见 [channel-keys.md](channel-keys.md) §3。
+状态：已确认（2026-11-18；D3 选 B，D4 不采纳）。原语与标签见 [envelope.md](envelope.md) §3，频道 ID 见 [channel-keys.md](channel-keys.md) §3。
 
 ## 1. 问题（v1 现状）
 
@@ -154,18 +154,18 @@ v2 中 writer core 只包含 `type: "signed"` 条目。
 | 选项          | 内容                                                                                                                                                                                            | 代价                                                            |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | A             | 维持 v1 派生                                                                                                                                                                                    | 无迁移；离线穷举成本最低                                        |
-| B（**推荐**） | 聊天身份与钱包分离：`chatSeed = scrypt(password, label("identity") ‖ username, N, r=8, p=1, 32)`，聊天地址由 `chatSeed` 按 v1 方式（BIP-39 → m/44'/60'/0'/0/0）得出；钱包地址仍用 v1 派生，不变 | 所有用户的**聊天地址改变**，需迁移（§7.4）；scrypt 在手机上较慢 |
-| C             | 在 B 基础上提供「随机身份」：生成 24 词助记词作为 `chatSeed`，不依赖密码；需要用户自行备份                                                                                                      | 多一种登录方式；丢失助记词即丢失身份                            |
+| B（**采纳**） | 聊天身份与钱包分离：`chatSeed = scrypt(password, label("identity") ‖ username, N, r=8, p=1, 32)`，聊天地址由 `chatSeed` 按 v1 方式（BIP-39 → m/44'/60'/0'/0/0）得出；钱包地址仍用 v1 派生，不变 | 所有用户的**聊天地址改变**，需迁移（§7.4）；scrypt 在手机上较慢 |
+| C（未采纳）   | 在 B 基础上提供「随机身份」：生成 24 词助记词作为 `chatSeed`，不依赖密码；需要用户自行备份                                                                                                      | 多一种登录方式；丢失助记词即丢失身份                            |
 
 scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_modules/ethers/lib.esm/crypto/scrypt.js` 与移动 `app/node_modules/ethers/lib.esm/crypto/scrypt.js` 都存在）。`N` 【待核实】：在低端 Android 上实测，取单次派生 ≤ 3 秒的最大 2 的幂（预计 2^15–2^17），实测后写死进规范。
 
 ### 7.3 密码强度（D4）
 
-推荐：新建身份时密码至少 12 个字符（按 Unicode 码点计），否则拒绝并引导使用选项 C；已有身份登录不受影响，只提示。当前只在少于 18 字符时警告、不拦截（`app/src/remoteNode/identity.ts` `isPasswordShort`）。
+决定：**不强制**最低密码强度，维持现状——少于 18 个字符时只提示、不拦截（`app/src/remoteNode/identity.ts` `isPasswordShort`）。
 
-剩余限制（写入文档与界面）：任何由密码派生的密钥都可被离线穷举；上述措施只提高成本。
+剩余限制（写入文档与界面）：任何由密码派生的密钥都可被离线穷举，弱密码的账号可被冒充；scrypt（§7.2 B）只提高每次尝试的成本，不能代替强密码。
 
-### 7.4 账号同步与迁移（若选 B）
+### 7.4 账号同步与迁移
 
 - `syncKey = KDF(chatSeed, "account/sync-key")`；`syncTopic = H("topic/account-sync", syncKey)`；hello topic `H("topic/account-sync-chat", syncKey)`（取代 v1 中对带 `0x` 字符串求哈希的写法，discovery §3.3）。
 - 本地数据迁移：节点上按地址保存的记录（`published-files.json` 的 owner、频道成员、账号同步）需要从旧地址迁到新地址。用户用密码登录时客户端能同时算出旧、新两个身份，向节点同时证明两者（两份设备证书），节点据此一次性迁移。

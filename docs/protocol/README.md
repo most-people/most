@@ -16,7 +16,7 @@
 | 语音信令 | [voice.md](voice.md)                 | 初稿 |
 | 测试向量 | [vectors/](vectors/README.md)        | 初版 |
 
-协议 v2（阶段 2）设计稿见 [v2/](v2/README.md)，待负责人确认，未实现。
+协议 v2（阶段 2）设计见 [v2/](v2/README.md)，已确认，实现中。
 
 ## 约定
 

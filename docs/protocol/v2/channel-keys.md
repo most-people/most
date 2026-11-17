@@ -1,6 +1,6 @@
 # 2.4 频道密钥
 
-状态：设计稿，待确认。原语与标签见 [envelope.md](envelope.md) §3。
+状态：已确认（2026-11-18）。原语与标签见 [envelope.md](envelope.md) §3。
 
 ## 1. 问题（v1 现状）
 
