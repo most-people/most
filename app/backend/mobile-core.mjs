@@ -6,8 +6,6 @@ import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
 import {
-  CHANNEL_CANDIDATE_TTL,
-  CHANNEL_DISCOVERY_TIMEOUT,
   CHANNEL_MESSAGE_LIMIT,
   CHANNEL_PROOF_VERSION,
   CHANNEL_PRESENCE_HEARTBEAT_MS,
@@ -17,20 +15,12 @@ import {
   DIAGNOSTIC_AUTHOR_NAME,
   MAX_CHANNEL_FRAME_BYTES,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
-  assertValidChannelId,
   buildChannelHelloMessages,
-  buildChannelKey,
-  channelToCandidate,
   chunkChannelScopeTopics,
   consumeChannelFrames,
   createChannelProofChallenge,
   createChannelRecord,
-  createChannelTopicProof,
   formatChannelForResponse,
-  generateChannelChatDiscoveryKey,
-  generateChannelDiscoveryKey,
-  generateChannelIdDiscoveryKey,
-  isChannelAllowedForConnection,
   normalizeChannelRemark,
   normalizeChannelId,
   normalizeChannelKey,
@@ -41,11 +31,16 @@ import {
   normalizeChannelProofChallenge,
   normalizeChannelRecord,
   normalizeChannelScopeTopics,
-  selectChannelsForHello,
   sortChannelMessages,
   uniqueStrings,
-  verifyChannelTopicProof,
 } from './channel-protocol.mjs'
+import {
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+  verifyChannelProof,
+} from './channel-keys-v2.mjs'
 import { P2PPingManager } from './p2p-ping.mjs'
 import { attachCidDriveChannel, cidDriveName } from './cid-drive-exchange.mjs'
 import {
@@ -93,6 +88,9 @@ const SWARM_BOOTSTRAP = [
 ]
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
+// channel-keys.md §5: writer core keys accepted per channel from one hello.
+const MAX_HELLO_WRITER_CORE_KEYS = 256
 
 function createId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -507,12 +505,11 @@ export class MobileP2PCore {
   #cancelledDownloads = new Set()
   #channels = []
   #channelCores = new Map()
+  #channelCoresOpening = new Set()
   #channelLocalCoreKey = new Map()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
-  #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
-  #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelMessageCache = new Map()
   #channelMessageQueues = new Map()
@@ -737,9 +734,7 @@ export class MobileP2PCore {
     this.#channelLocalCoreKey.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
-    this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
-    this.#channelCandidateCache.clear()
     this.#channelStreams.clear()
     this.#channelMessageCache.clear()
     this.#channelMessageQueues.clear()
@@ -799,10 +794,10 @@ export class MobileP2PCore {
   async createChannel(input = {}) {
     this.#ensureReady()
     const requestedType = String(input.type || 'public').trim() || 'public'
-    const channelId = assertValidChannelId(input.name || input.channelId)
-    const channelKey = buildChannelKey(channelId)
+    const resolved = resolveChannelHandle(input.name || input.channelId)
+    if (!resolved) throw new Error('Invalid channel credential or name')
     const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
+      channel => channel.channelKey === resolved.channelKey
     )
 
     if (existing) {
@@ -812,27 +807,10 @@ export class MobileP2PCore {
       return this.#toMobileChannel(existing)
     }
 
-    const localCandidates = this.#getLocalChannelCandidates(channelId)
-    const remoteCandidates =
-      input.discover === false
-        ? []
-        : await this.#discoverChannelCandidates(channelId, {
-            timeout: input.discoveryTimeout,
-          })
-    const candidates = this.#mergeChannelCandidates([
-      ...localCandidates,
-      ...remoteCandidates,
-    ])
-
-    if (candidates.length > 0) {
-      return this.#joinChannelFromCandidate(candidates[0], requestedType)
-    }
-
-    const channel = createChannelRecord(channelId, requestedType)
+    const channel = createChannelRecord(resolved, requestedType)
     this.#channels.push(channel)
     await this.#openChannelRuntime(channel)
     await this.#joinChannelDiscoveryTopics(channel)
-    this.#cacheChannelCandidate(channelToCandidate(channel, true))
     this.#saveChannels()
     this.#broadcastChannelHello()
     this.#log('info', `Joined channel ${channel.channelKey}`)
@@ -851,7 +829,6 @@ export class MobileP2PCore {
     const discoveries = [
       this.#channelDiscoveries.get(channelKey),
       this.#channelChatDiscoveries.get(channelKey),
-      this.#channelIdDiscoveries.get(channel.channelId),
     ].filter(Boolean)
 
     for (const discovery of discoveries) {
@@ -866,13 +843,11 @@ export class MobileP2PCore {
 
     this.#channelDiscoveries.delete(channelKey)
     this.#channelChatDiscoveries.delete(channelKey)
-    this.#channelIdDiscoveries.delete(channel.channelId)
     this.#channelCores.delete(channelKey)
     this.#channelLocalCoreKey.delete(channelKey)
     this.#channelPeers.delete(channelKey)
     this.#channelMessageCache.delete(channelKey)
     this.#clearChannelPresenceForChannel(channelKey)
-    this.#clearChannelCandidate(channel)
     this.#channels = this.#channels.filter(
       item => item.channelKey !== channelKey
     )
@@ -1539,44 +1514,6 @@ export class MobileP2PCore {
     }
   }
 
-  async #joinChannelFromCandidate(candidateInput, type = 'public') {
-    const channelType = candidateInput.type || type
-    const channelId = assertValidChannelId(candidateInput.channelId)
-    const channelKey = buildChannelKey(channelId)
-    const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
-    )
-
-    if (existing) {
-      await this.#mergeChannelWriterCoreKeys(
-        existing,
-        candidateInput.writerCoreKeys
-      )
-      await this.#joinChannelDiscoveryTopics(existing)
-      this.#broadcastChannelHello()
-      return this.#toMobileChannel(existing)
-    }
-
-    const channel = createChannelRecord(channelId, channelType, {
-      createdAt: candidateInput.createdAt,
-      lastMessageAt: candidateInput.lastMessageAt,
-      writerCoreKeys: candidateInput.writerCoreKeys,
-    })
-
-    this.#channels.push(channel)
-    await this.#openChannelRuntime(channel)
-    await this.#joinChannelDiscoveryTopics(channel)
-    this.#cacheChannelCandidate(channelToCandidate(channel, true))
-    this.#saveChannels()
-    this.#broadcastChannelHello()
-    this.#log('info', `Joined channel ${channel.channelKey}`)
-    this.#send('channel.joined', {
-      channel: this.#toMobileChannel(channel),
-      snapshot: this.getSnapshot(),
-    })
-    return this.#toMobileChannel(channel)
-  }
-
   async #openChannelRuntime(channel) {
     const existingMap = this.#channelCores.get(channel.channelKey)
     if (
@@ -1600,15 +1537,22 @@ export class MobileP2PCore {
     }
 
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
-    const localCore = channel.localWriterCoreKey
-      ? ns.get({
-          key: b4a.from(channel.localWriterCoreKey, 'hex'),
-          valueEncoding: 'json',
-        })
-      : ns.get({
-          name: `messages-${channel.writerId}`,
-          valueEncoding: 'json',
-        })
+    const generation = Number.isInteger(channel.writerGeneration)
+      ? channel.writerGeneration
+      : 0
+    channel.writerGeneration = generation
+    const keyPair = channelWriterKeyPair(
+      this.#cidDriveSecret,
+      channel.channelKey,
+      generation
+    )
+    // Explicit manifest: the core key is the manifest hash, so pinning its
+    // version keeps this node's writer core key stable across library updates.
+    const localCore = ns.get({
+      keyPair,
+      manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
+      valueEncoding: 'json',
+    })
     await localCore.ready()
 
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
@@ -1639,6 +1583,8 @@ export class MobileP2PCore {
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
     const nextKeys = uniqueStrings(writerCoreKeys)
+      .filter(key => HEX_64_REGEX.test(key))
+      .slice(0, MAX_HELLO_WRITER_CORE_KEYS)
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
@@ -1662,7 +1608,7 @@ export class MobileP2PCore {
   async #joinChannelDiscoveryTopics(channel) {
     if (!this.#channelDiscoveries.has(channel.channelKey)) {
       const discovery = this.#swarm.join(
-        generateChannelDiscoveryKey(channel.channelKey),
+        channelTopics(b4a.from(channel.secretKey, 'hex')).replication,
         { server: true, client: true }
       )
       this.#channelDiscoveries.set(channel.channelKey, discovery)
@@ -1674,7 +1620,7 @@ export class MobileP2PCore {
 
     if (!this.#channelChatDiscoveries.has(channel.channelKey)) {
       const discovery = this.#chatSwarm.join(
-        generateChannelChatDiscoveryKey(channel.channelKey),
+        channelTopics(b4a.from(channel.secretKey, 'hex')).chat,
         { server: true, client: true }
       )
       this.#channelChatDiscoveries.set(channel.channelKey, discovery)
@@ -1683,125 +1629,16 @@ export class MobileP2PCore {
         () => {}
       )
     }
-
-    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
-      const discovery = this.#chatSwarm.join(
-        generateChannelIdDiscoveryKey(channel.channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channel.channelId, discovery)
-      discovery.flushed?.().then(
-        () => this.#emitSnapshot(),
-        () => {}
-      )
-    }
-  }
-
-  #getLocalChannelCandidates(channelId) {
-    return this.#channels
-      .filter(channel => channel.channelId === channelId)
-      .map(channel => channelToCandidate(channel, true))
-  }
-
-  async #discoverChannelCandidates(channelId, options = {}) {
-    const getCachedCandidates = () => {
-      const now = Date.now()
-      return [
-        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
-      ].filter(
-        candidate =>
-          candidate.local ||
-          !candidate.lastSeen ||
-          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
-      )
-    }
-
-    const timeout =
-      Number(options.timeout) >= 0
-        ? Number(options.timeout)
-        : CHANNEL_DISCOVERY_TIMEOUT
-    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
-    if (!hadDiscovery) {
-      const discovery = this.#chatSwarm.join(
-        generateChannelIdDiscoveryKey(channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channelId, discovery)
-    }
-
-    await sleep(timeout)
-    const candidates = getCachedCandidates()
-    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
-      this.#channelIdDiscoveries.delete(channelId)
-      this.#chatSwarm
-        .leave(generateChannelIdDiscoveryKey(channelId))
-        .catch(() => {})
-    }
-    return candidates
-  }
-
-  #mergeChannelCandidates(candidates) {
-    const byKey = new Map()
-    for (const candidate of candidates) {
-      if (!candidate?.channelKey) continue
-      const existing = byKey.get(candidate.channelKey)
-      if (!existing) {
-        byKey.set(candidate.channelKey, {
-          ...candidate,
-          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
-        })
-        continue
-      }
-      byKey.set(candidate.channelKey, {
-        ...existing,
-        ...candidate,
-        local: existing.local || candidate.local,
-        writerCoreKeys: uniqueStrings([
-          ...existing.writerCoreKeys,
-          ...(candidate.writerCoreKeys || []),
-        ]),
-      })
-    }
-    return [...byKey.values()]
-  }
-
-  #cacheChannelCandidate(candidate) {
-    const channelId = normalizeChannelId(candidate?.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) return
-    if (!this.#channelCandidateCache.has(channelId)) {
-      this.#channelCandidateCache.set(channelId, new Map())
-    }
-    const cache = this.#channelCandidateCache.get(channelId)
-    const existing = cache.get(channelKey)
-    cache.set(channelKey, {
-      ...existing,
-      ...candidate,
-      channelId,
-      channelKey,
-      writerCoreKeys: uniqueStrings([
-        ...(existing?.writerCoreKeys || []),
-        ...(candidate.writerCoreKeys || []),
-      ]),
-      lastSeen: Date.now(),
-    })
-  }
-
-  #clearChannelCandidate(channel) {
-    const channelId = normalizeChannelId(channel?.channelId)
-    const channelKey = normalizeChannelKey(channel?.channelKey || channelId)
-    const cache = this.#channelCandidateCache.get(channelId)
-    if (!cache) return
-    cache.delete(channelKey)
-    if (cache.size === 0) {
-      this.#channelCandidateCache.delete(channelId)
-    }
   }
 
   #resolveChannel(channelKeyInput) {
     const key = normalizeChannelKey(channelKeyInput)
+    const resolvedKey = resolveChannelHandle(key)?.channelKey
     const channel = this.#channels.find(
-      item => item.channelKey === key || item.channelId === key
+      item =>
+        item.channelKey === key ||
+        item.channelId === key ||
+        item.channelKey === resolvedKey
     )
     if (!channel) throw new Error('Channel does not exist')
     return channel
@@ -1961,6 +1798,18 @@ export class MobileP2PCore {
   }
 
   async #openRemoteChannelCore(channelKey, coreKeyHex) {
+    // Hellos can arrive back to back; open each remote core only once.
+    const openingKey = `${channelKey}:${coreKeyHex}`
+    if (this.#channelCoresOpening.has(openingKey)) return
+    this.#channelCoresOpening.add(openingKey)
+    try {
+      await this.#openRemoteChannelCoreOnce(channelKey, coreKeyHex)
+    } finally {
+      this.#channelCoresOpening.delete(openingKey)
+    }
+  }
+
+  async #openRemoteChannelCoreOnce(channelKey, coreKeyHex) {
     const coresMap = this.#channelCores.get(channelKey)
     if (!coresMap || !coreKeyHex || coresMap.has(coreKeyHex)) return
 
@@ -2008,15 +1857,8 @@ export class MobileP2PCore {
       if (!channel) continue
       this.#addChannelTopicMapping(
         topicMap,
-        generateChannelChatDiscoveryKey(channelKey),
-        channel.channelId
-      )
-    }
-    for (const [channelId] of this.#channelIdDiscoveries) {
-      this.#addChannelTopicMapping(
-        topicMap,
-        generateChannelIdDiscoveryKey(channelId),
-        channelId
+        channelTopics(b4a.from(channel.secretKey, 'hex')).chat,
+        channel.channelKey
       )
     }
     return topicMap
@@ -2101,16 +1943,18 @@ export class MobileP2PCore {
     const proofs = []
     for (const topic of topics) {
       if (record.proofSentTopics.has(topic)) continue
-      const channelId = topicMap.get(topic)?.values().next().value
-      if (!channelId) continue
-      const proof = createChannelTopicProof({
-        channelId,
+      const channelKey = topicMap.get(topic)?.values().next().value
+      const key = channelKey ? this.#channelSecretKey(channelKey) : null
+      if (!key) continue
+      const proofBytes = createChannelProof({
+        key,
         topic,
         challenge: record.remoteChallenge,
         proverPublicKey: localPublicKey,
         verifierPublicKey: remotePublicKey,
       })
-      if (!proof) continue
+      if (!proofBytes) continue
+      const proof = b4a.toString(proofBytes, 'hex')
       record.proofSentTopics.add(topic)
       proofs.push({ topic, proof })
     }
@@ -2142,22 +1986,25 @@ export class MobileP2PCore {
     }
   }
 
-  #isChannelAllowedForStream(stream, channelId) {
-    return isChannelAllowedForConnection(
-      channelId,
-      this.#getAuthorizedChannelIds(stream)
+  #channelSecretKey(channelKey) {
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    return channel?.secretKey ? b4a.from(channel.secretKey, 'hex') : null
+  }
+
+  #isChannelAllowedForStream(stream, channelKey) {
+    return this.#getAuthorizedChannelIds(stream).has(
+      normalizeChannelKey(channelKey)
     )
   }
 
   #buildChannelHelloMessages(stream) {
-    const selectedChannels = selectChannelsForHello(
-      this.#channels,
-      this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    const selectedChannels = this.#channels.filter(channel =>
+      authorized.has(channel.channelKey)
     )
+    // On the wire a channel is identified only by its public ID.
     const channels = selectedChannels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
+      channelId: channel.channelKey,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       writerCoreKeys: uniqueStrings([
@@ -2234,16 +2081,16 @@ export class MobileP2PCore {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
+    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
     try {
       stream.write(
         b4a.from(
           `${JSON.stringify({
             type: 'channel-presence',
             peerId: this.#nodeId(),
-            channelId: event.channelId,
-            channelKey: event.channelKey,
+            channelId: channelKey,
+            channelKey,
             address: event.address,
             status: event.status,
             displayName: event.displayName,
@@ -2730,19 +2577,23 @@ export class MobileP2PCore {
       ) {
         continue
       }
-      const channelIds = topicMap.get(topic) || []
-      const valid = [...channelIds].some(channelId =>
-        verifyChannelTopicProof(
-          {
-            channelId,
-            topic,
-            challenge: record.localChallenge,
-            proverPublicKey: remotePublicKey,
-            verifierPublicKey: localPublicKey,
-          },
-          item?.proof
+      const channelKeys = topicMap.get(topic) || []
+      const valid = [...channelKeys].some(channelKey => {
+        const key = this.#channelSecretKey(channelKey)
+        return (
+          key &&
+          verifyChannelProof(
+            {
+              key,
+              topic,
+              challenge: record.localChallenge,
+              proverPublicKey: remotePublicKey,
+              verifierPublicKey: localPublicKey,
+            },
+            String(item?.proof || '')
+          )
         )
-      )
+      })
       if (!valid) continue
       record.authorizedTopics.add(topic)
       changed = true
@@ -2759,13 +2610,12 @@ export class MobileP2PCore {
     if (msg.type !== 'channel-presence') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.#nodeId()) return null
-    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
-    const channelKey = buildChannelKey(channelId)
+    const channelKey = normalizeChannelKey(msg.channelId || msg.channelKey)
     const localChannel = this.#channels.find(
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
+    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
       return null
     }
 
@@ -2816,45 +2666,25 @@ export class MobileP2PCore {
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.#nodeId()) return null
 
-    const allowedChannelIds = this.#getAuthorizedChannelIds(stream)
-    const remoteChannels = Array.isArray(msg.channels)
-      ? msg.channels
-          .filter(channel => channel && typeof channel === 'object')
-          .map(channel => {
-            const type = String(channel.type || 'public').trim() || 'public'
-            const channelId = normalizeChannelId(channel.channelId)
-            return {
-              channelId,
-              channelKey: buildChannelKey(channelId),
-              type,
-              createdAt:
-                typeof channel.createdAt === 'string' ? channel.createdAt : '',
-              lastMessageAt:
-                typeof channel.lastMessageAt === 'string'
-                  ? channel.lastMessageAt
-                  : '',
-              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-            }
-          })
-          .filter(
-            channel =>
-              channel.channelId &&
-              channel.channelKey &&
-              isChannelAllowedForConnection(
-                channel.channelId,
-                allowedChannelIds
-              )
-          )
-      : []
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    // v2: channelId on the wire is the 64-hex public channel ID.
+    const remoteChannels = (Array.isArray(msg.channels) ? msg.channels : [])
+      .filter(channel => channel && typeof channel === 'object')
+      .map(channel => ({
+        channelKey: normalizeChannelKey(channel.channelId),
+        writerCoreKeys: Array.isArray(channel.writerCoreKeys)
+          ? channel.writerCoreKeys
+          : [],
+      }))
+      .filter(
+        channel =>
+          HEX_64_REGEX.test(channel.channelKey) &&
+          authorized.has(channel.channelKey)
+      )
     if (remoteChannels.length === 0) return null
 
+    let writerKeysChanged = false
     for (const remoteChannel of remoteChannels) {
-      this.#cacheChannelCandidate({
-        ...remoteChannel,
-        local: false,
-        peerId,
-      })
-
       const localChannel = this.#channels.find(
         channel => channel.channelKey === remoteChannel.channelKey
       )
@@ -2869,11 +2699,18 @@ export class MobileP2PCore {
         })
       }
 
-      await this.#mergeChannelWriterCoreKeys(
-        localChannel,
-        remoteChannel.writerCoreKeys
-      )
+      if (
+        await this.#mergeChannelWriterCoreKeys(
+          localChannel,
+          remoteChannel.writerCoreKeys
+        )
+      ) {
+        writerKeysChanged = true
+      }
     }
+    // Pass newly learned writer cores on, so peers connected only through
+    // this node also learn them (chat.md §4).
+    if (writerKeysChanged) this.#broadcastChannelHello()
 
     this.#send('channel.status', {
       peerId,

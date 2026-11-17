@@ -13,13 +13,24 @@ import {
   CHANNEL_PROOF_VERSION,
   CHANNELS_FILE,
   DIAGNOSTIC_AUTHOR,
-  createChannelTopicProof,
-  generateChannelChatDiscoveryKey,
-  generateChannelDiscoveryKey,
-  generateChannelIdDiscoveryKey,
   normalizeChannelMessage,
   sortChannelMessages,
 } from './channel-protocol.mjs'
+import {
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+} from './channel-keys-v2.mjs'
+
+// v2 topics derive from the channel key of a handle (channel-keys.md §3).
+function generateChannelChatDiscoveryKey(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).chat
+}
+
+function generateChannelDiscoveryKey(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).replication
+}
 import { MobileP2PCore } from './mobile-core.mjs'
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
@@ -132,13 +143,16 @@ async function proveChannelKnowledge({
       )
       return {
         topic,
-        proof: createChannelTopicProof({
-          channelId,
-          topic,
-          challenge,
-          proverPublicKey: peerInfo.publicKey,
-          verifierPublicKey: chatSwarm.keyPair.publicKey,
-        }),
+        proof: b4a.toString(
+          createChannelProof({
+            key: resolveChannelHandle(channelId).key,
+            topic,
+            challenge,
+            proverPublicKey: peerInfo.publicKey,
+            verifierPublicKey: chatSwarm.keyPair.publicKey,
+          }),
+          'hex'
+        ),
       }
     }),
   }
@@ -151,7 +165,6 @@ function expectedChannelJoinTopics(channelId) {
   return [
     b4a.toString(generateChannelDiscoveryKey(channelId), 'hex'),
     b4a.toString(generateChannelChatDiscoveryKey(channelId), 'hex'),
-    b4a.toString(generateChannelIdDiscoveryKey(channelId), 'hex'),
   ]
 }
 
@@ -1165,7 +1178,7 @@ describe('mobile channel presence', () => {
         `${JSON.stringify({
           type: 'channel-presence',
           peerId: 'desktop-peer',
-          channelId: channel.channelId,
+          channelId: channel.channelKey,
           channelKey: channel.channelKey,
           address: '0x0000000000000000000000000000000000000002',
           displayName: 'Desktop',
@@ -1211,7 +1224,7 @@ describe('mobile channel presence', () => {
         `${JSON.stringify({
           type: 'channel-presence',
           peerId: 'stale-peer',
-          channelId: channel.channelId,
+          channelId: channel.channelKey,
           channelKey: channel.channelKey,
           address: '0x0000000000000000000000000000000000000003',
           displayName: 'Stale',
@@ -1311,7 +1324,7 @@ describe('mobile channel connection scoping', () => {
     const sharedHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       sharedHello.channels.map(channel => channel.channelId),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     core.joinChannelPresence({
@@ -1328,7 +1341,7 @@ describe('mobile channel connection scoping', () => {
       parseStreamWrites(stream, 'channel-presence').map(
         message => message.channelId
       ),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     const unrelatedWriterKey = 'f'.repeat(64)
@@ -1340,7 +1353,7 @@ describe('mobile channel connection scoping', () => {
           peerId: 'unrelated-peer',
           channels: [
             {
-              channelId: privateChannel.channelId,
+              channelId: privateChannel.channelKey,
               channelKey: privateChannel.channelKey,
               type: 'public',
               writerCoreKeys: [unrelatedWriterKey],
@@ -1367,7 +1380,7 @@ describe('mobile channel connection scoping', () => {
     let latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       latestHello.channels.map(channel => channel.channelId),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     const proofMessage = await proveChannelKnowledge({
@@ -1379,7 +1392,7 @@ describe('mobile channel connection scoping', () => {
     latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       latestHello.channels.map(channel => channel.channelId).sort(),
-      [privateChannel.channelId, sharedChannel.channelId].sort()
+      [privateChannel.channelKey, sharedChannel.channelKey].sort()
     )
 
     const helloCount = parseStreamWrites(stream, 'channel-hello').length
@@ -1430,7 +1443,7 @@ describe('mobile channel connection scoping', () => {
         `${JSON.stringify({
           type: 'channel-presence',
           peerId: remotePeerId,
-          channelId: sharedChannel.channelId,
+          channelId: sharedChannel.channelKey,
           address: remoteAddress,
           status: 'online',
           sessionId: 'desktop',
@@ -1459,7 +1472,7 @@ describe('mobile channel connection scoping', () => {
         `${JSON.stringify({
           type: 'channel-presence',
           peerId: remotePeerId,
-          channelId: sharedChannel.channelId,
+          channelId: sharedChannel.channelKey,
           address: remoteAddress,
           status: 'offline',
           sessionId: 'desktop',
@@ -1600,7 +1613,7 @@ describe('mobile channel metadata management', () => {
         `${JSON.stringify({
           type: 'channel-presence',
           peerId: 'desktop-peer',
-          channelId: restored.channelId,
+          channelId: restored.channelKey,
           channelKey: restored.channelKey,
           address: '0x0000000000000000000000000000000000000002',
           displayName: 'Desktop',
@@ -2002,10 +2015,23 @@ describe('mobile channel metadata management', () => {
       unsafe: true,
     })
     await externalStore.ready()
+    // The writer core key pair comes from the node secret (channel-keys.md §6.1).
+    const nodeSecret = b4a.from(
+      (
+        await fs.readFile(path.join(storagePath, 'cid-drive-secret'), 'utf8')
+      ).trim(),
+      'hex'
+    )
+    const keyPair = channelWriterKeyPair(
+      nodeSecret,
+      channel.channelKey,
+      persistedChannel.writerGeneration
+    )
     const externalCore = externalStore
       .namespace(`channel-${channel.channelKey}`)
       .get({
-        name: `messages-${persistedChannel.writerId}`,
+        keyPair,
+        manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
         valueEncoding: 'json',
       })
     await externalCore.ready()
@@ -2168,7 +2194,7 @@ describe('mobile channel metadata management', () => {
     assert.deepEqual(core.listChannels(), [])
   })
 
-  it('does not reuse cached local candidates after leaving a channel', async t => {
+  it('rejoins with the same deterministic writer core after leaving a channel', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-clear-candidate-')
     )
@@ -2194,12 +2220,13 @@ describe('mobile channel metadata management', () => {
       channelName: firstChannel.channelKey,
     })
 
+    // v2: this node's writer core key is derived from its node secret and the
+    // channel, so rejoining reopens the same core rather than a stale cache.
     const recreated = await core.createChannel({
       name: 'android-clear-candidate',
-      discoveryTimeout: 0,
     })
-    assert.notEqual(recreated.localWriterCoreKey, oldWriterCoreKey)
-    assert.equal(recreated.writerCoreKeys.includes(oldWriterCoreKey), false)
+    assert.equal(recreated.localWriterCoreKey, oldWriterCoreKey)
+    assert.deepEqual(recreated.writerCoreKeys, [oldWriterCoreKey])
   })
 })
 

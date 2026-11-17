@@ -11,6 +11,10 @@ import { createRequire } from 'node:module'
 import b4a from 'b4a'
 import { calculateCid } from '../server/src/core/cid.js'
 import { getCidInfo } from '../server/src/core/cidTopic.js'
+import {
+  createChannelKey,
+  encodeChannelCredential,
+} from '../server/src/core/channelKeysV2.js'
 
 // createSwarm below gives the mobile core this package's Hyperswarm.
 const DHT = createRequire(createRequire(import.meta.url).resolve('hyperswarm'))(
@@ -147,6 +151,81 @@ it(
         (await desktop.readFileRaw(mobilePublished.holding.cid)).buffer,
         fromMobile
       )
+    } finally {
+      await Promise.allSettled(nodes.map(node => node.stop()))
+      await testnet.destroy()
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  }
+)
+
+async function waitForMessage(read, content, timeoutMs = 45000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const messages = await read()
+    if (messages.some(message => message.content === content)) return
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+  assert.fail(`Timed out waiting for message: ${content}`)
+}
+
+// Protocol v2 channels (docs/protocol/v2/channel-keys.md): both cores must
+// derive the same topics and proofs from a channel handle and exchange
+// messages over a real (local) DHT, for a private credential and a public name.
+it(
+  'exchanges chat messages between the desktop engine and the mobile core',
+  { timeout: 180000 },
+  async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'most-cross-chat-'))
+    const testnet = await createTestnet(3)
+    const bootstrap = testnet.bootstrap
+    const nodes = []
+    const owner = `0x${'1'.repeat(40)}`
+
+    try {
+      const desktop = new MostBoxEngine({
+        dataPath: path.join(directory, 'desktop'),
+        bootstrap,
+      })
+      await desktop.start()
+      nodes.push(desktop)
+      const mobile = new MobileP2PCore({
+        storagePath: path.join(directory, 'mobile'),
+        createSwarm: options => new Hyperswarm({ ...options, bootstrap }),
+      })
+      await mobile.start()
+      nodes.push(mobile)
+
+      const credential = encodeChannelCredential(createChannelKey())
+      for (const handle of [credential, 'cross-core-public']) {
+        const desktopChannel = await desktop.createChannel(handle, 'group', {
+          ownerAddress: owner,
+        })
+        const mobileChannel = await mobile.createChannel({ name: handle })
+        assert.equal(mobileChannel.channelKey, desktopChannel.channelKey)
+
+        await desktop.sendMessage(
+          handle,
+          `desktop says hi in ${handle}`,
+          owner,
+          'Desktop',
+          { ownerAddress: owner }
+        )
+        await mobile.sendChannelMessage({
+          channelName: handle,
+          authorName: 'Android',
+          content: `mobile says hi in ${handle}`,
+        })
+
+        await waitForMessage(
+          () => mobile.getChannelMessages({ channelName: handle }),
+          `desktop says hi in ${handle}`
+        )
+        await waitForMessage(
+          () => desktop.getChannelMessages(handle, { ownerAddress: owner }),
+          `mobile says hi in ${handle}`
+        )
+      }
     } finally {
       await Promise.allSettled(nodes.map(node => node.stop()))
       await testnet.destroy()
