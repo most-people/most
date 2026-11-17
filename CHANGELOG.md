@@ -4,6 +4,31 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-17
+
+This release is not compatible with 0.5.x. Upgrade nodes, desktop apps and mobile apps together; 0.5.x and 0.6.0 cannot exchange files, and a 0.6.0 node rejects requests from older web clients. Back up the data directory before upgrading: file records migrate once on first start and cannot be read by 0.5.x afterwards.
+
+### Changed
+
+- **Breaking:** Requests are signed by a per-device key with a 30-day device certificate instead of the account seed. The `Authorization` header is now `<device-cert>,<timestamp>,<signature>` and the WebSocket query parameter `address` is now `cert`. Saved identities that still hold a seed are discarded and require a new login. Nodes need an accurate clock.
+- **Breaking:** CID drive protocol v2 (`most-cid-drive/2`): each seeder serves CID content from its own drive signed with its own key; downloads try each offered drive and keep only content whose CID matches. Holdings in v1 shared-key drives migrate once on start.
+- No relay is configured by default; `relayPublicKey` is empty unless the node operator sets it, and the mobile core uses no relay.
+- Downloads re-run the DHT topic lookup every 5 seconds while no source is found.
+
+### Added
+
+- Account sync across a user's devices (profile, channels and file metadata), opt-in per remote node, with `PUT/GET/DELETE /api/user/sync`.
+- Connection status in the app: status bar, per-channel online peers, HyperDHT reachability, and blocked sends while offline.
+- Chat report and block, and English privacy, terms and support pages.
+- Crash-consistency, cross-implementation CID, relay-churn and chat chaos test harnesses.
+
+### Fixed
+
+- Reading channel history no longer waits for blocks missing from an offline writer, which hung startup, history reads and sends.
+- Records stay consistent when the process is killed during publish or download, and leftover temporary download directories are removed on start.
+- Unverified CID drive blocks are no longer treated as local content.
+- Small download progress shows B/KiB instead of 0.0 MiB.
+
 ## [0.5.5] - 2026-10-19
 
 ### Added
