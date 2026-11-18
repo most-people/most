@@ -1,3 +1,7 @@
+import {
+  signedPresenceError,
+  readSignedPresenceFrame,
+} from './channel-signed-presence.mjs'
 // Checks the mobile protocol v2 primitives against the shared vectors in
 // docs/protocol/vectors/v2/. The desktop test reads the same files.
 import { describe, it } from 'node:test'
@@ -213,5 +217,66 @@ describe('protocol v2 chat identity (mobile core, native)', () => {
       const chatSeed = await deriveChatSeed(item.username, item.password)
       assert.equal(`0x${hex(chatSeed)}`, item.chatSeed, item.username)
     }
+  })
+})
+
+describe('protocol v2 signed presence (mobile core)', () => {
+  const vectors = readVectors('presence.json')
+  const certs = readVectors('device-cert.json')
+  const secretKey = hypercoreCrypto.keyPair(fromHex(certs.deviceSeed)).secretKey
+  const options = { channelId: vectors.channelId, now: vectors.now }
+
+  it('accepts shared vectors without rewriting signed bodies', () => {
+    for (const item of vectors.valid) {
+      const original = JSON.stringify(item.envelope)
+      assert.equal(
+        hex(signedPayload(item.envelope.body)),
+        item.payload,
+        item.name
+      )
+      assert.equal(
+        signBody(item.envelope.body, secretKey),
+        item.envelope.sig,
+        item.name
+      )
+      assert.equal(signedPresenceError(item.envelope, options), '', item.name)
+      const frame = { v: 2, type: 'channel-presence', ...item.envelope }
+      assert.equal(readSignedPresenceFrame(frame, options), frame, item.name)
+      assert.equal(JSON.stringify(item.envelope), original, item.name)
+    }
+  })
+
+  it('rejects stale, tampered, misattributed and malformed presence', () => {
+    for (const item of vectors.invalid) {
+      const check = { ...options, ...item.options }
+      assert.equal(
+        signedPresenceError(item.envelope, check),
+        item.error,
+        item.name
+      )
+      const frame = { v: 2, type: 'channel-presence', ...item.envelope }
+      assert.equal(readSignedPresenceFrame(frame, check), null, item.name)
+    }
+  })
+
+  it('ignores unsigned, unknown-version and unknown-type frames', () => {
+    for (const value of [null, {}, { body: null }]) {
+      assert.notEqual(signedPresenceError(value, options), '')
+      assert.equal(readSignedPresenceFrame(value, options), null)
+    }
+    const signed = vectors.valid[0].envelope
+    for (const v of [undefined, 1, 3, '2']) {
+      assert.equal(
+        readSignedPresenceFrame(
+          { v, type: 'channel-presence', ...signed },
+          options
+        ),
+        null
+      )
+    }
+    assert.equal(
+      readSignedPresenceFrame({ v: 2, type: 'future', ...signed }, options),
+      null
+    )
   })
 })
