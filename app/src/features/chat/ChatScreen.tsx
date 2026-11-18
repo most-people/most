@@ -1841,14 +1841,34 @@ export function ChatScreen({
               contentContainerStyle={styles.messages}
               renderItem={({ item, index }) => {
                 if (item.type === 'legacy') {
+                  // Old v1 snapshot text: plain bubble, never parsed as an attachment.
                   return (
-                    <View style={styles.messageBody}>
-                      <Text style={styles.timestamp}>
-                        {t('chat.legacyHistory')}
-                      </Text>
-                      <Text>
-                        {item.authorName}: {item.content}
-                      </Text>
+                    <View>
+                      {shouldShowMessageTime(
+                        item,
+                        visibleMessages[index + 1]
+                      ) ? (
+                        <Text style={styles.timestamp}>
+                          {formatMessageTime(item.timestamp!)}
+                        </Text>
+                      ) : null}
+                      <View style={styles.messageRow}>
+                        <ChatAvatar address={item.authorName} />
+                        <View style={styles.messageBody}>
+                          <Text numberOfLines={1} style={styles.author}>
+                            {item.authorName}
+                          </Text>
+                          <View style={styles.message}>
+                            <View
+                              style={[
+                                styles.bubbleTail,
+                                styles.bubbleTailOther,
+                              ]}
+                            />
+                            <Text style={styles.content}>{item.content}</Text>
+                          </View>
+                        </View>
+                      </View>
                     </View>
                   )
                 }

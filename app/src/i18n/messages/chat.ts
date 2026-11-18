@@ -1,9 +1,4 @@
 export const chatMessages = {
-  'chat.legacyHistory': {
-    'zh-CN': '旧消息 · 未签名 · 仅本节点可读',
-    'zh-TW': '舊訊息 · 未簽署 · 僅本節點可讀',
-    en: 'Old message · unsigned · only on this node',
-  },
   'chat.clearSearch': {
     'zh-CN': '清空搜索',
     'zh-TW': '清空搜尋',

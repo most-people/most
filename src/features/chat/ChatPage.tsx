@@ -2494,11 +2494,17 @@ function ChatPage() {
             ) : (
               channelMessages.map(msg => {
                 if (msg.type === 'legacy') {
+                  // Old v1 snapshot text: plain bubble, never parsed as an attachment.
                   return (
-                    <ChatSystemMessageItem key={msg.id}>
-                      {t('chat.system.legacy')} · {msg.authorName}:{' '}
-                      {msg.content}
-                    </ChatSystemMessageItem>
+                    <ChatMessageItem
+                      key={msg.id}
+                      variant="other"
+                      avatarSrc={getCachedAvatar(msg.authorName)}
+                      author={msg.authorName || ''}
+                      time={formatMessageTime(msg.timestamp)}
+                    >
+                      <ChatTextBubble>{msg.content}</ChatTextBubble>
+                    </ChatMessageItem>
                   )
                 }
                 if (isChannelMemberJoinedSystemMessage(msg)) {
