@@ -1,6 +1,7 @@
 // F3 crash consistency: kill the process at every persistence point of a
-// publish and a download, restart, and check that records and `/<cid>`
-// readability agree. Run with `npm run test:crash`.
+// publish, a download and the 0.5.x shared-drive migration, restart, and
+// check that records and `/<cid>` readability agree. Run with
+// `npm run test:crash`.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -9,11 +10,50 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import b4a from 'b4a'
+import Corestore from 'corestore'
+import Hyperdrive from 'hyperdrive'
 import { MostBoxEngine } from '../server/src/index.js'
+import { calculateCid } from '../server/src/core/cid.js'
+import { getCidInfo } from '../server/src/core/cidTopic.js'
+import { GLOBAL_SHARED_SEED_STRING } from '../server/src/config.js'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const CONTENT = Buffer.alloc(300 * 1024).map((_, i) => i % 251)
 const FILE_NAME = 'crash.bin'
+
+// Writes a 0.5.x data directory: content only in the shared drive-<digest>,
+// holding record with the digest topic and shared drive name.
+async function writeLegacyDataDir(dataPath) {
+  const setup = new MostBoxEngine({ dataPath, disableNetwork: true })
+  await setup.start()
+  await setup.stop()
+  const cid = (await calculateCid(CONTENT)).cid.toString()
+  const { legacyDriveName } = getCidInfo(cid)
+  const store = new Corestore(dataPath, {
+    primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+    unsafe: true,
+  })
+  const drive = new Hyperdrive(store.namespace(legacyDriveName))
+  await drive.ready()
+  await drive.put('/' + cid, CONTENT)
+  await drive.close()
+  await store.close()
+  fs.writeFileSync(
+    path.join(dataPath, 'node-holdings.json'),
+    JSON.stringify([
+      {
+        cid,
+        fileName: FILE_NAME,
+        size: CONTENT.length,
+        topic: legacyDriveName.slice('drive-'.length),
+        driveName: legacyDriveName,
+        source: 'downloaded',
+      },
+    ])
+  )
+  return cid
+}
 
 // ---------------------------------------------------------------------------
 // Child: run one operation, recording persistence points or dying at one.
@@ -51,6 +91,17 @@ async function runChild() {
     const result = await put.apply(this, args)
     point('drive-entry:after')
     return result
+  }
+
+  if (scenario === 'migrate') {
+    await writeLegacyDataDir(dataPath)
+    tracing = true
+    const engine = new MostBoxEngine({ dataPath, disableNetwork: true })
+    await engine.start()
+    await waitForResume(engine)
+    tracing = false
+    await engine.stop()
+    return
   }
 
   const engine = new MostBoxEngine({ dataPath, disableNetwork: true })
@@ -194,8 +245,11 @@ async function crashAndCheck(scenario, crashAt) {
     const violations = await checkConsistency(engine, dir, dataPath)
 
     // Recovery: repeating the operation must succeed and leave it seeding.
+    // A migration must never lose content: the restarted node serves it.
     let cid
-    if (scenario === 'publish') {
+    if (scenario === 'migrate') {
+      cid = (await calculateCid(CONTENT)).cid.toString()
+    } else if (scenario === 'publish') {
       ;({ cid } = await engine.publishFile(CONTENT, FILE_NAME))
     } else {
       const seed = new MostBoxEngine({
@@ -223,7 +277,7 @@ async function crashAndCheck(scenario, crashAt) {
 if (process.env.MOST_CRASH_CHILD) {
   await runChild()
 } else {
-  for (const scenario of ['publish', 'download']) {
+  for (const scenario of ['publish', 'download', 'migrate']) {
     describe(`crash during ${scenario}`, () => {
       const trace = traceScenario(scenario)
       for (const [index, name] of trace.entries()) {

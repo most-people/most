@@ -201,6 +201,18 @@
 - 访客（26 位 v1 随机 ID，映射为私有频道，无公开提示）：发送消息；客服按频道 ID 加入后读到并回复；访客重新进入后读到回复。另一标签页的客服消息在访客页未手动刷新时出现，但两身份共用同一浏览器存储，不据此认定实时推送。
 - 待客户确认：一个客服群中两个同名成员地址不同，未确认是两个账号还是未迁移的旧地址。未验证：移动 App、语音、跨节点 P2P、生产节点。
 
+## 2026-11-18：文件协议 v2（`most-cid-drive/3`，本地回归）
+
+设计见 [file-privacy.md](protocol/v2/file-privacy.md)。Windows 11、Node 26.13.0；内存复制或本地 HyperDHT testnet，非真实网络与真机。
+
+- 向量：`vectors/v2/file.json` 由 `scripts/protocol-vectors/v2_file.py` 独立计算（手工解码 CID，只用 hashlib/hmac）；桌面、移动核心、移动 App 三处测试读取一致。
+- 攻击测试（`server/tests/unit/cidDriveExchange.test.js`）：随机 proof 收不到 `have`，16 次后通道关闭；有效 `want` 重放到另一连接收不到 `have`；只知道 topic 时把 topic 当 key 打开 drive 读不到内容，同时知道 CID 的请求方能读到；未做种的 topic 不计入无效次数。人为让证明不绑定 challenge 与公钥后，重放用例失败。
+- 迁移：0.5.x 形态（共享 `drive-<digest>`、记录中为摘要 topic）的数据目录在桌面与移动核心上迁入新 drive，只 join v2 topic，旧块清除；内容与 CID 不符的不迁移、状态 error。`test:crash` 新增迁移场景，4 个崩溃点重启后均能被新节点下载并校验。0.6/0.7 的 HMAC drive 不迁移（只支持 0.5.x → 0.8.0）。
+- 回归：根 `npm test` 774 项、`test:crash` 30 项、`test:protocol` 13 项、`test:cross-core` 3 项（桌面 ↔ 移动核心双向）、移动端 `npm test` 全部通过；lint、`tsc` 通过；`bundle:android` 成功。
+- `stats:relay-churn` loopback，种子数 1、2、5 各 10 次（`--rng 1`）：30/30 成功，发现时间 P95 33–51ms（基线 900 次为 32–38ms）。次数不足门槛，只作是否退化的对比。
+- 兼容性：0.8.0 与 0.5.x、0.7.0 之间文件传输不互通。
+- 未覆盖：真实网络、真机（Bare 运行时只验证了打包）、大文件迁移耗时与磁盘峰值（见 A8 演练）。
+
 ## 当前未完成
 
 - 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；桌面节点已接入语音签名与会话定向投递，移动核心继续忽略语音帧。统一迁移仍待完成。

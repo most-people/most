@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import {
   buildMostLink,
+  getCidFileTopic,
   getCidTopicDigest,
   MOST_LINK_ERROR_CODES,
   parseMostLink,
@@ -28,9 +29,10 @@ function hex(bytes: Uint8Array) {
 }
 
 describe('protocol vectors (mobile app)', () => {
-  it('derives file topics from CIDs', () => {
-    for (const sample of readVectors('cid.json').samples) {
-      assert.equal(hex(getCidTopicDigest(sample.cid)), sample.topic)
+  it('derives v2 file topics from CIDs', () => {
+    for (const item of readVectors('v2/file.json').files) {
+      assert.equal(hex(getCidTopicDigest(item.cid)), item.digest, item.name)
+      assert.equal(hex(getCidFileTopic(item.cid)), item.topic, item.name)
     }
   })
 

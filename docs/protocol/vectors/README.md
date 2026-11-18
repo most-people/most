@@ -15,7 +15,7 @@
 | `account-sync.json`  | 账号同步信封解密、错误密钥、合并                                            | [chat.md](../chat.md) §8                                                                                 |
 | `voice.json`         | `channel-voice` 事件规范化正反例                                            | [voice.md](../voice.md) §2–3                                                                             |
 
-协议 v2 的向量在 `v2/` 子目录，由不依赖本仓库代码的 Python 脚本独立计算（只用标准库；ed25519 为 RFC 8032 参考实现并先通过 RFC 测试向量自检）：`python scripts/protocol-vectors/v2_<名字>.py docs/protocol/vectors/v2/<名字>.json`，再运行 `npm run format`。桌面 `server/tests/unit/protocolV2.test.js` 与移动 `app/backend/protocol-v2.test.mjs` 读取。
+协议 v2 的向量在 `v2/` 子目录，由不依赖本仓库代码的 Python 脚本独立计算（只用标准库；ed25519 为 RFC 8032 参考实现并先通过 RFC 测试向量自检）：`python scripts/protocol-vectors/v2_<名字>.py docs/protocol/vectors/v2/<名字>.json`，再运行 `npm run format`。桌面 `server/tests/unit/protocolV2.test.js` 与移动 `app/backend/protocol-v2.test.mjs` 读取。`v2/file.json`（文件 topic、`want` 证明、drive 名、`most-cid-drive/3` 载荷）由两端 `protocolVectors` 测试与移动 App `protocolVectors.test.ts` 读取；`cid.json` 中的 `topic` 是 0.5.x 的摘要 topic，0.8.0 起只作迁移参考。
 
 ## 来源
 

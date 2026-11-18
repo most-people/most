@@ -6,7 +6,13 @@ import fs from 'node:fs'
 import b4a from 'b4a'
 import c from 'compact-encoding'
 import { calculateCid } from './mobile-core.mjs'
-import { cidDriveName } from './cid-drive-exchange.mjs'
+import {
+  CID_DRIVE_PROTOCOL,
+  cidDriveName,
+  fileTopic,
+  wantKeyFor,
+  wantProof,
+} from './cid-drive-exchange.mjs'
 import {
   buildChannelHelloMessages,
   consumeChannelFrames,
@@ -42,23 +48,39 @@ describe('protocol vectors (mobile core)', () => {
     }
   })
 
-  it('derives CID drive names and encodes want/have', () => {
-    const vectors = readVectors('file-transfer.json')
-    const secret = b4a.from(vectors.secret, 'hex')
-    for (const item of vectors.driveNames) {
-      assert.equal(cidDriveName(secret, item.topic), item.driveName)
+  it('derives v2 file topics, want proofs, drive names and payloads', () => {
+    const vectors = readVectors('v2/file.json')
+    assert.equal(CID_DRIVE_PROTOCOL, vectors.protocol)
+    const hex = value => b4a.from(value, 'hex')
+    const secret = hex(vectors.secret)
+    for (const item of vectors.files) {
+      const topic = fileTopic(hex(item.digest))
+      const wantKey = wantKeyFor(hex(item.digest))
+      const proof = wantProof(
+        wantKey,
+        topic,
+        hex(vectors.challenge),
+        hex(vectors.requesterPublicKey),
+        hex(vectors.responderPublicKey)
+      )
+      assert.equal(b4a.toString(topic, 'hex'), item.topic, item.name)
+      assert.equal(b4a.toString(wantKey, 'hex'), item.wantKey, item.name)
+      assert.equal(b4a.toString(proof, 'hex'), item.proof, item.name)
+      assert.equal(cidDriveName(secret, topic), item.driveName, item.name)
+      assert.equal(
+        b4a.toString(c.encode(c.fixed64, b4a.concat([topic, proof])), 'hex'),
+        item.want,
+        item.name
+      )
+      assert.equal(
+        b4a.toString(
+          c.encode(c.fixed64, b4a.concat([topic, hex(vectors.driveKey)])),
+          'hex'
+        ),
+        item.have,
+        item.name
+      )
     }
-    const { topic, driveKey, want, have } = vectors.messages
-    const topicBytes = b4a.from(topic, 'hex')
-    const haveBytes = b4a.concat([topicBytes, b4a.from(driveKey, 'hex')])
-    assert.equal(
-      b4a.toString(c.encode(c.fixed32, topicBytes), 'hex'),
-      want.payload
-    )
-    assert.equal(
-      b4a.toString(c.encode(c.fixed64, haveBytes), 'hex'),
-      have.payload
-    )
   })
 
   it('derives channel topics and verifies channel proofs', () => {

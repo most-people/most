@@ -58,7 +58,7 @@ async function seedOwnDriveWithBytes(
   const setup = new MostBoxEngine({ dataPath, disableNetwork: true })
   await setup.start()
   await setup.stop()
-  const { topicHex } = getCidInfo(cid)
+  const { topic, legacyDriveName } = getCidInfo(cid)
   const store = new Corestore(dataPath, {
     primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
     unsafe: true,
@@ -66,8 +66,8 @@ async function seedOwnDriveWithBytes(
   const drive = new Hyperdrive(
     store.namespace(
       legacy
-        ? getCidInfo(cid).driveName
-        : cidDriveName(loadOrCreateNodeSeed(dataPath), topicHex)
+        ? legacyDriveName
+        : cidDriveName(loadOrCreateNodeSeed(dataPath), topic)
     )
   )
   await drive.ready()
@@ -77,7 +77,17 @@ async function seedOwnDriveWithBytes(
   fs.writeFileSync(
     path.join(dataPath, 'node-holdings.json'),
     JSON.stringify([
-      { cid, fileName: 'bad.bin', size: bytes.length, source: 'manual' },
+      {
+        cid,
+        fileName: 'bad.bin',
+        size: bytes.length,
+        source: 'manual',
+        // 0.5.x records carried the digest topic and the shared drive name.
+        ...(legacy && {
+          topic: legacyDriveName.slice('drive-'.length),
+          driveName: legacyDriveName,
+        }),
+      },
     ])
   )
 }
@@ -751,7 +761,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const content = Buffer.from('repair metadata-only duplicate publish')
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
-      const { driveName } = getCidInfo(cidString)
+      const { legacyDriveName: driveName } = getCidInfo(cidString)
       let setupEngine
       let repairEngine
 
@@ -1790,7 +1800,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
               {
                 fileName: 'slow-open.txt',
                 cid,
-                driveName: getCidInfo(cid).driveName,
+                driveName: getCidInfo(cid).legacyDriveName,
                 size: 0,
                 publishedAt: new Date().toISOString(),
                 starred: false,
@@ -2032,7 +2042,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
       const { getCidInfo } = await import('../../src/core/cidTopic.js')
-      const { driveName } = getCidInfo(cidString)
+      const { legacyDriveName: driveName } = getCidInfo(cidString)
       let metadataEngine
 
       try {
@@ -2199,19 +2209,17 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
     })
 
-    it('rejects manual holdings whose topic does not match the CID digest', async () => {
+    it('derives manual holding topic from the CID, ignoring the record', async () => {
       const content = Buffer.from('holding topic mismatch')
       const { cid } = await calculateCid(content)
 
-      await assert.rejects(
-        engine.addHolding({
-          cid: cid.toString(),
-          fileName: 'bad-topic.txt',
-          size: content.length,
-          topic: '00'.repeat(32),
-        }),
-        /topic must match CID digest/
-      )
+      const holding = await engine.addHolding({
+        cid: cid.toString(),
+        fileName: 'bad-topic.txt',
+        size: content.length,
+        topic: '00'.repeat(32),
+      })
+      assert.strictEqual(holding.topic, getCidInfo(cid.toString()).topicHex)
     })
 
     it('normalizes manual holding driveName from the CID digest', async () => {
@@ -2300,7 +2308,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const content = Buffer.from('missing holding content')
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
-      const { topicHex, driveName } = getCidInfo(cidString)
+      const { topicHex, legacyDriveName: driveName } = getCidInfo(cidString)
       let setupEngine
       let missingEngine
 
@@ -2589,7 +2597,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
     })
 
-    it('migrates verified v1 shared-drive holdings and skips corrupt ones', async () => {
+    it('migrates verified 0.5.x shared-drive holdings and skips corrupt ones', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-v1-migrate-'))
       const engines = []
       const links = []

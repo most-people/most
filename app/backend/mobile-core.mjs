@@ -56,7 +56,12 @@ import {
   signedPresenceError,
 } from './channel-signed-presence.mjs'
 import { canonicalJson } from '../shared/canonical-json.mjs'
-import { attachCidDriveChannel, cidDriveName } from './cid-drive-exchange.mjs'
+import {
+  attachCidDriveChannel,
+  cidDriveName,
+  fileTopic,
+  wantKeyFor,
+} from './cid-drive-exchange.mjs'
 import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
@@ -260,17 +265,19 @@ function getCidInfo(cid) {
     throw new Error('CID v1 required')
   }
 
-  const topic = b4a.from(parsed.multihash.digest)
-  if (topic.byteLength !== 32) {
+  const digest = b4a.from(parsed.multihash.digest)
+  if (digest.byteLength !== 32) {
     throw new Error('CID digest must be 32 bytes')
   }
 
-  const topicHex = b4a.toString(topic, 'hex')
+  const topic = fileTopic(digest)
   return {
     cid: parsed.toString(),
     topic,
-    topicHex,
-    driveName: `drive-${topicHex}`,
+    topicHex: b4a.toString(topic, 'hex'),
+    wantKey: wantKeyFor(digest),
+    // 0.5.x shared-key drive; read only by the one-time migration.
+    legacyDriveName: `drive-${b4a.toString(digest, 'hex')}`,
   }
 }
 
@@ -2791,14 +2798,14 @@ export class MobileP2PCore {
     const info = getCidInfo(cid)
     return {
       ...info,
-      driveName: cidDriveName(this.#cidDriveSecret, info.topicHex),
+      driveName: cidDriveName(this.#cidDriveSecret, info.topic),
     }
   }
 
   #attachCidDrivePeer(stream) {
     const peer = attachCidDriveChannel(stream, {
-      onWant: (topic, from) => {
-        this.#answerCidDriveWant(topic, from).catch(() => {})
+      onWant: (topic, proof, from) => {
+        this.#answerCidDriveWant(topic, proof, from).catch(() => {})
       },
       onHave: (topic, driveKey) => {
         const topicHex = b4a.toString(topic, 'hex')
@@ -2810,20 +2817,22 @@ export class MobileP2PCore {
     })
     if (!peer) return
     this.#cidDrivePeers.add(peer)
-    for (const topicHex of this.#cidDriveWants.keys()) {
-      peer.want(b4a.from(topicHex, 'hex'))
+    for (const { topic, wantKey } of this.#cidDriveWants.values()) {
+      peer.want(topic, wantKey)
     }
   }
 
-  // Answer only for content this node seeds: joined topic plus a holding whose
-  // /<cid> is readable from its own drive.
-  async #answerCidDriveWant(topic, peer) {
+  // Answer only for content this node seeds (joined topic plus a holding whose
+  // /<cid> is readable from its own drive) and only to a requester whose
+  // proof shows it knows the CID digest (file-privacy §4.3).
+  async #answerCidDriveWant(topic, proof, peer) {
     const topicHex = b4a.toString(topic, 'hex')
     let cid = null
     for (const [joinedCid, discovery] of this.#discoveries) {
       if (discovery.topic === topicHex) cid = joinedCid
     }
     if (!cid || !this.#holdings.some(holding => holding.cid === cid)) return
+    if (!peer.verifyWant(topic, proof, this.#getCidInfo(cid).wantKey)) return
     const drive = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
     if (await this.#hasLocalCidContent(drive, `/${cid}`)) {
       peer.have(topic, drive.key)
@@ -2836,7 +2845,7 @@ export class MobileP2PCore {
    * returned read-only drive.
    */
   async #waitForRemoteCidDrive(cid, timeout, transferId, triedKeys) {
-    const { topic, topicHex } = this.#getCidInfo(cid)
+    const { topic, topicHex, wantKey } = this.#getCidInfo(cid)
     // This node's own drive is only written after verification; it is tried
     // first, is not closed by the caller, and goes through the same CID check.
     const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
@@ -2852,10 +2861,13 @@ export class MobileP2PCore {
     const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
     const offers = this.#cidDriveOffers.get(topicHex) || new Set()
     this.#cidDriveOffers.set(topicHex, offers)
-    this.#cidDriveWants.set(
-      topicHex,
-      (this.#cidDriveWants.get(topicHex) || 0) + 1
-    )
+    const pendingWant = this.#cidDriveWants.get(topicHex) || {
+      topic,
+      wantKey,
+      count: 0,
+    }
+    pendingWant.count += 1
+    this.#cidDriveWants.set(topicHex, pendingWant)
     let lastWantAt = 0
     let lastLookupAt = Date.now()
 
@@ -2864,7 +2876,7 @@ export class MobileP2PCore {
         this.#assertDownloadActive(transferId)
         if (Date.now() - lastWantAt >= DRIVE_UPDATE_INTERVAL) {
           lastWantAt = Date.now()
-          for (const peer of this.#cidDrivePeers) peer.want(topic)
+          for (const peer of this.#cidDrivePeers) peer.want(topic, wantKey)
         }
 
         const keyHex = [...offers].find(key => !triedKeys.has(key))
@@ -2923,22 +2935,21 @@ export class MobileP2PCore {
       }
       return null
     } finally {
-      const remaining = this.#cidDriveWants.get(topicHex) - 1
-      if (remaining > 0) {
-        this.#cidDriveWants.set(topicHex, remaining)
-      } else {
+      pendingWant.count -= 1
+      if (pendingWant.count <= 0) {
         this.#cidDriveWants.delete(topicHex)
         this.#cidDriveOffers.delete(topicHex)
       }
     }
   }
 
-  // One-time move from the v1 shared-key drive. Only content that recomputes
-  // to its CID is copied; anything else stays missing and reports an error.
+  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
+  // content that recomputes to its CID is copied; anything else stays missing
+  // and reports an error.
   async #migrateLegacyCidDrive(cid, drive) {
     const driveKey = `/${cid}`
     const legacy = new Hyperdrive(
-      this.#store.namespace(getCidInfo(cid).driveName)
+      this.#store.namespace(getCidInfo(cid).legacyDriveName)
     )
     try {
       await legacy.ready()
@@ -3125,7 +3136,7 @@ export class MobileP2PCore {
       cid,
       fileName: sanitizeFilename(record.fileName || cid),
       size,
-      topic: record.topic || topicHex,
+      topic: topicHex,
       driveName,
       localPath: normalizeFileUri(record.localPath || ''),
       source: record.source === 'downloaded' ? 'downloaded' : 'published',

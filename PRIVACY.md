@@ -40,6 +40,17 @@ are replicated to peers participating in the corresponding channel. CIDs,
 `most://` links, and channel identifiers act as capabilities and should be
 shared accordingly.
 
+Since version 0.8.0 a file's DHT topic is a one-way hash of its CID, and a
+seed hands out the drive key for a file only to a peer that proves it knows
+the CID. What remains visible:
+
+| Who                                    | What they can see                                                                                                                                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any DHT node                           | File topics (which cannot be turned back into a CID); the IP address, port, and file-swarm public key of each peer announcing a topic; the number of announcers                                                                                         |
+| Anyone who knows a CID or link         | All of the above, plus which topic belongs to that CID: they **can still list the IP addresses of every online seeder and downloader of that file**                                                                                                     |
+| A peer connected to the node for files | The discovery keys of every core the node has open (file drives, channel writer cores, account sync cores). A discovery key cannot be turned into the core key and does not allow reading content, but it can link the same core across different nodes |
+| A relay                                | Both peers' public keys, connection timing, and traffic volume (see above)                                                                                                                                                                              |
+
 In v2 live voice rooms, authorized channel members can see who joins, leaves,
 or changes microphone state. Connection setup data (SDP and ICE, which may
 include IP addresses) passes through the participating nodes to the target

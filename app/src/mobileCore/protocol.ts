@@ -1,3 +1,5 @@
+import { sha256 } from '@noble/hashes/sha256'
+import { utf8ToBytes } from '@noble/hashes/utils'
 import { CID } from 'multiformats/cid'
 
 export type ParsedMostLink = {
@@ -35,6 +37,17 @@ export function getHyperdriveCidPath(cid: string) {
 
 export function getCidTopicDigest(cid: string) {
   return CID.parse(cid).multihash.digest
+}
+
+const FILE_TOPIC_LABEL = utf8ToBytes('most/v2/topic/file\0')
+
+/** Protocol v2 file topic: H("topic/file", digest) (v2/file-privacy.md §3). */
+export function getCidFileTopic(cid: string) {
+  const digest = getCidTopicDigest(cid)
+  const input = new Uint8Array(FILE_TOPIC_LABEL.length + digest.length)
+  input.set(FILE_TOPIC_LABEL)
+  input.set(digest, FILE_TOPIC_LABEL.length)
+  return sha256(input)
 }
 
 function decodeQueryPart(value: string) {

@@ -14,7 +14,13 @@ import {
   parseMostLink,
 } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
-import { cidDriveName } from '../../src/core/cidDriveExchange.js'
+import {
+  CID_DRIVE_PROTOCOL,
+  cidDriveName,
+  fileTopic,
+  wantKeyFor,
+  wantProof,
+} from '../../src/core/cidDriveExchange.js'
 import {
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
@@ -66,31 +72,50 @@ const LINK_ERROR_KINDS = {
 }
 
 describe('protocol vectors (desktop)', () => {
-  it('computes golden CIDs and their file topics', async () => {
+  it('computes golden CIDs', async () => {
     for (const sample of readVectors('cid.json').samples) {
       const { cid } = await calculateCid(sampleContent(sample.content))
       assert.equal(cid.toString(), sample.cid, sample.name)
-      assert.equal(getCidInfo(sample.cid).topicHex, sample.topic, sample.name)
     }
   })
 
-  it('derives CID drive names and encodes want/have', () => {
-    const vectors = readVectors('file-transfer.json')
-    const secret = b4a.from(vectors.secret, 'hex')
-    for (const item of vectors.driveNames) {
-      assert.equal(cidDriveName(secret, item.topic), item.driveName)
+  it('derives v2 file topics, want proofs, drive names and payloads', () => {
+    const vectors = readVectors('v2/file.json')
+    assert.equal(CID_DRIVE_PROTOCOL, vectors.protocol)
+    const hex = value => b4a.from(value, 'hex')
+    const secret = hex(vectors.secret)
+    for (const item of vectors.files) {
+      const topic = fileTopic(hex(item.digest))
+      const wantKey = wantKeyFor(hex(item.digest))
+      const proof = wantProof(
+        wantKey,
+        topic,
+        hex(vectors.challenge),
+        hex(vectors.requesterPublicKey),
+        hex(vectors.responderPublicKey)
+      )
+      assert.equal(b4a.toString(topic, 'hex'), item.topic, item.name)
+      assert.equal(b4a.toString(wantKey, 'hex'), item.wantKey, item.name)
+      assert.equal(b4a.toString(proof, 'hex'), item.proof, item.name)
+      assert.equal(cidDriveName(secret, topic), item.driveName, item.name)
+      assert.equal(
+        b4a.toString(c.encode(c.fixed64, b4a.concat([topic, proof])), 'hex'),
+        item.want,
+        item.name
+      )
+      assert.equal(
+        b4a.toString(
+          c.encode(c.fixed64, b4a.concat([topic, hex(vectors.driveKey)])),
+          'hex'
+        ),
+        item.have,
+        item.name
+      )
+      const info = getCidInfo(item.cid)
+      assert.equal(info.topicHex, item.topic, item.name)
+      assert.equal(b4a.toString(info.wantKey, 'hex'), item.wantKey, item.name)
+      assert.equal(info.legacyDriveName, item.legacyDriveName, item.name)
     }
-    const { topic, driveKey, want, have } = vectors.messages
-    const topicBytes = b4a.from(topic, 'hex')
-    const haveBytes = b4a.concat([topicBytes, b4a.from(driveKey, 'hex')])
-    assert.equal(
-      b4a.toString(c.encode(c.fixed32, topicBytes), 'hex'),
-      want.payload
-    )
-    assert.equal(
-      b4a.toString(c.encode(c.fixed64, haveBytes), 'hex'),
-      have.payload
-    )
   })
 
   it('parses and builds most:// links', () => {

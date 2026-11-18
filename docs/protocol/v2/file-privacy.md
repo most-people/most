@@ -97,12 +97,12 @@ driveName = "cid-drive-" ‖ hex(MAC(secret, "cid-drive/name", topic))
 
 ## 8. 迁移
 
-沿用 CID drive v2 的一次性迁移（`docs/cid-drive-protocol.md` §5）：
+只支持 0.5.x → 0.8.0 一条升级路径（生产节点停在 0.5.x；0.6.0 / 0.7.0 只在测试环境运行过，其 `cid-drive-<HMAC("most-cid-drive-v2:"…)>` drive 不迁移）。沿用 `docs/cid-drive-protocol.md` §5 的一次性迁移：
 
-- 启动恢复 holding 时，若 v2 drive 中没有 `/<cid>`，从 v1 drive（`cid-drive-<v1 tag>`）读出、重算 CID、写入 v2 drive，成功后清除 v1 块；失败按「本地内容缺失」处理。
-- 离开 v1 topic，只加入 v2 topic。
+- 启动恢复 holding 时，若本节点新 drive 中没有 `/<cid>`，从 0.5.x 的共享 drive `drive-<digestHex>` 读出、重算 CID、写入新 drive，成功后清除旧块；失败按「本地内容缺失」处理。
+- 不再加入摘要 topic，只加入 v2 文件 topic。
 - `published-files.json` / `node-holdings.json` 中的 `topic`、`driveName` 字段改为现算，不再信任记录值。
-- 迁移代码在之后的版本删除。
+- 迁移代码在 0.8.0 之后、确认生产节点已升级后再删除。
 
 ## 9. 攻击测试（实现时补）
 

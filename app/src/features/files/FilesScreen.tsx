@@ -35,7 +35,7 @@ import type {
   MobileHolding,
   SeedStatus,
 } from '../../mobileCore/types'
-import { getCidTopicDigest } from '../../mobileCore/protocol'
+import { getCidFileTopic } from '../../mobileCore/protocol'
 import { getTransferDisplayMessage } from '../../ui/presentation'
 import { useI18n, type MessageKey } from '../../i18n'
 import {
@@ -606,7 +606,7 @@ export function FilesScreen({
                         <Text style={styles.fieldLabel}>Topic</Text>
                         <Text selectable style={styles.topicText}>
                           {Array.from(
-                            getCidTopicDigest(selectedHolding.cid),
+                            getCidFileTopic(selectedHolding.cid),
                             byte => byte.toString(16).padStart(2, '0')
                           ).join('')}
                         </Text>

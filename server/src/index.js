@@ -1921,7 +1921,7 @@ export class MostBoxEngine extends EventEmitter {
                   `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
                 )
                 console.warn(
-                  `[MostBox] Seed drive ${source.keyHex} served wrong content for ${cidString}`
+                  `[MostBox] Seed drive ${source.keyHex.slice(0, 16)} served wrong content for ${cidString}`
                 )
                 continue findSource
               }
@@ -5197,7 +5197,7 @@ export class MostBoxEngine extends EventEmitter {
     const info = getCidInfo(cid)
     return {
       ...info,
-      driveName: cidDriveName(this.#cidDriveSecret, info.topicHex),
+      driveName: cidDriveName(this.#cidDriveSecret, info.topic),
     }
   }
 
@@ -5759,8 +5759,9 @@ export class MostBoxEngine extends EventEmitter {
       })
   }
 
-  // One-time move from the v1 shared-key drive. Only content that recomputes
-  // to its CID is copied; anything else stays missing and reports an error.
+  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
+  // content that recomputes to its CID is copied; anything else stays missing
+  // and reports an error.
   async #migrateLegacyCidDrive(holding) {
     const { cid } = holding
     const driveKey = '/' + cid
@@ -5768,7 +5769,7 @@ export class MostBoxEngine extends EventEmitter {
     if (await this.#hasLocalDriveContent(own, driveKey)) return
 
     const legacy = new Hyperdrive(
-      this.#store.namespace(getCidInfo(cid).driveName)
+      this.#store.namespace(getCidInfo(cid).legacyDriveName)
     )
     try {
       await legacy.ready()
@@ -5800,10 +5801,8 @@ export class MostBoxEngine extends EventEmitter {
       throw new ValidationError('cid is required')
     }
 
+    // topic and driveName are always derived; recorded values are not trusted.
     const { topicHex, driveName } = this.#getCidInfo(cid)
-    if (record.topic && record.topic !== topicHex) {
-      throw new ValidationError('topic must match CID digest')
-    }
 
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
@@ -5981,8 +5980,8 @@ export class MostBoxEngine extends EventEmitter {
 
   #attachCidDrivePeer(stream) {
     const peer = attachCidDriveChannel(stream, {
-      onWant: (topic, from) => {
-        this.#answerCidDriveWant(topic, from).catch(() => {})
+      onWant: (topic, proof, from) => {
+        this.#answerCidDriveWant(topic, proof, from).catch(() => {})
       },
       onHave: (topic, driveKey) => {
         const topicHex = b4a.toString(topic, 'hex')
@@ -5994,20 +5993,22 @@ export class MostBoxEngine extends EventEmitter {
     })
     if (!peer) return
     this.#cidDrivePeers.add(peer)
-    for (const topicHex of this.#cidDriveWants.keys()) {
-      peer.want(b4a.from(topicHex, 'hex'))
+    for (const { topic, wantKey } of this.#cidDriveWants.values()) {
+      peer.want(topic, wantKey)
     }
   }
 
-  // Answer only for content this node seeds: joined topic plus a holding whose
-  // /<cid> is readable from its own drive.
-  async #answerCidDriveWant(topic, peer) {
+  // Answer only for content this node seeds (joined topic plus a holding whose
+  // /<cid> is readable from its own drive) and only to a requester whose
+  // proof shows it knows the CID digest (file-privacy §4.3).
+  async #answerCidDriveWant(topic, proof, peer) {
     const topicHex = b4a.toString(topic, 'hex')
     let cid = null
     for (const [joinedCid, discovery] of this.#fileDiscoveries) {
       if (discovery.topic === topicHex) cid = joinedCid
     }
     if (!cid || !this.#holdings.some(holding => holding.cid === cid)) return
+    if (!peer.verifyWant(topic, proof, this.#getCidInfo(cid).wantKey)) return
     const localContent = await this.#getLocalCidContent(cid, {
       public: true,
       allowHoldingFallback: true,
@@ -6022,7 +6023,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async #waitForRemoteCidDrive(cid, timeout, options = {}) {
     const { triedKeys = new Set(), taskId = null, taskState = null } = options
-    const { topic, topicHex } = this.#getCidInfo(cid)
+    const { topic, topicHex, wantKey } = this.#getCidInfo(cid)
     // This node's own drive is only written after verification; it is tried
     // first, is not closed by the caller, and goes through the same CID check.
     const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
@@ -6038,10 +6039,13 @@ export class MostBoxEngine extends EventEmitter {
     const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
     const offers = this.#cidDriveOffers.get(topicHex) || new Set()
     this.#cidDriveOffers.set(topicHex, offers)
-    this.#cidDriveWants.set(
-      topicHex,
-      (this.#cidDriveWants.get(topicHex) || 0) + 1
-    )
+    const pendingWant = this.#cidDriveWants.get(topicHex) || {
+      topic,
+      wantKey,
+      count: 0,
+    }
+    pendingWant.count += 1
+    this.#cidDriveWants.set(topicHex, pendingWant)
     let lastWantAt = 0
     let lastLookupAt = Date.now()
 
@@ -6050,7 +6054,7 @@ export class MostBoxEngine extends EventEmitter {
         if (taskState?.aborted) throw new Error('Download cancelled')
         if (Date.now() - lastWantAt >= DRIVE_UPDATE_INTERVAL) {
           lastWantAt = Date.now()
-          for (const peer of this.#cidDrivePeers) peer.want(topic)
+          for (const peer of this.#cidDrivePeers) peer.want(topic, wantKey)
         }
 
         const keyHex = [...offers].find(key => !triedKeys.has(key))
@@ -6102,10 +6106,8 @@ export class MostBoxEngine extends EventEmitter {
       }
       return null
     } finally {
-      const remaining = this.#cidDriveWants.get(topicHex) - 1
-      if (remaining > 0) {
-        this.#cidDriveWants.set(topicHex, remaining)
-      } else {
+      pendingWant.count -= 1
+      if (pendingWant.count <= 0) {
         this.#cidDriveWants.delete(topicHex)
         this.#cidDriveOffers.delete(topicHex)
       }
