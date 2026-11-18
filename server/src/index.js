@@ -56,6 +56,12 @@ import {
   voiceEvent,
 } from './core/channelSignedVoice.js'
 import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
+import {
+  buildSessionFrame,
+  isSessionFrame,
+  parseSessionFeatures,
+  sharedFeatures,
+} from './core/channelSession.js'
 import { attachCidDriveChannel, cidDriveName } from './core/cidDriveExchange.js'
 import { P2PPingManager } from './core/p2pPing.js'
 import {
@@ -7004,6 +7010,15 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
+  // Only the first session frame counts; an invalid one lists no features.
+  // Signatures (sig1) never depend on this: they are always sent and required.
+  #processSessionFrame(stream, message) {
+    const record = this.#channelStreams.get(stream)
+    if (!record || record.sessionReceived) return
+    record.sessionReceived = true
+    record.features = sharedFeatures(parseSessionFeatures(message))
+  }
+
   #removeChannelStream(stream) {
     this.#voiceRoutes.clearSource(stream)
     this.#channelStreams.delete(stream)
@@ -7318,7 +7333,16 @@ export class MostBoxEngine extends EventEmitter {
       proofSentTopics: new Set(),
       localChallenge: '',
       remoteChallenge: '',
+      sessionReceived: false,
+      features: new Set(),
     })
+    // envelope §4.2: the session frame goes out first, once per connection.
+    try {
+      stream.write(`${JSON.stringify(buildSessionFrame())}\n`)
+    } catch {
+      this.#removeChannelStream(stream)
+      return
+    }
     const handleTopic = () => {
       if (!closed) this.#sendChannelHello(stream)
     }
@@ -7346,6 +7370,10 @@ export class MostBoxEngine extends EventEmitter {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          if (isSessionFrame(message)) {
+            this.#processSessionFrame(stream, message)
+            continue
+          }
           if (message?.type === ACCOUNT_HELLO_TYPE) {
             await this.#accountSync?.handleMessage(stream, message)
             continue

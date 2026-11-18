@@ -14,6 +14,11 @@ import {
   wantProof,
 } from './cid-drive-exchange.mjs'
 import {
+  buildSessionFrame,
+  parseSessionFeatures,
+  sharedFeatures,
+} from './channel-session.mjs'
+import {
   buildChannelHelloMessages,
   consumeChannelFrames,
   generateChannelChatDiscoveryKey,
@@ -46,6 +51,25 @@ describe('protocol vectors (mobile core)', () => {
       })
       assert.equal(cid, sample.cid, sample.name)
     }
+  })
+
+  it('builds and validates v2 session frames', () => {
+    const vectors = readVectors('v2/session.json')
+    assert.deepEqual(buildSessionFrame(), {
+      v: 2,
+      type: 'session',
+      features: vectors.localFeatures,
+    })
+    for (const item of vectors.cases) {
+      assert.deepEqual(
+        parseSessionFeatures(item.frame),
+        item.features,
+        item.name
+      )
+    }
+    assert.deepEqual([...sharedFeatures(null)], [])
+    assert.deepEqual([...sharedFeatures(['e2ee1'])], [])
+    assert.deepEqual([...sharedFeatures(['sig1', 'e2ee1'])], ['sig1'])
   })
 
   it('derives v2 file topics, want proofs, drive names and payloads', () => {

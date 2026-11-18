@@ -57,6 +57,12 @@ import {
 } from './channel-signed-presence.mjs'
 import { canonicalJson } from '../shared/canonical-json.mjs'
 import {
+  buildSessionFrame,
+  isSessionFrame,
+  parseSessionFeatures,
+  sharedFeatures,
+} from './channel-session.mjs'
+import {
   attachCidDriveChannel,
   cidDriveName,
   fileTopic,
@@ -2050,6 +2056,15 @@ export class MobileP2PCore {
     )
   }
 
+  // Only the first session frame counts; an invalid one lists no features.
+  // Signatures (sig1) never depend on this: they are always sent and required.
+  #processSessionFrame(stream, message) {
+    const record = this.#channelStreams.get(stream)
+    if (!record || record.sessionReceived) return
+    record.sessionReceived = true
+    record.features = sharedFeatures(parseSessionFeatures(message))
+  }
+
   #removeChannelStream(stream) {
     this.#channelStreams.delete(stream)
   }
@@ -2681,7 +2696,16 @@ export class MobileP2PCore {
       proofSentTopics: new Set(),
       localChallenge: '',
       remoteChallenge: '',
+      sessionReceived: false,
+      features: new Set(),
     })
+    // envelope §4.2: the session frame goes out first, once per connection.
+    try {
+      stream.write(b4a.from(`${JSON.stringify(buildSessionFrame())}\n`))
+    } catch {
+      this.#removeChannelStream(stream)
+      return
+    }
     const handleTopic = () => {
       if (!closed) this.#sendChannelHello(stream)
     }
@@ -2708,6 +2732,10 @@ export class MobileP2PCore {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          if (isSessionFrame(message)) {
+            this.#processSessionFrame(stream, message)
+            continue
+          }
           if (this.#processChannelScopeMessage(stream, message)) continue
           if (this.#processChannelProofChallengeMessage(stream, message)) {
             continue

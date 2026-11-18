@@ -1293,6 +1293,79 @@ describe('mobile channel presence', () => {
     )
   })
 
+  it('sends the session frame first and requires signed presence from peers that list no features', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-session-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-session-features',
+      discover: false,
+    })
+    const chatSwarm = swarms[1]
+    const presences = () =>
+      core.getSnapshot().channelPresence[channel.channelKey]?.length || 0
+    const send = (stream, frame) =>
+      stream.emit('data', b4a.from(`${JSON.stringify(frame)}\n`))
+
+    // No session frame, or one listing only other features: sig1 is never
+    // negotiated away.
+    for (const [index, features] of [null, ['e2ee1']].entries()) {
+      const stream = new RecordingStream()
+      const peerInfo = channelPeerInfo(channel.channelId, 0x70 + index)
+      chatSwarm.emit('connection', stream, peerInfo)
+      assert.deepEqual(JSON.parse(stream.writes[0]), {
+        v: 2,
+        type: 'session',
+        features: ['sig1'],
+      })
+      if (features) send(stream, { v: 2, type: 'session', features })
+      await proveChannelKnowledge({
+        stream,
+        peerInfo,
+        chatSwarm,
+        channelIds: [channel.channelId],
+      })
+      const signed = await signPresence(channel.channelKey, 'online', {
+        wallet: remotePresenceWallet,
+        sessionId: `unsigned-${index}`,
+      })
+      send(stream, { v: 2, type: 'channel-presence', body: signed.body })
+      await waitForTick()
+      assert.equal(presences(), 0)
+    }
+
+    // Control: the same frame signed is accepted from a peer without one.
+    const stream = new RecordingStream()
+    const peerInfo = channelPeerInfo(channel.channelId, 0x7f)
+    chatSwarm.emit('connection', stream, peerInfo)
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [channel.channelId],
+    })
+    send(stream, {
+      v: 2,
+      type: 'channel-presence',
+      ...(await signPresence(channel.channelKey, 'online', {
+        wallet: remotePresenceWallet,
+        sessionId: 'signed',
+      })),
+    })
+    await waitFor(() => presences() === 1, 'signed remote presence')
+  })
+
   it('tracks remote presence, clears it on disconnect, and expires stale sessions', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-presence-')

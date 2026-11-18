@@ -18,6 +18,7 @@ import {
 
 import {
   presenceOptions,
+  signedPresence,
   signedVoice,
   addressOf,
   defaultSigner,
@@ -570,6 +571,63 @@ describe('channel authorization cache', () => {
     peers[0].close()
     await tick()
     assert.equal(engine.sendChannelVoiceEvent(handle, signed, options), null)
+  })
+
+  it('sends the session frame first and requires signatures from peers that list no features', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    const handle = 'session-features'
+    await join(engine, handle)
+    const channelId = channelKey(handle)
+    const delivered = []
+    engine.on('channel:voice', event => delivered.push(event))
+
+    // These peers send no session frame, or one listing only other
+    // features: sig1 is never negotiated away.
+    for (const features of [null, ['e2ee1']]) {
+      const remote = remoteConnection(discovery.swarms.at(-1))
+      test.track(remote)
+      assert.deepEqual(remote.frames[0], {
+        v: 2,
+        type: 'session',
+        features: ['sig1'],
+      })
+      if (features) remote.send({ v: 2, type: 'session', features })
+      remote.authorize(handle)
+      await tick()
+
+      const sessionId = `unsigned-${features ? 'listed' : 'none'}`
+      const presenceFrame = await signedPresence(channelId, 'online', {
+        sessionId,
+      })
+      remote.send({ v: 2, type: 'channel-presence', body: presenceFrame.body })
+      const voiceFrame = await signedVoice(channelId, 'join', sessionId)
+      remote.send({ v: 2, type: 'channel-voice', body: voiceFrame.body })
+      await tick()
+      assert.equal(presence(engine, handle, alice), undefined)
+      assert.equal(delivered.length, 0)
+      remote.close()
+      await tick()
+    }
+
+    // Control: the same frames signed are accepted from a peer without one.
+    const remote = remoteConnection(discovery.swarms.at(-1))
+    test.track(remote)
+    remote.authorize(handle)
+    await tick()
+    remote.send({
+      v: 2,
+      type: 'channel-presence',
+      ...(await signedPresence(channelId, 'online', { sessionId: 'signed' })),
+    })
+    remote.send({
+      v: 2,
+      type: 'channel-voice',
+      ...(await signedVoice(channelId, 'join', 'signed')),
+    })
+    await waitFor(() => presence(engine, handle, alice), 'signed presence')
+    await waitFor(() => delivered.length === 1, 'signed voice')
   })
 
   it('identifies channels on the wire only by their public channel ID', async context => {
