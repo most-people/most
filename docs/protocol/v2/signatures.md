@@ -110,6 +110,9 @@ presence 的 `createdAt` 与验证方本机时间相差超过 2 分钟的丢弃�
 2. `sig` 用 `device` 公钥验证通过；
 3. `cert` 解析成功，其 `devicePublicKey === device`，且 EIP-191 签名恢复出的地址（小写）等于 `body.author`；
 4. 不检查证书有效期（§5）。
+5. `message` 的 `content` 为非空字符串且不超过 10000 字符（`readableBodyError`，两端共享同一实现）。
+
+是否显示一条条目只取决于以上规则，两端结果必须一致，否则分区恢复后无法收敛。节点接受客户端写入时另要求 `body` 已是规范形式（`content` 已去首尾空白；`authorName`、`avatar`、`authorTag`、`attachment`、`mentions` 规范化后不变），不符合的拒绝写入；读取远端条目时，不符合规范形式的可选字段只是不显示，不影响条目本身。
 
 未通过的条目不显示、不计入去重与时间戳，只计入诊断计数。证书验证结果按 `cert` 字符串缓存。
 

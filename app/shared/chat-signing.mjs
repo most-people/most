@@ -33,6 +33,27 @@ export function signedBodyError(body) {
   return ''
 }
 
+export const MESSAGE_CONTENT_MAX_LENGTH = 10000
+
+/**
+ * Reason a correctly signed body is not shown, or ''. Both cores apply exactly
+ * this rule when reading, so every node shows the same entries; stricter
+ * normal-form checks happen only where a node accepts a client's write.
+ */
+export function readableBodyError(body) {
+  const error = signedBodyError(body)
+  if (error) return error
+  if (body.kind === 'message') {
+    if (typeof body.content !== 'string' || !body.content.trim()) {
+      return 'content must be non-empty text'
+    }
+    if (body.content.length > MESSAGE_CONTENT_MAX_LENGTH) {
+      return 'content is too long'
+    }
+  }
+  return ''
+}
+
 /** Bytes a device key signs for this body. Throws on an invalid body. */
 export function signedPayload(body) {
   const error = signedBodyError(body)

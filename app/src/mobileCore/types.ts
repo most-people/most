@@ -281,13 +281,15 @@ export type LeaveChannelResult = {
   channelKey: string
   snapshot: MobileCoreSnapshot
 }
+/** A message body signed by this device (docs/protocol/v2/signatures.md §4). */
 export type SendChannelMessageInput = {
-  clientMessageId?: string
   channelName: string
-  content: string
-  author?: string
-  authorName?: string
-  attachment?: MobileChannelAttachment
+  signed: {
+    body: Record<string, unknown>
+    device: string
+    cert: string
+    sig: string
+  }
 }
 export type ChannelPresenceInput = {
   channelName: string

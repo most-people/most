@@ -10,6 +10,7 @@ import { normalizeLocalizedChatTag } from '../utils/chatLabels.js'
 import { canonicalJson } from './canonicalJson.js'
 import { normalizeChannelAttachment } from './channelAttachment.js'
 import { normalizeChannelMentionList } from './channelMessage.js'
+import { readableBodyError } from './chatSigning.js'
 import { verifySignedEnvelope } from './chatSignaturesV2.js'
 
 export const SIGNED_ENTRY_TYPE = 'signed'
@@ -28,55 +29,53 @@ function has(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key)
 }
 
-/** Reason a `message` body is not acceptable, or '' (§4.2). */
+// Optional fields a node writes only in normal form; a reader shows each one
+// only if it is in normal form, without rejecting the entry over it.
+const OPTIONAL_FIELD_CHECKS = {
+  authorName: body =>
+    typeof body.authorName === 'string' &&
+    normalizeChannelDisplayName(body.authorName, body.author) ===
+      body.authorName,
+  avatar: body => normalizeChannelAvatar(body.avatar) === body.avatar,
+  authorTag: body =>
+    sameJson(normalizeLocalizedChatTag(body.authorTag), body.authorTag),
+  attachment: body => {
+    try {
+      const attachment = normalizeChannelAttachment(body.attachment)
+      return (
+        sameJson(attachment, body.attachment) &&
+        body.content === attachment.link
+      )
+    } catch {
+      return false
+    }
+  },
+  mentions: body => {
+    try {
+      const mentions = normalizeChannelMentionList(
+        body.mentions,
+        body.content,
+        {
+          strict: true,
+          attachment: has(body, 'attachment') ? body.attachment : null,
+        }
+      )
+      return sameJson(mentions, body.mentions)
+    } catch {
+      return false
+    }
+  },
+}
+
+/** Reason a `message` body a client sends is not acceptable, or '' (§4.2). */
 export function messageBodyError(body) {
   const { content } = body
   if (typeof content !== 'string' || !content || content !== content.trim()) {
     return 'content must be non-empty trimmed text'
   }
   if (content.length > MAX_MESSAGE_LENGTH) return 'content is too long'
-  if (has(body, 'authorName')) {
-    if (
-      typeof body.authorName !== 'string' ||
-      normalizeChannelDisplayName(body.authorName, body.author) !==
-        body.authorName
-    ) {
-      return 'invalid authorName'
-    }
-  }
-  if (
-    has(body, 'avatar') &&
-    normalizeChannelAvatar(body.avatar) !== body.avatar
-  ) {
-    return 'invalid avatar'
-  }
-  if (
-    has(body, 'authorTag') &&
-    !sameJson(normalizeLocalizedChatTag(body.authorTag), body.authorTag)
-  ) {
-    return 'invalid authorTag'
-  }
-  let attachment = null
-  if (has(body, 'attachment')) {
-    try {
-      attachment = normalizeChannelAttachment(body.attachment)
-    } catch {
-      return 'invalid attachment'
-    }
-    if (!sameJson(attachment, body.attachment)) return 'invalid attachment'
-    if (content !== attachment.link) return 'attachment content must match link'
-  }
-  if (has(body, 'mentions')) {
-    let mentions
-    try {
-      mentions = normalizeChannelMentionList(body.mentions, content, {
-        strict: true,
-        attachment,
-      })
-    } catch {
-      return 'invalid mentions'
-    }
-    if (!sameJson(mentions, body.mentions)) return 'invalid mentions'
+  for (const [field, check] of Object.entries(OPTIONAL_FIELD_CHECKS)) {
+    if (has(body, field) && !check(body)) return `invalid ${field}`
   }
   return ''
 }
@@ -99,14 +98,16 @@ export function isSignedEntry(entry) {
 }
 
 /**
- * The message shape of a valid signed `message` entry for this channel, or
- * null when the entry is not one (unsigned, forged, another channel or kind).
+ * The message shape of a signed `message` entry for this channel, or null
+ * when it is not shown (unsigned, forged, another channel or kind). Whether
+ * it is shown depends only on rules both cores share (readableBodyError).
  */
 export function readSignedMessageEntry(entry, channelId) {
   if (!isSignedEntry(entry)) return null
   if (!Number.isSafeInteger(entry.ts) || entry.ts <= 0) return null
-  if (signedMessageError(entry, { channelId })) return null
+  if (!verifySignedEnvelope(entry, { channelId }).ok) return null
   const { body } = entry
+  if (body.kind !== 'message' || readableBodyError(body)) return null
   const message = {
     type: 'message',
     author: body.author,
@@ -115,14 +116,8 @@ export function readSignedMessageEntry(entry, channelId) {
     clientMessageId: body.id,
     createdAt: body.createdAt,
   }
-  for (const key of [
-    'authorName',
-    'avatar',
-    'authorTag',
-    'attachment',
-    'mentions',
-  ]) {
-    if (has(body, key)) message[key] = body[key]
+  for (const [field, check] of Object.entries(OPTIONAL_FIELD_CHECKS)) {
+    if (has(body, field) && check(body)) message[field] = body[field]
   }
   return message
 }

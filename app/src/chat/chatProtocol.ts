@@ -1,4 +1,5 @@
 import { CID } from 'multiformats/cid'
+import type { SignedEnvelope } from './chatSigning'
 import type { MobileIdentity } from '../mobileCore/types'
 import { buildRemoteApiUrl, buildRemoteHeaders } from '../remoteNode/protocol'
 import { parseMostLink } from '../mobileCore/protocol'
@@ -416,13 +417,13 @@ export class ChatApiClient {
     )
   }
 
-  async sendMessage(channel: string, input: ChatMessageInput) {
-    const payload = buildChatMessagePayload(input)
+  /** Sends a message the client signed (docs/protocol/v2/signatures.md §4). */
+  async sendMessage(channel: string, signed: SignedEnvelope) {
     const response = asRecord(
       await this.#request(
         'POST',
         `/api/channels/${encodeURIComponent(channel)}/messages`,
-        payload
+        { signed }
       )
     )
     const message = normalizeChatMessage(response.message)

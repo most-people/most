@@ -32,6 +32,9 @@ function generateChannelDiscoveryKey(handle) {
   return channelTopics(resolveChannelHandle(handle).key).replication
 }
 import { MobileP2PCore } from './mobile-core.mjs'
+import { Wallet } from 'ethers'
+import { buildSignedEntry } from './channel-signed-entry.mjs'
+import { signMessage, signedInput } from './signed-message.test-helper.mjs'
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 
@@ -1025,11 +1028,13 @@ describe('mobile channel core restart recovery', () => {
     assert.match(writerCoreKey, /^[0-9a-f]{64}$/)
     assert.deepEqual(created.writerCoreKeys, [writerCoreKey])
 
-    await firstCore.sendChannelMessage({
-      channelName: channelId,
-      authorName: 'Android',
-      content: 'before restart',
-    })
+    await firstCore.sendChannelMessage(
+      await signedInput(firstCore, {
+        channelName: channelId,
+        authorName: 'Android',
+        content: 'before restart',
+      })
+    )
     assert.deepEqual(
       (await firstCore.getChannelMessages({ channelName: channelId })).map(
         message => message.content
@@ -1063,11 +1068,13 @@ describe('mobile channel core restart recovery', () => {
       ['before restart']
     )
 
-    await restartedCore.sendChannelMessage({
-      channelName: channelId,
-      authorName: 'Android',
-      content: 'after restart',
-    })
+    await restartedCore.sendChannelMessage(
+      await signedInput(restartedCore, {
+        channelName: channelId,
+        authorName: 'Android',
+        content: 'after restart',
+      })
+    )
     assert.deepEqual(
       (await restartedCore.getChannelMessages({ channelName: channelId })).map(
         message => message.content
@@ -1509,10 +1516,12 @@ describe('mobile channel metadata management', () => {
       discover: false,
     })
     for (let index = 0; index < 105; index += 1) {
-      await core.sendChannelMessage({
-        channelName: channel.channelKey,
-        content: `message-${index}`,
-      })
+      await core.sendChannelMessage(
+        await signedInput(core, {
+          channelName: channel.channelKey,
+          content: `message-${index}`,
+        })
+      )
     }
     const recent = await core.getChannelMessages({
       channelName: channel.channelKey,
@@ -1534,10 +1543,12 @@ describe('mobile channel metadata management', () => {
       core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
       'message-104'
     )
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      content: 'message-105',
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        content: 'message-105',
+      })
+    )
     assert.equal(
       core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
       'message-105'
@@ -1624,11 +1635,13 @@ describe('mobile channel metadata management', () => {
       )
     )
     await waitForTick()
-    await restartedCore.sendChannelMessage({
-      channelName: restored.channelKey,
-      authorName: 'Android',
-      content: 'before leave',
-    })
+    await restartedCore.sendChannelMessage(
+      await signedInput(restartedCore, {
+        channelName: restored.channelKey,
+        authorName: 'Android',
+        content: 'before leave',
+      })
+    )
     await restartedCore.getChannelMessages({
       channelName: restored.channelKey,
     })
@@ -1684,24 +1697,19 @@ describe('mobile channel metadata management', () => {
       name: 'android-retry',
       discover: false,
     })
-    const input = {
+    const fields = {
       channelName: channel.channelKey,
       content: 'one logical message',
-      author: '0x2Fd13F1a54488cFF329b7a4997351CA0847C08Cc',
       authorName: 'Android',
-      clientMessageId: '550E8400-E29B-41D4-A716-446655440000',
+      id: '550e8400-e29b-41d4-a716-446655440000',
     }
+    const input = await signedInput(core, fields)
     const [first, repeated] = await Promise.all([
       core.sendChannelMessage(input),
       core.sendChannelMessage(input),
     ])
     assert.deepEqual(repeated, first)
-    assert.equal(first.clientMessageId, input.clientMessageId.toLowerCase())
-    assert.equal(
-      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
-        .clientMessageId,
-      first.clientMessageId
-    )
+    assert.equal(first.clientMessageId, fields.id)
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
@@ -1710,30 +1718,32 @@ describe('mobile channel metadata management', () => {
     await core.stop()
     core = createCore()
     await core.start()
-    const restarted = await core.sendChannelMessage({
-      ...input,
-      author: input.author.toLowerCase(),
-    })
+    const restarted = await core.sendChannelMessage(input)
     assert.deepEqual(restarted, first)
-    assert.equal(
-      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
-        .clientMessageId,
-      first.clientMessageId
-    )
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
       1
     )
     await assert.rejects(
-      core.sendChannelMessage({ ...input, content: 'different content' }),
+      core.sendChannelMessage(
+        await signedInput(core, { ...fields, content: 'different content' })
+      ),
       /already identifies another message/
     )
     await assert.rejects(
-      core.sendChannelMessage({ ...input, clientMessageId: 'invalid' }),
-      /Invalid clientMessageId/
+      core.sendChannelMessage({
+        ...input,
+        signed: {
+          ...input.signed,
+          body: { ...input.signed.body, id: 'invalid' },
+        },
+      }),
+      /invalid id/
     )
-    await core.sendChannelMessage({ ...input, author: 'different-author' })
+    await core.sendChannelMessage(
+      await signedInput(core, { ...fields, wallet: Wallet.createRandom() })
+    )
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
@@ -1795,23 +1805,22 @@ describe('mobile channel metadata management', () => {
       await externalStore.close()
       externalStore = null
       await core.start()
-      const input = {
+      const input = await signedInput(core, {
         channelName: channel.channelKey,
         content: 'A new offline message',
-        author: 'local',
-        clientMessageId: '550e8400-e29b-41d4-a716-446655440002',
-      }
+        id: '550e8400-e29b-41d4-a716-446655440002',
+      })
       const first = await core.sendChannelMessage(input)
       const repeated = await core.sendChannelMessage(input)
       assert.deepEqual(repeated, first)
-      assert.equal(first.clientMessageId, input.clientMessageId)
+      assert.equal(first.clientMessageId, input.signed.body.id)
       assert.deepEqual(core.getSnapshot().channelMessages[channel.channelKey], [
         first,
       ])
     }
   )
 
-  it('rejects a changed attachment on retry and keeps legacy sends without ids distinct', async t => {
+  it('rejects a changed attachment on retry and keeps sends with distinct ids distinct', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-attachment-retry-')
     )
@@ -1833,10 +1842,10 @@ describe('mobile channel metadata management', () => {
     })
     const cid = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
     const link = `most://${cid}?filename=voice.m4a`
-    const input = {
+    const fields = {
       channelName: channel.channelKey,
       content: link,
-      clientMessageId: '550e8400-e29b-41d4-a716-446655440001',
+      id: '550e8400-e29b-41d4-a716-446655440001',
       attachment: {
         kind: 'audio',
         cid,
@@ -1846,21 +1855,23 @@ describe('mobile channel metadata management', () => {
         size: 123,
       },
     }
-    await core.sendChannelMessage(input)
+    await core.sendChannelMessage(await signedInput(core, fields))
     await assert.rejects(
-      core.sendChannelMessage({
-        ...input,
-        attachment: { ...input.attachment, size: 456 },
-      }),
+      core.sendChannelMessage(
+        await signedInput(core, {
+          ...fields,
+          attachment: { ...fields.attachment, size: 456 },
+        })
+      ),
       /already identifies another message/
     )
-    const legacy = {
+    const repeatedText = {
       channelName: channel.channelKey,
-      content: 'legacy repeated text',
+      content: 'repeated text',
     }
     await Promise.all([
-      core.sendChannelMessage(legacy),
-      core.sendChannelMessage(legacy),
+      core.sendChannelMessage(await signedInput(core, repeatedText)),
+      core.sendChannelMessage(await signedInput(core, repeatedText)),
     ])
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
@@ -1915,19 +1926,21 @@ describe('mobile channel metadata management', () => {
     const link =
       'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
 
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: link,
-      attachment: {
-        kind: 'image',
-        cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
-        fileName: 'photo.png',
-        link,
-        mimeType: 'image/png',
-        size: 12345,
-      },
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: link,
+        attachment: {
+          kind: 'image',
+          cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+          fileName: 'photo.png',
+          link,
+          mimeType: 'image/png',
+          size: 12345,
+        },
+      })
+    )
 
     const [message] = await core.getChannelMessages({
       channelName: channel.channelKey,
@@ -1962,18 +1975,20 @@ describe('mobile channel metadata management', () => {
     })
 
     await assert.rejects(
-      core.sendChannelMessage({
-        channelName: channel.channelKey,
-        authorName: 'Android',
-        content: 'photo.png',
-        attachment: {
-          kind: 'image',
-          cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
-          fileName: 'photo.png',
-          link: 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png',
-        },
-      }),
-      /attachment content must match link/
+      core.sendChannelMessage(
+        await signedInput(core, {
+          channelName: channel.channelKey,
+          authorName: 'Android',
+          content: 'photo.png',
+          attachment: {
+            kind: 'image',
+            cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+            fileName: 'photo.png',
+            link: 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png',
+          },
+        })
+      ),
+      /invalid attachment/
     )
   })
 
@@ -2035,19 +2050,22 @@ describe('mobile channel metadata management', () => {
         valueEncoding: 'json',
       })
     await externalCore.ready()
-    await externalCore.append({
-      type: 'message',
-      author: DIAGNOSTIC_AUTHOR,
-      authorName: 'Remote',
-      content: 'bad attachment',
-      timestamp: Date.now(),
-      attachment: {
-        kind: 'image',
-        cid: '',
-        fileName: 'bad.png',
-        link: 'https://example.invalid/bad.png',
-      },
-    })
+    // Correctly signed, so it is shown; the attachment is not, as it is not
+    // in normal form.
+    await externalCore.append(
+      buildSignedEntry(
+        await signMessage(channel.channelKey, 'bad attachment', {
+          authorName: 'Remote',
+          attachment: {
+            kind: 'image',
+            cid: '',
+            fileName: 'bad.png',
+            link: 'https://example.invalid/bad.png',
+          },
+        }),
+        Date.now()
+      )
+    )
     await externalStore.close()
     externalStore = null
 
@@ -2091,8 +2109,8 @@ describe('mobile channel metadata management', () => {
     Hypercore.prototype.get = async function delayedGet(...args) {
       const entry = await originalGet.apply(this, args)
       if (
-        entry?.type === 'message' &&
-        entry.content === 'stale after leave' &&
+        entry?.type === 'signed' &&
+        entry.body?.content === 'stale after leave' &&
         !blockedOnce
       ) {
         blockedOnce = true
@@ -2108,11 +2126,13 @@ describe('mobile channel metadata management', () => {
       discover: false,
     })
 
-    const sendPromise = core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: 'stale after leave',
-    })
+    const sendPromise = core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: 'stale after leave',
+      })
+    )
     await blocked.promise
 
     await core.leaveChannel({
@@ -2154,17 +2174,19 @@ describe('mobile channel metadata management', () => {
       name: 'android-stale-history',
       discover: false,
     })
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: 'history after leave',
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: 'history after leave',
+      })
+    )
 
     Hypercore.prototype.get = async function delayedGet(...args) {
       const entry = await originalGet.apply(this, args)
       if (
-        entry?.type === 'message' &&
-        entry.content === 'history after leave' &&
+        entry?.type === 'signed' &&
+        entry.body?.content === 'history after leave' &&
         !blockedOnce
       ) {
         blockedOnce = true
@@ -2284,13 +2306,14 @@ describe('mobile channel cores with missing blocks', () => {
       .get({ name: 'remote-writer', valueEncoding: 'json' })
     await writerCore.ready()
     for (const content of ['one', 'two', 'three']) {
-      await writerCore.append({
-        type: 'message',
-        author: DIAGNOSTIC_AUTHOR,
-        authorName: 'Remote',
-        content,
-        timestamp: Date.now(),
-      })
+      await writerCore.append(
+        buildSignedEntry(
+          await signMessage(channel.channelKey, content, {
+            authorName: 'Remote',
+          }),
+          Date.now()
+        )
+      )
     }
     const writerKey = b4a.toString(writerCore.key, 'hex')
 

@@ -9,6 +9,9 @@ import { MostBoxEngine } from '../server/src/index.js'
 import { MobileP2PCore } from '../app/backend/mobile-core.mjs'
 import { createRequire } from 'node:module'
 import b4a from 'b4a'
+import { Wallet } from 'ethers'
+import { sendTestMessage } from '../server/tests/helpers/signedMessage.js'
+import { signedInput } from '../app/backend/signed-message.test-helper.mjs'
 import { calculateCid } from '../server/src/core/cid.js'
 import { getCidInfo } from '../server/src/core/cidTopic.js'
 import {
@@ -180,7 +183,8 @@ it(
     const testnet = await createTestnet(3)
     const bootstrap = testnet.bootstrap
     const nodes = []
-    const owner = `0x${'1'.repeat(40)}`
+    const ownerWallet = Wallet.createRandom()
+    const owner = ownerWallet.address.toLowerCase()
 
     try {
       const desktop = new MostBoxEngine({
@@ -204,18 +208,19 @@ it(
         const mobileChannel = await mobile.createChannel({ name: handle })
         assert.equal(mobileChannel.channelKey, desktopChannel.channelKey)
 
-        await desktop.sendMessage(
-          handle,
-          `desktop says hi in ${handle}`,
-          owner,
-          'Desktop',
-          { ownerAddress: owner }
-        )
-        await mobile.sendChannelMessage({
-          channelName: handle,
-          authorName: 'Android',
-          content: `mobile says hi in ${handle}`,
+        await sendTestMessage(desktop, handle, `desktop says hi in ${handle}`, {
+          signer: ownerWallet,
+          ownerAddress: owner,
+          authorName: 'Desktop',
         })
+        // Each side verifies the other's device signature (signatures.md §4.4).
+        await mobile.sendChannelMessage(
+          await signedInput(mobile, {
+            channelName: handle,
+            authorName: 'Android',
+            content: `mobile says hi in ${handle}`,
+          })
+        )
 
         await waitForMessage(
           () => mobile.getChannelMessages({ channelName: handle }),

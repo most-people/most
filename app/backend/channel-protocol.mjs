@@ -630,10 +630,18 @@ export function sortChannelMessages(
   limit = CHANNEL_MESSAGE_LIMIT,
   offset = 0
 ) {
+  // Sort before deduping so a duplicate keeps its earliest copy, ordered by
+  // (ts, writer core key, block index) like the desktop engine (§4.5).
+  const ordered = [...messages].sort(
+    (a, b) =>
+      Number(a.timestamp) - Number(b.timestamp) ||
+      String(a._coreKey || '').localeCompare(String(b._coreKey || '')) ||
+      (Number(a._index) || 0) - (Number(b._index) || 0)
+  )
   const seen = new Set()
   const unique = []
 
-  for (const message of messages) {
+  for (const message of ordered) {
     if (!message || message.type !== 'message') continue
     const attachmentLink = message.attachment?.link || ''
     const author =
@@ -645,8 +653,6 @@ export function sortChannelMessages(
     seen.add(key)
     unique.push(message)
   }
-
-  unique.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
 
   const total = unique.length
   const safeLimit = Math.max(1, Number(limit) || CHANNEL_MESSAGE_LIMIT)

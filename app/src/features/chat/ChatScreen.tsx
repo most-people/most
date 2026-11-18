@@ -59,6 +59,12 @@ import {
   type ChatAttachment,
   type ChatMessage,
 } from '../../chat/chatProtocol'
+import {
+  buildMessageBody,
+  isChannelId,
+  signChatBody,
+  type SignedEnvelope,
+} from '../../chat/chatSigning'
 import { ChatWebSocketSession } from '../../chat/chatWebSocket'
 import {
   createVoiceRoomState,
@@ -327,7 +333,10 @@ export function ChatScreen({
   const historyCursorRef = useRef<string | null>(null)
   const historyRequestRef = useRef(false)
   const textAttemptsRef = useRef(
-    new Map<string, { content: string; clientMessageId: string }>()
+    new Map<
+      string,
+      { content: string; clientMessageId: string; signed?: SignedEnvelope }
+    >()
   )
   const voiceAttemptRef = useRef<{
     scope: string
@@ -335,7 +344,9 @@ export function ChatScreen({
     uri: string
     clientMessageId: string
     attachment?: ChatAttachment
+    signed?: SignedEnvelope
   } | null>(null)
+  const channelIdsRef = useRef(new Map<string, string>())
   const [channelInput, setChannelInput] = useState('')
   const [joinSheetOpen, setJoinSheetOpen] = useState(false)
   const [shareRequest, setShareRequest] = useState<{
@@ -1169,7 +1180,7 @@ export function ChatScreen({
       !content ||
       sending ||
       loading ||
-      (!identity && !localMode)
+      requireSignIn()
     )
       return
     if (blockWhenOffline()) return
@@ -1183,20 +1194,7 @@ export function ChatScreen({
         : { content, clientMessageId: createClientMessageId() }
     textAttemptsRef.current.set(targetChannel, attempt)
     try {
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content,
-            clientMessageId: attempt.clientMessageId,
-            author: identity?.address,
-            authorName: identity?.username,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content,
-            clientMessageId: attempt.clientMessageId,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-          })
+      const message = await sendSigned(targetChannel, attempt, { content })
       if (!message) throw new Error(t('chat.sendFailed'))
       if (scopeRef.current !== scope) return
       if (textAttemptsRef.current.get(targetChannel) === attempt)
@@ -1233,7 +1231,7 @@ export function ChatScreen({
       !channel ||
       sending ||
       loading ||
-      (!identity && !localMode)
+      requireSignIn()
     )
       return
     if (blockWhenOffline()) return
@@ -1244,20 +1242,11 @@ export function ChatScreen({
       const attachment = await onPublishAttachment(source)
       if (!attachment) return
       if (scopeRef.current !== scope) return
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content: attachment.link,
-            author: identity?.address,
-            authorName: identity?.username,
-            attachment,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content: attachment.link,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-            attachment,
-          })
+      const message = await sendSigned(
+        targetChannel,
+        { clientMessageId: createClientMessageId() },
+        { content: attachment.link, attachment }
+      )
       if (!message) throw new Error(t('chat.attachmentFailed'))
       if (scopeRef.current !== scope) return
       rememberMessages(targetChannel, [message])
@@ -1356,9 +1345,64 @@ export function ChatScreen({
     setDraft(`${draft}${emoji}`)
   }
 
+  // Every message is signed with this device's key (signatures.md §4); the
+  // signature binds it to the channel's public ID.
+  const requireSignIn = () => {
+    if (identity) return false
+    toast(t('chat.signInRequired'), 'error')
+    return true
+  }
+
+  const resolveChannelId = async (name: string) => {
+    if (isChannelId(name)) return name
+    const cached = channelIdsRef.current.get(name)
+    if (cached) return cached
+    const items = (await (localMode
+      ? bridge.listChannels?.()
+      : api?.listChannels())) as Array<Record<string, unknown>> | undefined
+    const wanted = normalizeChatChannel(name)
+    const item = (items || []).find(
+      value =>
+        normalizeChatChannel(String(value.name || value.channelId || '')) ===
+        wanted
+    )
+    const channelKey = String(item?.channelKey || '')
+    if (!isChannelId(channelKey)) throw new Error(t('chat.sendFailed'))
+    channelIdsRef.current.set(name, channelKey)
+    return channelKey
+  }
+
+  // A retry resends the attempt's envelope unchanged, so the node treats it
+  // as the same message.
+  const sendSigned = async (
+    targetChannel: string,
+    attempt: { clientMessageId: string; signed?: SignedEnvelope },
+    fields: { content: string; attachment?: ChatAttachment }
+  ) => {
+    if (!identity) throw new Error(t('chat.signInRequired'))
+    if (!attempt.signed) {
+      const body = buildMessageBody({
+        channelId: await resolveChannelId(targetChannel),
+        author: identity.address,
+        id: attempt.clientMessageId,
+        content: fields.content,
+        authorName: identity.username,
+        attachment: fields.attachment,
+      })
+      attempt.signed = signChatBody(body, identity)
+    }
+    return localMode
+      ? bridge.sendChannelMessage?.({
+          channelName: targetChannel,
+          signed: attempt.signed,
+        })
+      : api?.sendMessage(targetChannel, attempt.signed)
+  }
+
   const sendVoiceMessage = async (recording: VoiceRecording) => {
     if (!channel || sending || loading || (!localMode && !api))
       throw new Error(t('chat.sendFailed'))
+    if (!identity) throw new Error(t('chat.signInRequired'))
     const targetChannel = channel
     const scope = conversationScope
     const previousAttempt = voiceAttemptRef.current
@@ -1385,22 +1429,10 @@ export function ChatScreen({
         selectedChannelRef.current !== targetChannel
       )
         throw new Error(t('chat.sendFailed'))
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content: attachment.link,
-            author: identity?.address,
-            authorName: identity?.username,
-            attachment,
-            clientMessageId: attempt.clientMessageId,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content: attachment.link,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-            attachment,
-            clientMessageId: attempt.clientMessageId,
-          })
+      const message = await sendSigned(targetChannel, attempt, {
+        content: attachment.link,
+        attachment,
+      })
       if (!message) throw new Error(t('chat.sendFailed'))
       if (voiceAttemptRef.current === attempt) voiceAttemptRef.current = null
       if (scopeRef.current !== scope) return

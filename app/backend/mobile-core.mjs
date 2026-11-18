@@ -24,7 +24,6 @@ import {
   normalizeChannelRemark,
   normalizeChannelId,
   normalizeChannelKey,
-  normalizeChannelMessage,
   normalizeChannelPresenceAddress,
   normalizeChannelPresenceAvatar,
   normalizeChannelPresenceDisplayName,
@@ -42,6 +41,14 @@ import {
   verifyChannelProof,
 } from './channel-keys-v2.mjs'
 import { P2PPingManager } from './p2p-ping.mjs'
+import {
+  SIGNED_TS_FUTURE_LIMIT_MS,
+  buildSignedEntry,
+  isSignedEntry,
+  readSignedMessageEntry,
+  signedMessageError,
+} from './channel-signed-entry.mjs'
+import { canonicalJson } from '../shared/canonical-json.mjs'
 import { attachCidDriveChannel, cidDriveName } from './cid-drive-exchange.mjs'
 import {
   getInternalHoldingCleanupPaths,
@@ -911,9 +918,8 @@ export class MobileP2PCore {
           const entry = await core.get(i, { wait: false })
           if (entry === null) break
           if (!this.#isChannelActive(channel.channelKey)) return []
-          if (entry && entry.type === 'message') {
-            const message = this.#normalizeIncomingChannelMessage(entry)
-            if (!message) continue
+          const message = readSignedMessageEntry(entry, channel.channelKey)
+          if (message) {
             allMessages.push({
               ...message,
               _coreKey: coreKeyHex,
@@ -980,48 +986,29 @@ export class MobileP2PCore {
       throw new Error('Channel runtime is not initialized')
     }
 
-    const message = normalizeChannelMessage(
-      {
-        content: input.content,
-        author: input.author || DIAGNOSTIC_AUTHOR,
-        authorName: input.authorName || DIAGNOSTIC_AUTHOR_NAME,
-        attachment: input.attachment,
-        clientMessageId: input.clientMessageId,
-      },
-      {
-        timestamp: await this.#getNextChannelMessageTimestamp(
-          channel.channelKey
-        ),
-        requireAttachment: Boolean(input.attachment),
-        requireClientMessageId: Object.hasOwn(input, 'clientMessageId'),
-      }
-    )
+    // The app signs the body with its device key; this core checks it and
+    // never edits it (signatures.md §4.6).
+    const { signed } = input
+    const error = signedMessageError(signed, { channelId: channel.channelKey })
+    if (error) throw new Error(`Invalid signed message: ${error}`)
+    const { body } = signed
 
-    if (message.clientMessageId) {
-      const author =
-        normalizeChannelPresenceAddress(message.author) || message.author
-      for (let index = core.length - 1; index >= 0; index--) {
-        const entry = await core.get(index)
-        if (!entry || entry.type !== 'message') continue
-        const previousAuthor =
-          normalizeChannelPresenceAddress(entry.author) || entry.author
-        if (
-          previousAuthor !== author ||
-          entry.clientMessageId !== message.clientMessageId
-        )
-          continue
-        const previous = normalizeChannelMessage(entry)
-        if (
-          previous.content !== message.content ||
-          JSON.stringify(previous.attachment || null) !==
-            JSON.stringify(message.attachment || null)
-        )
-          throw new Error('clientMessageId already identifies another message')
-        return previous
-      }
+    for (let index = core.length - 1; index >= 0; index--) {
+      const entry = await core.get(index, { wait: false })
+      if (!isSignedEntry(entry)) continue
+      if (entry.body?.author !== body.author || entry.body?.id !== body.id)
+        continue
+      if (canonicalJson(entry.body) !== canonicalJson(body))
+        throw new Error('clientMessageId already identifies another message')
+      return readSignedMessageEntry(entry, channel.channelKey)
     }
 
-    await core.append(message)
+    const entry = buildSignedEntry(
+      signed,
+      await this.#getNextChannelMessageTimestamp(channel.channelKey)
+    )
+    await core.append(entry)
+    const message = readSignedMessageEntry(entry, channel.channelKey)
     if (!this.#isChannelActive(channel.channelKey)) return message
 
     channel.lastMessageAt = new Date(message.timestamp).toISOString()
@@ -1685,6 +1672,8 @@ export class MobileP2PCore {
 
   async #getNextChannelMessageTimestamp(channelKey) {
     const coresMap = this.#channelCores.get(channelKey)
+    const now = Date.now()
+    const limit = now + SIGNED_TS_FUTURE_LIMIT_MS
     let maxTimestamp = 0
 
     if (coresMap) {
@@ -1693,11 +1682,11 @@ export class MobileP2PCore {
           try {
             // A missing peer block must not prevent this writer sending offline.
             const entry = await core.get(i, { wait: false })
-            if (entry?.type === 'message') {
-              maxTimestamp = Math.max(
-                maxTimestamp,
-                Number(entry.timestamp) || 0
-              )
+            if (entry === null) break
+            const message = readSignedMessageEntry(entry, channelKey)
+            // A peer clock far ahead must not drag ours (§4.5).
+            if (message && message.timestamp <= limit) {
+              maxTimestamp = Math.max(maxTimestamp, message.timestamp)
             }
           } catch {
             break
@@ -1706,27 +1695,7 @@ export class MobileP2PCore {
       }
     }
 
-    return Math.max(Date.now(), maxTimestamp + 1)
-  }
-
-  #normalizeIncomingChannelMessage(entry) {
-    if (!entry || entry.type !== 'message') return null
-    try {
-      return normalizeChannelMessage(
-        {
-          author: entry.author,
-          authorName: entry.authorName,
-          content: entry.content,
-          attachment: entry.attachment,
-          clientMessageId: entry.clientMessageId,
-        },
-        {
-          timestamp: Number(entry.timestamp) || Date.now(),
-        }
-      )
-    } catch {
-      return null
-    }
+    return Math.max(now, maxTimestamp + 1)
   }
 
   #setupChannelAppendListener(core, channelKey) {
@@ -1745,8 +1714,7 @@ export class MobileP2PCore {
             lastCoreLength = core.length
             return
           }
-          if (!entry || entry.type !== 'message') continue
-          const message = this.#normalizeIncomingChannelMessage(entry)
+          const message = readSignedMessageEntry(entry, channelKey)
           if (!message) continue
           const channel = this.#channels.find(c => c.channelKey === channelKey)
           if (!channel) {
