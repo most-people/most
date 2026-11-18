@@ -190,6 +190,18 @@ export class MobileNodeClient implements MostBoxMobileClient {
         ttlMs: input.ttlMs,
       }
     )
+    // The approval needs the password, so it is made at sign-in: after an
+    // upgrade the app starts on the local node and the user signs in before
+    // reconnecting to a remote node (#activate sends it then). Deriving the
+    // v1 key is slow on older phones, so local-only users skip it.
+    const mayHaveRemoteData = this.#mode === 'remote' || this.#nodes.length > 0
+    if (mayHaveRemoteData) {
+      identity.legacyMigration = await signLegacyAccountMigration(
+        input.username,
+        input.password,
+        identity.address
+      ).catch(() => undefined)
+    }
     if (this.#mode === 'remote' && this.#remoteConfig) {
       const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
       try {
@@ -199,15 +211,11 @@ export class MobileNodeClient implements MostBoxMobileClient {
         throw error
       }
       // Best effort: move the v1 account's data on this node to the v2 identity.
-      await remote
-        .migrateLegacyAccount(
-          await signLegacyAccountMigration(
-            input.username,
-            input.password,
-            identity.address
-          )
-        )
-        .catch(() => {})
+      if (identity.legacyMigration) {
+        await remote
+          .migrateLegacyAccount(identity.legacyMigration)
+          .catch(() => {})
+      }
       await saveMobileIdentity(identity)
       this.#identity = identity
       await this.#activate(remote, 'remote', this.#remoteConfig)
@@ -436,6 +444,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
     mode: 'local' | 'remote',
     config: RemoteNodeConfig | null
   ) {
+    const migration = this.#identity?.legacyMigration
+    if (mode === 'remote' && migration && next instanceof RemoteMostBoxCore) {
+      // Best effort and idempotent: the node moves the v1 data once. Done
+      // before the switch so screens that load channels on the new node see
+      // the migrated membership.
+      await next.migrateLegacyAccount(migration).catch(() => {})
+    }
     const previous = this.#active
     this.#activeUnsubscribe?.()
     this.#active = next

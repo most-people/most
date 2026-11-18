@@ -20,6 +20,13 @@ export type MobileIdentity = {
   address: string
   syncKey: string
   device: { publicKey: string; secretKey: string; cert: string }
+  /**
+   * The v1 account's signed approval to move its data on a node to this
+   * address (POST /api/user/migrate). Made at sign-in, where the password is
+   * known, and sent to every remote node this identity connects to; nodes
+   * ignore it once the data has moved. Contains no key material.
+   */
+  legacyMigration?: { oldAddress: string; signature: string }
 }
 
 export type RemoteNodeConfig = {
