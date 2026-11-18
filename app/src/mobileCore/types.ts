@@ -198,6 +198,9 @@ export type NodeState = {
   authenticated?: boolean
   userAddress?: string
   username?: string
+  /** Device certificate expiry and when to remind about renewal (ms). */
+  deviceCertExpiresAt?: number
+  deviceCertRenewAt?: number
   fallbackFrom?: string
 }
 
@@ -346,6 +349,8 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
   signIn: (input: {
     username: string
     password: string
+    /** Device certificate validity; defaults to 30 days. */
+    ttlMs?: number
   }) => Promise<MobileIdentity>
   signOut: () => Promise<void>
   getNodeHistory: () => NodeHistoryItem[]

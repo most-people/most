@@ -489,6 +489,39 @@ export const nodeMessages = {
     'zh-TW': '密碼',
     en: 'Password',
   },
+  'node.account.certTtl': {
+    'zh-CN': '设备授权有效期',
+    'zh-TW': '裝置授權有效期',
+    en: 'Device authorization period',
+  },
+  'node.account.certTtl.4h': {
+    'zh-CN': '4 小时',
+    'zh-TW': '4 小時',
+    en: '4 hours',
+  },
+  'node.account.certTtl.1d': { 'zh-CN': '1 天', 'zh-TW': '1 天', en: '1 day' },
+  'node.account.certTtl.30d': {
+    'zh-CN': '30 天',
+    'zh-TW': '30 天',
+    en: '30 days',
+  },
+  'node.account.certTtlHint': {
+    'zh-CN':
+      '限制这台设备访问节点的时长，到期前会提醒重新登录。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
+    'zh-TW':
+      '限制這台裝置存取節點的時長，到期前會提醒重新登入。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
+    en: 'Limits how long this device can access the node; you are reminded to sign in again before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+  },
+  'node.account.certExpiring': {
+    'zh-CN': '这台设备访问节点的授权将于 {time} 到期，点此重新登录续期。',
+    'zh-TW': '這台裝置存取節點的授權將於 {time} 到期，點此重新登入續期。',
+    en: "This device's access to the node ends at {time}. Tap to sign in again.",
+  },
+  'node.account.certExpired': {
+    'zh-CN': '这台设备访问节点的授权已到期，点此重新登录。',
+    'zh-TW': '這台裝置存取節點的授權已到期，點此重新登入。',
+    en: "This device's access to the node has ended. Tap to sign in again.",
+  },
   'node.account.passwordShort': {
     'zh-CN':
       '密码少于 18 个字符，账号可能被离线暴力破解。建议用一句诗或一句歌词作密码；你也可以忽略此提示继续使用。',

@@ -124,6 +124,7 @@ import { VoiceAudioPlayer } from './VoiceAudioPlayer'
 import type { VoiceRecording } from './voiceRecordingSession'
 import { useChatNotifications } from './useChatNotifications'
 import { ChannelShareSheet } from './ChannelShareSheet'
+import { DeviceCertNotice } from '../../ui/DeviceCertNotice'
 import { ChatAvatar } from './ChatAvatar'
 
 const CHAT_EMOJIS = [
@@ -587,25 +588,39 @@ export function ChatScreen({
     snapshot.node.status,
   ])
 
-  const connectionNotice = (
-    <ConnectionStatusBar
-      flush
-      node={snapshot.node}
-      chatConnected={localMode || chatConnected}
-      hasChannels={Boolean(channelNames)}
+  const certNotice = (
+    <DeviceCertNotice
+      expiresAt={snapshot.node.deviceCertExpiresAt}
+      renewAt={snapshot.node.deviceCertRenewAt}
       onPress={onOpenNode}
     />
   )
 
+  const connectionNotice = (
+    <>
+      <ConnectionStatusBar
+        flush
+        node={snapshot.node}
+        chatConnected={localMode || chatConnected}
+        hasChannels={Boolean(channelNames)}
+        onPress={onOpenNode}
+      />
+      {certNotice}
+    </>
+  )
+
   const detailNotice = (
-    <ConnectionStatusBar
-      node={snapshot.node}
-      chatConnected={localMode || chatConnected}
-      hasChannels={Boolean(channelNames)}
-      onPress={onOpenNode}
-      compact
-      channelPeers={channelPeers}
-    />
+    <>
+      <ConnectionStatusBar
+        node={snapshot.node}
+        chatConnected={localMode || chatConnected}
+        hasChannels={Boolean(channelNames)}
+        onPress={onOpenNode}
+        compact
+        channelPeers={channelPeers}
+      />
+      {certNotice}
+    </>
   )
 
   useEffect(() => {

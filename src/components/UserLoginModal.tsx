@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
-import { useUserStore } from '~/stores/userStore'
+import { DEVICE_CERT_TTL_CHOICES, useUserStore } from '~/stores/userStore'
 import { SafeImage } from '~/components/SafeImage'
 import { PasswordLengthHint } from '~/components/PasswordLengthHint'
 import { ModalOverlay } from '~/components/ui'
@@ -24,6 +24,8 @@ export default function UserLoginModal() {
   const togglePassword = useUserStore(s => s.togglePassword)
   const previewLoginIdentity = useUserStore(s => s.previewLoginIdentity)
   const loginUser = useUserStore(s => s.loginUser)
+  const loginCertTtl = useUserStore(s => s.loginCertTtl)
+  const setLoginCertTtl = useUserStore(s => s.setLoginCertTtl)
 
   if (!showLoginModal) return null
 
@@ -94,6 +96,25 @@ export default function UserLoginModal() {
             </button>
           </div>
           <PasswordLengthHint password={loginPassword} />
+          <label className="login-cert-ttl">
+            <span>{t('login.certTtl.label')}</span>
+            <select
+              className="input input-compact"
+              value={loginCertTtl}
+              onChange={event =>
+                setLoginCertTtl(
+                  event.target.value as (typeof DEVICE_CERT_TTL_CHOICES)[number]
+                )
+              }
+            >
+              {DEVICE_CERT_TTL_CHOICES.map(ttl => (
+                <option key={ttl} value={ttl}>
+                  {t(`login.certTtl.${ttl}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="login-cert-ttl-hint">{t('login.certTtl.hint')}</p>
           <div className="login-buttons-row">
             <button
               className="btn btn-secondary"

@@ -18,6 +18,14 @@ export const zhCNIdentityMessages = {
   'unlock.submit': '解锁',
   'unlock.error.passwordRequired': '请输入密码',
   'unlock.error.wrongPassword': '密码不正确',
+  'login.certTtl.label': '设备授权有效期',
+  'login.certTtl.4h': '4 小时',
+  'login.certTtl.1d': '1 天',
+  'login.certTtl.30d': '30 天',
+  'login.certTtl.hint':
+    '限制这台设备访问节点的时长，到期前会提示输入密码续期。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
+  'unlock.renewTip':
+    '这台设备访问节点的授权即将到期。输入密码续期，否则到期后需要重新登录。',
 } as const
 
 export const zhTWIdentityMessages = {
@@ -40,6 +48,14 @@ export const zhTWIdentityMessages = {
   'unlock.submit': '解鎖',
   'unlock.error.passwordRequired': '請輸入密碼',
   'unlock.error.wrongPassword': '密碼不正確',
+  'login.certTtl.label': '裝置授權有效期',
+  'login.certTtl.4h': '4 小時',
+  'login.certTtl.1d': '1 天',
+  'login.certTtl.30d': '30 天',
+  'login.certTtl.hint':
+    '限制這台裝置存取節點的時長，到期前會提示輸入密碼續期。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
+  'unlock.renewTip':
+    '這台裝置存取節點的授權即將到期。輸入密碼續期，否則到期後需要重新登入。',
 } as const
 
 export const enIdentityMessages = {
@@ -62,4 +78,12 @@ export const enIdentityMessages = {
   'unlock.submit': 'Unlock',
   'unlock.error.passwordRequired': 'Enter your password',
   'unlock.error.wrongPassword': 'Incorrect password',
+  'login.certTtl.label': 'Device authorization period',
+  'login.certTtl.4h': '4 hours',
+  'login.certTtl.1d': '1 day',
+  'login.certTtl.30d': '30 days',
+  'login.certTtl.hint':
+    'Limits how long this device can access the node; you are asked for your password to renew before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+  'unlock.renewTip':
+    "This device's access to the node is about to expire. Enter your password to renew it, or sign in again after it expires.",
 } as const

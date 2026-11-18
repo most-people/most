@@ -17,6 +17,24 @@ const SALT_PREFIX = '/most.box/'
 const PBKDF2_ITERATIONS = 50_000
 const PBKDF2_KEY_LENGTH = 32
 export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+/**
+ * Validity periods offered at sign-in, same as the web
+ * (server/src/utils/auth.js). They limit how long this device may access a
+ * node; P2P signature checks ignore expiry, so they cannot stop a stolen
+ * device key from signing chat messages.
+ */
+export const DEVICE_CERT_TTL_OPTIONS = {
+  '4h': 4 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000,
+  '30d': DEVICE_CERT_TTL_MS,
+} as const
+export type DeviceCertTtl = keyof typeof DEVICE_CERT_TTL_OPTIONS
+export const DEVICE_CERT_TTL_CHOICES = Object.keys(
+  DEVICE_CERT_TTL_OPTIONS
+) as DeviceCertTtl[]
+export const DEFAULT_DEVICE_CERT_TTL: DeviceCertTtl = '30d'
+/** Warn when this share of the validity period is left (30d -> 3 days). */
+export const DEVICE_CERT_RENEW_FRACTION = 0.1
 const DEVICE_CERT_PREFIX = 'dc1'
 const DEVICE_CERT_DOMAIN = 'most-box-device-cert-v1'
 const DEVICE_KEY_DOMAIN = 'most-box-device-key-v1'
@@ -165,6 +183,32 @@ export function isUsableDevice(
     /^[0-9a-f]{128}$/.test(device?.secretKey || '') &&
     device?.cert &&
     readDeviceCertExpiry(device.cert) > Date.now()
+  )
+}
+
+/** issuedAt / expiresAt for local reminders; null when unreadable. */
+export function readDeviceCertWindow(cert: string) {
+  try {
+    const payload = JSON.parse(
+      new TextDecoder().decode(fromBase64Url(String(cert).split('.')[1]))
+    )
+    const issuedAt = Number(payload.issuedAt)
+    const expiresAt = Number(payload.expiresAt)
+    if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt))
+      return null
+    if (expiresAt <= issuedAt) return null
+    return { issuedAt, expiresAt, ttlMs: expiresAt - issuedAt }
+  } catch {
+    return null
+  }
+}
+
+/** When to remind the user to sign in again; 0 when unreadable. */
+export function deviceCertRenewAt(cert: string) {
+  const window = readDeviceCertWindow(cert)
+  if (!window) return 0
+  return Math.floor(
+    window.expiresAt - window.ttlMs * DEVICE_CERT_RENEW_FRACTION
   )
 }
 

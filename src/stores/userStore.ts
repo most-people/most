@@ -8,8 +8,11 @@ import {
   saveIdentity,
 } from '~server/src/utils/userIdentity.js'
 import {
+  DEFAULT_DEVICE_CERT_TTL,
+  DEVICE_CERT_TTL_OPTIONS,
+  deviceCertRenewAt,
   issueDeviceCert,
-  readDeviceCertExpiry,
+  readDeviceCertWindow,
 } from '~server/src/utils/auth.js'
 import {
   chatAccountFromSeed,
@@ -23,7 +26,12 @@ import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
 type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
 
-const DEVICE_CERT_RENEW_BEFORE_MS = 3 * 24 * 60 * 60 * 1000
+export type DeviceCertTtl = keyof typeof DEVICE_CERT_TTL_OPTIONS
+export const DEVICE_CERT_TTL_CHOICES = Object.keys(
+  DEVICE_CERT_TTL_OPTIONS
+) as DeviceCertTtl[]
+/** How often a signed-in page checks whether its certificate needs renewal. */
+const DEVICE_CERT_CHECK_INTERVAL_MS = 60 * 1000
 
 export interface DeviceCredential {
   publicKey: string
@@ -63,11 +71,15 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
+  /** Device certificate validity chosen at sign-in. */
+  loginCertTtl: DeviceCertTtl
   /** v1 wallet seed, in memory only, to open account backups made before v2. */
   legacySeed: string | null
   seed: string | null
   unlockOpen: boolean
   unlockError: MessageKey | ''
+  /** Why the unlock dialog is open: 'renew' when the certificate expires soon. */
+  unlockReason: '' | 'renew'
   setFirstPath: (path: string) => void
   initializeUser: () => void
   openLoginModal: () => void
@@ -75,6 +87,7 @@ interface UserState {
   setLoginUsername: (username: string) => void
   setLoginPassword: (password: string) => void
   togglePassword: () => void
+  setLoginCertTtl: (ttl: DeviceCertTtl) => void
   previewLoginIdentity: () => Promise<Pick<
     UserIdentity,
     'username' | 'address'
@@ -90,6 +103,10 @@ interface UserState {
 
 let unlockWaiters: Array<(seed: string | null) => void> = []
 let inviteCheckRunning = false
+let certCheckTimer: ReturnType<typeof setInterval> | null = null
+// Ask for the password at most once per certificate; cancelling leaves it to
+// expire rather than reopening the dialog every minute.
+let renewalPromptedFor = ''
 
 function settleUnlock(seed: string | null) {
   const waiters = unlockWaiters
@@ -205,6 +222,7 @@ function resetLoginForm() {
     hasPreviewedAvatar: false,
     loginLoading: false,
     loginError: '' as const,
+    loginCertTtl: DEFAULT_DEVICE_CERT_TTL as DeviceCertTtl,
   }
 }
 
@@ -224,6 +242,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   legacySeed: null,
   unlockOpen: false,
   unlockError: '',
+  unlockReason: '',
+  loginCertTtl: DEFAULT_DEVICE_CERT_TTL as DeviceCertTtl,
 
   setFirstPath: path => {
     set({ firstPath: path || '/' })
@@ -236,6 +256,11 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
     set({ identity, wallet: identity || undefined, seed: null })
     if (identity) void get().renewDeviceCertIfNeeded()
+    if (!certCheckTimer && typeof window !== 'undefined') {
+      certCheckTimer = setInterval(() => {
+        if (get().identity) void get().renewDeviceCertIfNeeded()
+      }, DEVICE_CERT_CHECK_INTERVAL_MS)
+    }
   },
 
   openLoginModal: () => {
@@ -268,6 +293,10 @@ export const useUserStore = create<UserState>((set, get) => ({
     set(state => ({ showPassword: !state.showPassword }))
   },
 
+  setLoginCertTtl: ttl => {
+    if (ttl in DEVICE_CERT_TTL_OPTIONS) set({ loginCertTtl: ttl })
+  },
+
   previewLoginIdentity: async () => {
     const { loginUsername, loginPassword } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
@@ -289,7 +318,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   loginUser: async () => {
-    const { loginUsername, loginPassword, hasPreviewedAvatar } = get()
+    const { loginUsername, loginPassword, hasPreviewedAvatar, loginCertTtl } =
+      get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
       set({ loginError: 'login.error.credentialsRequired' })
       return null
@@ -302,7 +332,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ loginLoading: true, loginError: '' })
     try {
       const { identity, danger, legacySeed, migration } =
-        await createLoginSession(loginUsername.trim(), loginPassword)
+        await createLoginSession(loginUsername.trim(), loginPassword, {
+          ttlMs: DEVICE_CERT_TTL_OPTIONS[loginCertTtl],
+        })
       saveIdentity(identity)
       set({
         identity,
@@ -344,6 +376,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       legacySeed: null,
       unlockOpen: false,
       unlockError: '',
+      unlockReason: '',
     })
   },
 
@@ -390,6 +423,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         legacySeed: mostWallet(identity.username, password).danger,
         unlockOpen: false,
         unlockError: '',
+        unlockReason: '',
       })
       settleUnlock(seed)
     } catch {
@@ -398,19 +432,31 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   cancelUnlock: () => {
-    set({ unlockOpen: false, unlockError: '' })
+    set({ unlockOpen: false, unlockError: '', unlockReason: '' })
     settleUnlock(null)
   },
 
+  // Renews with the same validity period a tenth of it before expiry. With
+  // the seed in memory (or an invite identity) this is silent; otherwise the
+  // unlock dialog explains that the device authorization is about to expire.
   renewDeviceCertIfNeeded: async () => {
-    const { identity } = get()
+    const { identity, seed: knownSeed } = get()
     if (!identity) return
-    const expiresAt = readDeviceCertExpiry(identity.device.cert)
-    if (expiresAt - Date.now() > DEVICE_CERT_RENEW_BEFORE_MS) return
+    const { cert: currentCert } = identity.device
+    if (Date.now() < deviceCertRenewAt(currentCert)) return
+    if (!knownSeed && renewalPromptedFor === currentCert) return
+    renewalPromptedFor = currentCert
+    if (!knownSeed) set({ unlockReason: 'renew' })
     const seed = await get().unlockSeed()
+    if (get().unlockReason === 'renew') set({ unlockReason: '' })
     const current = get().identity
     if (!seed || !current || current.address !== identity.address) return
-    const cert = await issueDeviceCert(seed, current.device.publicKey)
+    const ttlMs =
+      readDeviceCertWindow(current.device.cert)?.ttlMs ??
+      DEVICE_CERT_TTL_OPTIONS[DEFAULT_DEVICE_CERT_TTL]
+    const cert = await issueDeviceCert(seed, current.device.publicKey, {
+      ttlMs,
+    })
     const renewed = { ...current, device: { ...current.device, cert } }
     saveIdentity(renewed)
     set({ identity: renewed, wallet: renewed })

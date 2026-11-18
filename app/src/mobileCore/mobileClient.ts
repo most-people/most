@@ -35,6 +35,8 @@ import {
 } from '../remoteNode/connectionHistory'
 import {
   createMobileIdentity,
+  deviceCertRenewAt,
+  readDeviceCertExpiry,
   signLegacyAccountMigration,
 } from '../remoteNode/identity'
 import { resolveRemoteUrl } from '../remoteNode/protocol'
@@ -177,7 +179,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
     this.#emit()
   }
 
-  async signIn(input: { username: string; password: string }) {
+  async signIn(input: { username: string; password: string; ttlMs?: number }) {
     this.#assertSwitchAllowed()
     const identity = await createMobileIdentity(
       input.username,
@@ -185,6 +187,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
       {
         deriveChatSeed: (username, password) =>
           this.#local.deriveChatSeed(username, password),
+        ttlMs: input.ttlMs,
       }
     )
     if (this.#mode === 'remote' && this.#remoteConfig) {
@@ -464,6 +467,12 @@ export class MobileNodeClient implements MostBoxMobileClient {
           this.#mode === 'local' ? true : snapshot.node.authenticated === true,
         userAddress: this.#identity?.address || '',
         username: this.#identity?.username || '',
+        deviceCertExpiresAt: this.#identity
+          ? readDeviceCertExpiry(this.#identity.device.cert)
+          : 0,
+        deviceCertRenewAt: this.#identity
+          ? deviceCertRenewAt(this.#identity.device.cert)
+          : 0,
         fallbackFrom: this.#fallbackFrom,
       },
     }

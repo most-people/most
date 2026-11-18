@@ -3,7 +3,11 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { verifyMessage } from 'ethers'
 import {
+  DEFAULT_DEVICE_CERT_TTL,
   DEVICE_CERT_TTL_MS,
+  DEVICE_CERT_TTL_OPTIONS,
+  deviceCertRenewAt,
+  readDeviceCertWindow,
   MOBILE_IDENTITY_VERSION,
   buildMobileAuthHeader,
   createMobileIdentity,
@@ -138,5 +142,36 @@ describe('mobile remote identity', () => {
       verifyMessage(message, migration.signature),
       migration.oldAddress
     )
+  })
+
+  it('offers the same validity periods as the web and renews at a tenth', async () => {
+    assert.deepEqual(DEVICE_CERT_TTL_OPTIONS, {
+      '4h': 4 * 60 * 60 * 1000,
+      '1d': 24 * 60 * 60 * 1000,
+      '30d': DEVICE_CERT_TTL_MS,
+    })
+    assert.equal(DEFAULT_DEVICE_CERT_TTL, '30d')
+    const hour = 60 * 60 * 1000
+    for (const [ttlMs, leadMs] of [
+      [DEVICE_CERT_TTL_OPTIONS['30d'], 72 * hour],
+      [DEVICE_CERT_TTL_OPTIONS['1d'], 2.4 * hour],
+      [DEVICE_CERT_TTL_OPTIONS['4h'], 0.4 * hour],
+    ] as const) {
+      const identity = await createMobileIdentity('alice', 'password', {
+        ...GOLDEN_OPTIONS,
+        ttlMs,
+      })
+      const now = GOLDEN_OPTIONS.now
+      assert.deepEqual(readDeviceCertWindow(identity.device.cert), {
+        issuedAt: now,
+        expiresAt: now + ttlMs,
+        ttlMs,
+      })
+      assert.equal(
+        deviceCertRenewAt(identity.device.cert),
+        now + ttlMs - leadMs
+      )
+    }
+    assert.equal(deviceCertRenewAt('dc1.bad.sig'), 0)
   })
 })

@@ -2,8 +2,12 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { Wallet } from 'ethers'
 import {
+  DEFAULT_DEVICE_CERT_TTL,
   DEVICE_CERT_MAX_TTL_MS,
   DEVICE_CERT_TTL_MS,
+  DEVICE_CERT_TTL_OPTIONS,
+  deviceCertRenewAt,
+  readDeviceCertWindow,
   buildAuthHeaders,
   buildDeviceAuthHeader,
   createDeviceKey,
@@ -155,5 +159,35 @@ describe('device request authorization', () => {
       verifyDeviceCert(cert, { now: NOW }).address,
       identity.address.toLowerCase()
     )
+  })
+})
+
+describe('device certificate validity options', () => {
+  it('offers 4 hours, 1 day and the 30-day default', () => {
+    assert.deepEqual(DEVICE_CERT_TTL_OPTIONS, {
+      '4h': 4 * 60 * 60 * 1000,
+      '1d': 24 * 60 * 60 * 1000,
+      '30d': DEVICE_CERT_TTL_MS,
+    })
+    assert.equal(DEFAULT_DEVICE_CERT_TTL, '30d')
+  })
+
+  it('renews a tenth of the validity period before expiry', async () => {
+    const hour = 60 * 60 * 1000
+    for (const [ttlMs, leadMs] of [
+      [DEVICE_CERT_TTL_OPTIONS['30d'], 72 * hour],
+      [DEVICE_CERT_TTL_OPTIONS['1d'], 2.4 * hour],
+      [DEVICE_CERT_TTL_OPTIONS['4h'], 0.4 * hour],
+    ]) {
+      const { cert } = await setup({ ttlMs })
+      assert.deepEqual(readDeviceCertWindow(cert), {
+        issuedAt: NOW,
+        expiresAt: NOW + ttlMs,
+        ttlMs,
+      })
+      assert.equal(deviceCertRenewAt(cert), NOW + ttlMs - leadMs)
+    }
+    assert.equal(readDeviceCertWindow('dc1.bad.sig'), null)
+    assert.equal(deviceCertRenewAt(''), 0)
   })
 })
