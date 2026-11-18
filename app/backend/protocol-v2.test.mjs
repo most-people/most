@@ -6,6 +6,10 @@ import fs from 'node:fs'
 import b4a from 'b4a'
 import { H, KDF, MAC, label } from './protocol-v2.mjs'
 import { CanonicalJsonError, canonicalJson } from '../shared/canonical-json.mjs'
+import hypercoreCrypto from 'hypercore-crypto'
+import { signedPayload } from '../shared/chat-signing.mjs'
+import { signBody, verifySignedEnvelope } from './chat-signatures-v2.mjs'
+import { verifyDeviceCertP2P } from './device-cert.mjs'
 import {
   channelIdFromKey,
   channelTopics,
@@ -156,5 +160,46 @@ describe('protocol v2 canonical JSON (mobile)', () => {
       )
     }
     assert.throws(() => canonicalJson({ at: new Date() }), CanonicalJsonError)
+  })
+})
+
+describe('protocol v2 signatures (mobile core)', () => {
+  const vectors = readVectors('signatures.json')
+  const certs = readVectors('device-cert.json')
+  const secretKey = hypercoreCrypto.keyPair(fromHex(certs.deviceSeed)).secretKey
+
+  it('verifies and reproduces the signed envelopes', () => {
+    for (const item of vectors.valid) {
+      assert.equal(hex(signedPayload(item.envelope.body)), item.payload)
+      assert.equal(signBody(item.envelope.body, secretKey), item.envelope.sig)
+      assert.deepEqual(
+        verifySignedEnvelope(item.envelope, { channelId: vectors.channelId }),
+        { ok: true, author: vectors.author }
+      )
+    }
+  })
+
+  it('rejects tampered or misattributed envelopes', () => {
+    for (const item of vectors.invalid) {
+      const result = verifySignedEnvelope(item.envelope, {
+        channelId: item.channelId || vectors.channelId,
+      })
+      assert.equal(result.ok, false, item.reason)
+    }
+  })
+
+  it('accepts certificates regardless of time in P2P', () => {
+    for (const cert of [certs.cert, certs.expiredCert]) {
+      assert.deepEqual(verifyDeviceCertP2P(cert), {
+        ok: true,
+        address: certs.address,
+        devicePublicKey: certs.devicePublicKey,
+      })
+    }
+    assert.equal(
+      verifyDeviceCertP2P(certs.otherAccountCert).address,
+      certs.otherAccountAddress
+    )
+    assert.equal(verifyDeviceCertP2P(`${certs.cert}x`).ok, false)
   })
 })

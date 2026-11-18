@@ -128,7 +128,15 @@ export function readDeviceCertExpiry(cert) {
   }
 }
 
-export function verifyDeviceCert(cert, { now = Date.now() } = {}) {
+/**
+ * `checkTime: false` skips issue and expiry checks: P2P signatures are verified
+ * without trusted time and must stay valid after a certificate expires
+ * (docs/protocol/v2/signatures.md §5). The TTL bound still applies.
+ */
+export function verifyDeviceCert(
+  cert,
+  { now = Date.now(), checkTime = true } = {}
+) {
   const [prefix, payload64, signature] = String(cert || '').split('.')
   if (prefix !== DEVICE_CERT_PREFIX || !payload64 || !signature) {
     return { ok: false, error: 'Missing or invalid authorization' }
@@ -149,10 +157,10 @@ export function verifyDeviceCert(cert, { now = Date.now() } = {}) {
     ) {
       return { ok: false, error: 'Invalid device certificate' }
     }
-    if (issuedAt > now + AUTH_MAX_AGE_MS) {
+    if (checkTime && issuedAt > now + AUTH_MAX_AGE_MS) {
       return { ok: false, error: 'Invalid device certificate' }
     }
-    if (now >= expiresAt) {
+    if (checkTime && now >= expiresAt) {
       return { ok: false, error: 'Device certificate expired' }
     }
     const recovered = normalizeAddress(

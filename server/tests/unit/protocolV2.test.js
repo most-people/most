@@ -8,6 +8,13 @@ import {
   CanonicalJsonError,
   canonicalJson,
 } from '../../src/core/canonicalJson.js'
+import hypercoreCrypto from 'hypercore-crypto'
+import { signedPayload } from '../../src/core/chatSigning.js'
+import {
+  signBody,
+  verifySignedEnvelope,
+} from '../../src/core/chatSignaturesV2.js'
+import { verifyDeviceCert } from '../../src/utils/auth.js'
 import {
   channelIdFromKey,
   channelTopics,
@@ -165,5 +172,41 @@ describe('protocol v2 canonical JSON (desktop)', () => {
     }
     assert.throws(() => canonicalJson({ at: new Date() }), CanonicalJsonError)
     assert.throws(() => canonicalJson({ fn: () => {} }), CanonicalJsonError)
+  })
+})
+
+describe('protocol v2 signatures (desktop)', () => {
+  const vectors = readVectors('signatures.json')
+  const certs = readVectors('device-cert.json')
+  const secretKey = hypercoreCrypto.keyPair(fromHex(certs.deviceSeed)).secretKey
+
+  it('verifies and reproduces the signed envelopes', () => {
+    for (const item of vectors.valid) {
+      assert.equal(hex(signedPayload(item.envelope.body)), item.payload)
+      assert.equal(signBody(item.envelope.body, secretKey), item.envelope.sig)
+      assert.deepEqual(
+        verifySignedEnvelope(item.envelope, { channelId: vectors.channelId }),
+        { ok: true, author: vectors.author }
+      )
+    }
+  })
+
+  it('rejects tampered or misattributed envelopes', () => {
+    for (const item of vectors.invalid) {
+      const result = verifySignedEnvelope(item.envelope, {
+        channelId: item.channelId || vectors.channelId,
+      })
+      assert.equal(result.ok, false, item.reason)
+    }
+  })
+
+  it('accepts certificates regardless of time in P2P', () => {
+    for (const cert of [certs.cert, certs.expiredCert]) {
+      assert.equal(verifyDeviceCert(cert, { checkTime: false }).ok, true)
+    }
+    assert.equal(
+      verifyDeviceCert(certs.expiredCert, { now: 1795000000000 }).ok,
+      false
+    )
   })
 })
