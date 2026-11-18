@@ -37,6 +37,7 @@ import {
   signMessage,
   signedInput,
   signPresence,
+  signProfile,
   defaultWallet,
 } from './signed-message.test-helper.mjs'
 
@@ -1034,6 +1035,48 @@ describe('mobile channel core restart recovery', () => {
     assert.match(writerCoreKey, /^[0-9a-f]{64}$/)
     assert.deepEqual(created.writerCoreKeys, [writerCoreKey])
 
+    const at = Date.now()
+    const profile = fields => signProfile(created.channelKey, fields)
+    const writeProfile = async fields =>
+      firstCore.updateChannelMemberProfile({
+        channelName: channelId,
+        signed: await profile(fields),
+      })
+    const before = firstCore.listChannels()[0].lastMessageAt
+    await writeProfile({
+      displayName: 'Alice',
+      avatar: 'avatar',
+      tag: { default: 'Member' },
+      createdAt: at,
+    })
+    await writeProfile({ avatar: '', tag: null, createdAt: at + 1 })
+    await writeProfile({ displayName: 'Old', createdAt: at - 1 })
+    const expected = [
+      {
+        address: defaultWallet.address.toLowerCase(),
+        displayName: 'Alice',
+        avatar: '',
+        profileUpdatedAt: at + 1,
+      },
+    ]
+    assert.deepEqual(
+      await firstCore.getChannelMemberProfiles({ channelName: channelId }),
+      expected
+    )
+    assert.deepEqual(
+      await firstCore.getChannelMessages({ channelName: channelId }),
+      []
+    )
+    assert.equal(firstCore.listChannels()[0].lastMessageAt, before)
+    await assert.rejects(
+      writeProfile({ displayName: ' padded ' }),
+      /invalid displayName/
+    )
+    await assert.rejects(
+      writeProfile({ createdAt: at + 600000 }),
+      /too far ahead/
+    )
+
     await firstCore.sendChannelMessage(
       await signedInput(firstCore, {
         channelName: channelId,
@@ -1064,6 +1107,10 @@ describe('mobile channel core restart recovery', () => {
     assertJoinedChannelTopics(restartedSwarms, channelId)
 
     const [restoredChannel] = restartedCore.listChannels()
+    assert.deepEqual(
+      await restartedCore.getChannelMemberProfiles({ channelName: channelId }),
+      expected
+    )
     assert.equal(restoredChannel.channelId, channelId)
     assert.equal(restoredChannel.localWriterCoreKey, writerCoreKey)
     assert.deepEqual(restoredChannel.writerCoreKeys, [writerCoreKey])

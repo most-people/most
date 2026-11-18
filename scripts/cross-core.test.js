@@ -13,9 +13,11 @@ import { Wallet } from 'ethers'
 import {
   sendTestMessage,
   presenceOptions,
+  updateTestProfile,
 } from '../server/tests/helpers/signedMessage.js'
 import {
   signedInput,
+  signProfile,
   signPresence,
   defaultWallet,
 } from '../app/backend/signed-message.test-helper.mjs'
@@ -179,10 +181,10 @@ async function waitForMessage(read, content, timeoutMs = 45000) {
   assert.fail(`Timed out waiting for message: ${content}`)
 }
 
-async function waitForPresence(check, description) {
+async function waitForChannelState(check, description) {
   const deadline = Date.now() + 10000
   while (Date.now() < deadline) {
-    if (check()) return
+    if (await check()) return
     await new Promise(resolve => setTimeout(resolve, 25))
   }
   assert.fail('Timed out waiting for ' + description)
@@ -248,6 +250,42 @@ it(
         )
 
         const channelName = mobileChannel.channelKey
+        await updateTestProfile(desktop, handle, {
+          signer: ownerWallet,
+          ownerAddress: owner,
+          displayName: 'Desktop profile',
+          tag: { default: 'Member' },
+        })
+        const mobileProfile = await signProfile(channelName, {
+          displayName: 'Mobile profile',
+        })
+        await mobile.updateChannelMemberProfile({
+          channelName,
+          signed: mobileProfile,
+        })
+        await waitForChannelState(
+          async () =>
+            (await mobile.getChannelMemberProfiles({ channelName })).some(
+              member =>
+                member.address === owner && member.tag?.default === 'Member'
+            ),
+          'desktop profile on mobile'
+        )
+        await waitForChannelState(
+          () =>
+            desktop
+              .getChannelMemberProfiles(handle, { ownerAddress: owner })
+              .some(
+                member =>
+                  member.address === mobileProfile.body.author &&
+                  member.displayName === 'Mobile profile'
+              ),
+          'mobile profile on desktop'
+        )
+        assert.equal(
+          (await mobile.getChannelMessages({ channelName })).length,
+          2
+        )
         const desktopInput = (status, sessionId, fields) =>
           presenceOptions(desktop, handle, status, {
             signer: ownerWallet,
@@ -267,7 +305,7 @@ it(
           handle,
           await desktopInput('online', 'tab-b', { displayName: 'Both tabs' })
         )
-        await waitForPresence(
+        await waitForChannelState(
           () => onMobile()?.displayName === 'Both tabs',
           'both desktop tabs'
         )
@@ -281,7 +319,7 @@ it(
           handle,
           await desktopInput('profile', 'tab-b', { displayName: 'Tab B' })
         )
-        await waitForPresence(
+        await waitForChannelState(
           () => onMobile()?.displayName === 'Tab B',
           'surviving desktop tab'
         )
@@ -289,7 +327,7 @@ it(
           handle,
           await desktopInput('offline', 'tab-b')
         )
-        await waitForPresence(() => !onMobile(), 'last desktop tab leaving')
+        await waitForChannelState(() => !onMobile(), 'last desktop tab leaving')
 
         const onDesktop = () =>
           desktop
@@ -302,9 +340,9 @@ it(
           }),
         })
         mobile.joinChannelPresence(await mobileInput('online'))
-        await waitForPresence(onDesktop, 'mobile session on desktop')
+        await waitForChannelState(onDesktop, 'mobile session on desktop')
         mobile.leaveChannelPresence(await mobileInput('offline'))
-        await waitForPresence(() => !onDesktop(), 'mobile session leaving')
+        await waitForChannelState(() => !onDesktop(), 'mobile session leaving')
       }
     } finally {
       await Promise.allSettled(nodes.map(node => node.stop()))

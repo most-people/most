@@ -65,6 +65,13 @@ export async function signMessage(
   return signEvent(channelId, wallet, { kind: 'message', content, ...fields })
 }
 
+export function signProfile(
+  channelId,
+  { wallet = defaultWallet, ...fields } = {}
+) {
+  return signEvent(channelId, wallet, { ...fields, kind: 'profile' })
+}
+
 export function signPresence(
   channelId,
   status,

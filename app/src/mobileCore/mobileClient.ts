@@ -394,6 +394,18 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#active.getChannelMessages(channelName, options)
   }
 
+  getChannelMemberProfiles(channelName: string) {
+    if (!this.#active.getChannelMemberProfiles)
+      throw new Error('Member profiles unavailable')
+    return this.#active.getChannelMemberProfiles(channelName)
+  }
+
+  async updateChannelMemberProfile(input: SendChannelMessageInput) {
+    if (!this.#active.updateChannelMemberProfile)
+      throw new Error('Member profiles unavailable')
+    await this.#active.updateChannelMemberProfile(input)
+  }
+
   async sendChannelPresence(input: ChannelPresenceInput) {
     await this.#active.sendChannelPresence?.(input)
   }

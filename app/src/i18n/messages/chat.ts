@@ -381,6 +381,11 @@ export const chatMessages = {
     'zh-TW': '加入頻道失敗',
     en: 'Could not join channel',
   },
+  'chat.initialProfileFailed': {
+    'zh-CN': '已加入频道，但未能同步昵称',
+    'zh-TW': '已加入頻道，但未能同步暱稱',
+    en: 'Joined the channel, but could not sync your name',
+  },
   'chat.sendFailed': {
     'zh-CN': '发送消息失败',
     'zh-TW': '傳送訊息失敗',

@@ -13,6 +13,11 @@ import { CanonicalJsonError, canonicalJson } from '../shared/canonical-json.mjs'
 import hypercoreCrypto from 'hypercore-crypto'
 import { signedPayload } from '../shared/chat-signing.mjs'
 import { signBody, verifySignedEnvelope } from './chat-signatures-v2.mjs'
+import {
+  buildSignedEntry,
+  readSignedProfileEntry,
+  signedProfileError,
+} from './channel-signed-entry.mjs'
 import { verifyDeviceCertP2P } from './device-cert.mjs'
 import { deriveChatSeed } from './scrypt-native.mjs'
 import {
@@ -182,6 +187,33 @@ describe('protocol v2 signatures (mobile core)', () => {
         { ok: true, author: vectors.author }
       )
     }
+  })
+
+  it('reads the shared profile vector only in its signed channel and within the allowed clock skew', () => {
+    const { envelope } = vectors.valid.find(
+      item => item.envelope.body.kind === 'profile'
+    )
+    const { channelId, createdAt, author } = envelope.body
+    const entry = buildSignedEntry(envelope, createdAt)
+    const now = createdAt - 300000
+    assert.equal(signedProfileError(envelope, { channelId, now }), '')
+    assert.deepEqual(readSignedProfileEntry(entry, channelId, now), {
+      address: author,
+      displayName: 'Alice',
+      avatar: '',
+      tag: { default: 'mod' },
+      profileUpdatedAt: createdAt,
+    })
+    assert.equal(readSignedProfileEntry(entry, channelId, now - 1), null)
+    assert.equal(readSignedProfileEntry(entry, 'cd'.repeat(32), now), null)
+    assert.equal(
+      readSignedProfileEntry(
+        { ...entry, body: { ...entry.body, displayName: 'Changed' } },
+        channelId,
+        now
+      ),
+      null
+    )
   })
 
   it('rejects tampered or misattributed envelopes', () => {

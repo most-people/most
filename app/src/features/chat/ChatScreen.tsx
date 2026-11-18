@@ -972,8 +972,52 @@ export function ChatScreen({
     setLoading(true)
     const scope = conversationScope
     try {
-      if (localMode) await bridge.createChannel?.({ name, type: 'public' })
-      else await api?.createOrJoinChannel({ name, displayName: name })
+      const joined = localMode
+        ? await bridge.createChannel?.({ name, type: 'public' })
+        : await api?.createOrJoinChannel({ name })
+      if (scopeRef.current !== scope) return
+      if (identity) {
+        try {
+          const channelId = String(
+            joined && typeof joined === 'object' && 'channelKey' in joined
+              ? joined.channelKey
+              : ''
+          )
+          if (!isChannelId(channelId)) throw new Error(t('chat.joinFailed'))
+          const members = localMode
+            ? await bridge.getChannelMemberProfiles?.(channelId)
+            : await api?.getChannelMemberProfiles(channelId)
+          if (scopeRef.current !== scope) return
+          const author = identity.address.toLowerCase()
+          if (
+            members &&
+            !members.some(
+              member => member.address === author && member.profileUpdatedAt
+            )
+          ) {
+            const signed = signChatBody(
+              {
+                kind: 'profile',
+                channelId,
+                author,
+                createdAt: Date.now(),
+                id: createClientMessageId(),
+                displayName: identity.username.trim().slice(0, 50),
+              },
+              identity
+            )
+            if (localMode)
+              await bridge.updateChannelMemberProfile?.({
+                channelName: channelId,
+                signed,
+              })
+            else await api?.updateChannelMemberProfile(channelId, signed)
+          }
+        } catch {
+          if (scopeRef.current === scope)
+            toast(t('chat.initialProfileFailed'), 'error')
+        }
+      }
       if (scopeRef.current !== scope) return
       setChannelInput('')
       setJoinSheetOpen(false)

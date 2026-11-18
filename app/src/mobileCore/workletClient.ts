@@ -19,6 +19,7 @@ import type {
   MobileChannel,
   MobileChannelAttachment,
   MobileChannelMessage,
+  MobileMemberProfile,
   SendChannelMessageInput,
   ChannelPresenceInput,
   MobileLogEntry,
@@ -529,6 +530,31 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
         [EVENTS.CHANNEL_STATUS],
         30000
       )
+    )
+  }
+
+  async getChannelMemberProfiles(
+    channelName: string
+  ): Promise<MobileMemberProfile[]> {
+    const result = asRecord(
+      await this.#request(
+        COMMANDS.CHANNEL_MEMBER_PROFILES,
+        { channelName },
+        [EVENTS.CHANNEL_STATUS],
+        30000
+      )
+    )
+    if (!Array.isArray(result.members))
+      throw new Error('Invalid member profiles response')
+    return result.members
+  }
+
+  async updateChannelMemberProfile(input: SendChannelMessageInput) {
+    await this.#request(
+      COMMANDS.CHANNEL_MEMBER_PROFILE_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      30000
     )
   }
 

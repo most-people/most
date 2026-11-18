@@ -169,9 +169,14 @@
 - `npm run test:cross-core`：桌面引擎与移动核心在本地 HyperDHT 的私有、公开频道双向交换签名在线状态。同一账号的两个桌面会话依次离开，移动核心在第一个离开后仍能看到第二个的资料更新，最后一个离开后才显示离线。
 - `node --test server/tests/integration/voice-websocket.test.js server/tests/integration/channelAuthorization.test.js`：覆盖 WebSocket 身份和动作绑定、断开后本机清理与对端心跳超时、频道授权，以及中途加入时的会话恢复。超时用模拟时钟验证。未进行移动真机、系统清理或公网 NAT 测试。
 
+## 2026-11-18：移动端成员资料（本地回归）
+
+- `npm run test:cross-core`：桌面与移动核心通过本地 DHT，在私有和公开频道中双向读取签名成员资料。移动端的聊天记录仍只包含发送的两条消息。
+- `npm --prefix app test`：覆盖共享签名样本、资料更新与清空、拒绝非规范或时间过远的写入，以及移动核心重启后从本地 writer core 恢复资料。未覆盖真机 UI 和公网。
+
 ## 当前未完成
 
-- 协议 v2 聊天签名：桌面与移动端已接入客户端签名的消息和在线状态，桌面也已接入成员资料签名；语音签名帧、移动端成员资料及统一迁移仍待完成。设计与测试向量见 `docs/protocol/v2/signatures.md`、`docs/protocol/vectors/v2/signatures.json`。
+- 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；语音签名帧及统一迁移仍待完成。设计与测试向量见 `docs/protocol/v2/signatures.md`、`docs/protocol/vectors/v2/signatures.json`。
 
 - 聊天剩余：真实网络分区、`kill -9`、移动核心参与；停止引擎时 hypercore 在途块校验导致的未捕获崩溃。
 - F5 剩余：蜂窝、网络切换、逐连接记录路径；real-wifi 首轮“有 peer 但 0 字节”的原因。

@@ -196,6 +196,17 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.CHANNEL_MEMBER_PROFILES) {
+      const members = await getCore().getChannelMemberProfiles(payload)
+      send(EVENTS.CHANNEL_STATUS, { members }, requestId)
+      return
+    }
+    if (command.type === COMMANDS.CHANNEL_MEMBER_PROFILE_SET) {
+      await getCore().updateChannelMemberProfile(payload)
+      send(EVENTS.CHANNEL_UPDATED, {}, requestId)
+      return
+    }
+
     if (command.type === COMMANDS.CHANNEL_SEND) {
       const message = await getCore().sendChannelMessage(payload)
       send(

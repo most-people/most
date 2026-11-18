@@ -44,6 +44,8 @@ import {
   buildSignedEntry,
   isSignedEntry,
   readSignedMessageEntry,
+  readSignedProfileEntry,
+  signedProfileError,
   signedMessageError,
 } from './channel-signed-entry.mjs'
 import {
@@ -954,7 +956,48 @@ export class MobileP2PCore {
     return messages
   }
 
-  async sendChannelMessage(input = {}) {
+  // Rebuild from locally readable signed blocks. Profiles are not chat
+  // messages and must not move the conversation preview or unread cursor.
+  async getChannelMemberProfiles({ channelName }) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(channelName)
+    const cores = this.#channelCores.get(channel.channelKey)
+    if (!cores) throw new Error('Channel runtime is not initialized')
+    const updates = []
+    const now = Date.now()
+    for (const [writer, core] of cores) {
+      for (let index = 0; index < core.length; index++) {
+        const entry = await core.get(index, { wait: false })
+        if (!entry) break
+        const patch = readSignedProfileEntry(entry, channel.channelKey, now)
+        if (patch) updates.push({ patch, writer, index })
+      }
+    }
+    const members = new Map()
+    updates.sort(
+      (a, b) =>
+        a.patch.profileUpdatedAt - b.patch.profileUpdatedAt ||
+        (a.writer < b.writer ? -1 : a.writer > b.writer ? 1 : a.index - b.index)
+    )
+    for (const { patch } of updates) {
+      const previous = members.get(patch.address)
+      if (previous?.profileUpdatedAt === patch.profileUpdatedAt) continue
+      const member = { ...previous, ...patch }
+      if (member.tag === null) delete member.tag
+      members.set(member.address, member)
+    }
+    return [...members.values()]
+  }
+
+  updateChannelMemberProfile(input) {
+    return this.#enqueueChannelWrite(input, 'profile')
+  }
+
+  sendChannelMessage(input = {}) {
+    return this.#enqueueChannelWrite(input, 'message')
+  }
+
+  async #enqueueChannelWrite(input, kind) {
     this.#ensureReady()
     const channel = this.#resolveChannel(input.channelName || input.name)
     const key = channel.channelKey
@@ -964,7 +1007,7 @@ export class MobileP2PCore {
       .catch(() => {})
       .then(() => {
         if (this.#store !== store) throw new Error('P2P core is not ready')
-        return this.#sendChannelMessage(input)
+        return this.#writeChannelEntry(input, kind)
       })
     const completed = pending.then(
       () => {},
@@ -979,7 +1022,7 @@ export class MobileP2PCore {
     }
   }
 
-  async #sendChannelMessage(input) {
+  async #writeChannelEntry(input, kind) {
     this.#ensureReady()
     const channelName = input.channelName || input.name
     const channel = this.#resolveChannel(channelName)
@@ -993,8 +1036,10 @@ export class MobileP2PCore {
     // The app signs the body with its device key; this core checks it and
     // never edits it (signatures.md §4.6).
     const { signed } = input
-    const error = signedMessageError(signed, { channelId: channel.channelKey })
-    if (error) throw new Error(`Invalid signed message: ${error}`)
+    const validate =
+      kind === 'profile' ? signedProfileError : signedMessageError
+    const error = validate(signed, { channelId: channel.channelKey })
+    if (error) throw new Error(`Invalid signed ${kind}: ${error}`)
     const { body } = signed
 
     for (let index = core.length - 1; index >= 0; index--) {
@@ -1004,6 +1049,7 @@ export class MobileP2PCore {
         continue
       if (canonicalJson(entry.body) !== canonicalJson(body))
         throw new Error('clientMessageId already identifies another message')
+      if (kind === 'profile') return
       return readSignedMessageEntry(entry, channel.channelKey)
     }
 
@@ -1012,6 +1058,7 @@ export class MobileP2PCore {
       await this.#getNextChannelMessageTimestamp(channel.channelKey)
     )
     await core.append(entry)
+    if (kind === 'profile') return
     const message = readSignedMessageEntry(entry, channel.channelKey)
     if (!this.#isChannelActive(channel.channelKey)) return message
 
@@ -1661,10 +1708,12 @@ export class MobileP2PCore {
             // A missing peer block must not prevent this writer sending offline.
             const entry = await core.get(i, { wait: false })
             if (entry === null) break
-            const message = readSignedMessageEntry(entry, channelKey)
-            // A peer clock far ahead must not drag ours (§4.5).
-            if (message && message.timestamp <= limit) {
-              maxTimestamp = Math.max(maxTimestamp, message.timestamp)
+            if (
+              entry.ts <= limit &&
+              (readSignedMessageEntry(entry, channelKey) ||
+                readSignedProfileEntry(entry, channelKey, now))
+            ) {
+              maxTimestamp = Math.max(maxTimestamp, entry.ts)
             }
           } catch {
             break

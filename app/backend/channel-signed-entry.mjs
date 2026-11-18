@@ -53,7 +53,7 @@ export function buildSignedEntry({ body, device, cert, sig }, ts) {
 
 /** The message shape of a shown signed `message` entry, or null. */
 export function readSignedMessageEntry(entry, channelId) {
-  if (!isSignedEntry(entry)) return null
+  if (!isSignedEntry(entry) || entry.body?.kind !== 'message') return null
   if (!Number.isSafeInteger(entry.ts) || entry.ts <= 0) return null
   if (!verifySignedEnvelope(entry, { channelId }).ok) return null
   const { body } = entry
@@ -70,4 +70,74 @@ export function readSignedMessageEntry(entry, channelId) {
     clientMessageId: body.id,
     ...(attachment ? { attachment } : {}),
   }
+}
+
+// Profile fields must already be in the desktop writer's normal form.
+// Readers ignore individual noncanonical optional fields (signatures.md §4.2).
+function validProfileTag(tag) {
+  if (tag === null) return true
+  if (!tag || typeof tag !== 'object' || Array.isArray(tag)) return false
+  const entries = Object.entries(tag)
+  return (
+    entries.length > 0 &&
+    entries.length <= 16 &&
+    entries.every(
+      ([key, value]) =>
+        (key === 'default' ||
+          /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(key)) &&
+        typeof value === 'string' &&
+        !!value &&
+        value.trim() === value &&
+        value.normalize('NFC') === value &&
+        !/[\p{Cc}\p{Cf}]/u.test(value) &&
+        Array.from(value).length <= 50
+    )
+  )
+}
+
+const PROFILE_FIELDS = {
+  displayName: value =>
+    typeof value === 'string' &&
+    !!value &&
+    value === value.trim() &&
+    value.length <= 50,
+  avatar: value =>
+    typeof value === 'string' && value === value.trim() && value.length <= 4096,
+  tag: validProfileTag,
+}
+
+export function signedProfileError(envelope, { channelId, now = Date.now() }) {
+  const result = verifySignedEnvelope(envelope, { channelId })
+  if (!result.ok) return result.error
+  const { body } = envelope
+  if (body.kind !== 'profile') return 'expected a profile body'
+  if (body.createdAt > now + SIGNED_TS_FUTURE_LIMIT_MS)
+    return 'createdAt is too far ahead'
+  for (const [field, valid] of Object.entries(PROFILE_FIELDS)) {
+    if (Object.hasOwn(body, field) && !valid(body[field]))
+      return 'invalid ' + field
+  }
+  return ''
+}
+
+export function readSignedProfileEntry(entry, channelId, now = Date.now()) {
+  if (
+    !isSignedEntry(entry) ||
+    entry.body?.kind !== 'profile' ||
+    !Number.isSafeInteger(entry.ts) ||
+    entry.ts <= 0
+  )
+    return null
+  const { body } = entry
+  if (
+    body.createdAt > now + SIGNED_TS_FUTURE_LIMIT_MS ||
+    !verifySignedEnvelope(entry, { channelId }).ok
+  )
+    return null
+  const profile = { address: body.author, profileUpdatedAt: body.createdAt }
+  for (const [field, valid] of Object.entries(PROFILE_FIELDS)) {
+    if (Object.hasOwn(body, field) && valid(body[field]))
+      profile[field] = body[field]
+  }
+  return profile
 }

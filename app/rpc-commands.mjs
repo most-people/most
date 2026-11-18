@@ -14,6 +14,8 @@ export const COMMANDS = Object.freeze({
   CHANNEL_ID_CREATE: 'channel.id.create',
   CHANNEL_LIST: 'channel.list',
   CHANNEL_MESSAGES: 'channel.messages',
+  CHANNEL_MEMBER_PROFILES: 'channel.member.profiles',
+  CHANNEL_MEMBER_PROFILE_SET: 'channel.member.profile.set',
   CHANNEL_SEND: 'channel.send',
   CHANNEL_LEAVE: 'channel.leave',
   CHANNEL_REMARK_SET: 'channel.remark.set',
