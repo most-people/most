@@ -16,7 +16,8 @@
 | 文件传输 drive 密钥与密钥交换       | [CID drive 协议 v2](cid-drive-protocol.md)                     |
 | 身份标签与成员资料契约              | [聊天身份标签](chat-mentions-and-identity-design.md)           |
 | 第三方邀请接入                      | [ST 邀请集成](st-chat-join-integration.md)                     |
-| 自建节点升级到 0.7.0（给客户）      | [0.7.0 升级说明](upgrade-0.7.0.md)                             |
+| 自建节点升级到 0.8.0（给客户）      | [0.8.0 升级说明](upgrade-0.8.0.md)                             |
+| 自建节点升级到 0.7.0（历史）        | [0.7.0 升级说明](upgrade-0.7.0.md)                             |
 | MCP 接口                            | [MCP](mcp.md)                                                  |
 | 产品风险边界                        | [P2P 风险红线](p2p-risk-boundaries.md)                         |
 

@@ -4,6 +4,32 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-18
+
+This release completes and freezes protocol v2. It is not compatible with 0.7.0, 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files. The supported upgrade path for nodes is 0.5.x to 0.8.0 directly; 0.6.0 and 0.7.0 data directories are not migrated. Back up the stopped data directory first: the first start moves every file into the node's own drive (rehearsed at about 8 s per GB, with the data directory peaking at 2.1 times its size and ending at about 1.7 times). Customer-facing steps are in `docs/upgrade-0.8.0.md`.
+
+From 0.8.0 on, links, topics, key derivations, signature and frame formats only gain additions; new capabilities are negotiated per connection.
+
+### Changed
+
+- **Breaking:** File topics are `H("topic/file", digest)`, so a DHT node that sees a topic cannot recover the CID. The CID drive channel is `most-cid-drive/3`: a `want` carries a proof of knowing the CID digest, bound to the connection's challenge and both Noise keys, and seeds answer only valid proofs (16 invalid proofs close the channel). Drive names use the v2 label. Holdings in 0.5.x shared drives migrate on start.
+- **Breaking:** Every chat swarm frame carries `v: 2`; `channel-proof-challenge` is now `channel-challenge`, and it and `channel-proof` drop the `version` field. Non-v2 frames are dropped. Each connection starts with a `session` frame that lists features (`sig1`); signatures stay mandatory whatever a peer lists.
+- **Breaking:** P2P Ping uses the v2 labels and frame version 3.
+- Pre-upgrade chat history shows a small "Unsigned" note next to each message; signed messages carry no mark.
+- Sign-in offers a device authorization period of 4 hours, 1 day or 30 days (default). Renewal starts when a tenth of the period is left; the mobile app reminds the user to sign in again.
+- The mobile node secret file is renamed from `cid-drive-secret` to `node-secret` on start.
+- `hypercore` is upgraded to 11.39.6.
+
+### Added
+
+- The mobile app shows the public channel notice, and mobile hello frames carry member addresses.
+- `PRIVACY.md` lists what DHT nodes, CID holders, connected peers and relays can still see.
+
+### Fixed
+
+- Stopping a node while channel blocks were still being verified no longer crashes with an uncaught "RocksDB session is closed".
+- Node logs no longer print complete drive keys.
+
 ## [0.7.0] - 2026-11-18
 
 This release switches chat to protocol v2 and is not compatible with 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files, and a 0.7.0 node rejects message requests from older clients. Upgrade the node and its web clients in the same maintenance window, and back up the stopped data directory first. Records migrate on first start and the previous program must not open the migrated directory; roll back by restoring the backup. Customer-facing steps are in `docs/upgrade-0.7.0.md`.
