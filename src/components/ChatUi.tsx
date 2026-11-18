@@ -97,6 +97,7 @@ export function ChatMessageItem({
   authorTag = '',
   mentioned = false,
   time,
+  timeNote = '',
   children,
 }: {
   variant: ChatMessageVariant
@@ -107,6 +108,8 @@ export function ChatMessageItem({
   authorTag?: string
   mentioned?: boolean
   time: string
+  /** Small low-contrast note shown after the time (e.g. unsigned history). */
+  timeNote?: string
   children: ReactNode
 }) {
   const className = [
@@ -141,7 +144,10 @@ export function ChatMessageItem({
           )}
         </span>
         {children}
-        <span className="message-time">{time}</span>
+        <span className="message-time">
+          {time}
+          {timeNote && <span className="message-time-note"> · {timeNote}</span>}
+        </span>
       </div>
     </div>
   )

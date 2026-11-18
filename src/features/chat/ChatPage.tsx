@@ -2582,6 +2582,7 @@ function ChatPage() {
                       avatarSrc={getCachedAvatar(msg.authorName)}
                       author={msg.authorName || ''}
                       time={formatMessageTime(msg.timestamp)}
+                      timeNote={t('chat.message.unsigned')}
                     >
                       <ChatTextBubble>{msg.content}</ChatTextBubble>
                     </ChatMessageItem>

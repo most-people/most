@@ -1857,6 +1857,10 @@ export function ChatScreen({
                         <View style={styles.messageBody}>
                           <Text numberOfLines={1} style={styles.author}>
                             {item.authorName}
+                            <Text style={styles.unsignedNote}>
+                              {' · '}
+                              {t('chat.message.unsigned')}
+                            </Text>
                           </Text>
                           <View style={styles.message}>
                             <View
@@ -2752,6 +2756,8 @@ function chatStyles(
     fileTailOther: { borderRightColor: colors.surfaceSolid },
     fileTailMine: { borderLeftColor: colors.surfaceSolid },
     author: { color: colors.textMuted, fontSize: 12, marginBottom: 1 },
+    // Unsigned v1 history: small and low contrast, bubble unchanged.
+    unsignedNote: { fontSize: 10, opacity: 0.7 },
     fileMessage: { backgroundColor: colors.surfaceSolid, width: 240 },
     imageMessage: {
       backgroundColor: 'transparent',

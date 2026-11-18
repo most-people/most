@@ -1,4 +1,9 @@
 export const chatMessages = {
+  'chat.message.unsigned': {
+    'zh-CN': '未签名',
+    'zh-TW': '未簽署',
+    en: 'Unsigned',
+  },
   'chat.clearSearch': {
     'zh-CN': '清空搜索',
     'zh-TW': '清空搜尋',
