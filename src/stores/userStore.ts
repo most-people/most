@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import {
+  IDENTITY_VERSION,
   createLoginIdentity,
   createLoginSession,
   loadIdentity,
@@ -10,7 +11,12 @@ import {
   issueDeviceCert,
   readDeviceCertExpiry,
 } from '~server/src/utils/auth.js'
+import {
+  chatAccountFromSeed,
+  deriveChatSeed,
+} from '~server/src/utils/chatIdentity.js'
 import { mostWallet } from '~server/src/utils/mostWallet.js'
+import { api } from '~server/src/utils/api'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
@@ -27,13 +33,14 @@ export interface DeviceCredential {
 
 /** 持久化的身份只含设备密钥证书和子密钥，不含账号种子。 */
 export interface UserIdentity {
+  /** v2 chat identity; stored identities without it sign in again. */
+  version: number
   username: string
   address: string
   device: DeviceCredential
   syncKey: string
   syncTopic: string
   publicKeys?: { x25519: string; ed25519: string }
-  iterations?: number
   displayName?: string
   logo?: string
   logo_dark?: string
@@ -56,6 +63,8 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
+  /** v1 wallet seed, in memory only, to open account backups made before v2. */
+  legacySeed: string | null
   seed: string | null
   unlockOpen: boolean
   unlockError: MessageKey | ''
@@ -66,17 +75,21 @@ interface UserState {
   setLoginUsername: (username: string) => void
   setLoginPassword: (password: string) => void
   togglePassword: () => void
-  previewLoginIdentity: () => Pick<UserIdentity, 'username' | 'address'> | null
+  previewLoginIdentity: () => Promise<Pick<
+    UserIdentity,
+    'username' | 'address'
+  > | null>
   loginUser: () => Promise<UserIdentity | null>
   setUserIdentity: (identity: UserIdentity, seed?: string) => void
   logoutUser: () => void
   unlockSeed: () => Promise<string | null>
-  submitUnlock: (password: string) => void
+  submitUnlock: (password: string) => Promise<void>
   cancelUnlock: () => void
   renewDeviceCertIfNeeded: () => Promise<void>
 }
 
 let unlockWaiters: Array<(seed: string | null) => void> = []
+let inviteCheckRunning = false
 
 function settleUnlock(seed: string | null) {
   const waiters = unlockWaiters
@@ -85,14 +98,32 @@ function settleUnlock(seed: string | null) {
 }
 
 // 邀请链接身份由 uid 和空密码生成，用户不知道也无法输入“密码”。
-function deriveEmptyPasswordSeed(identity: UserIdentity) {
+async function deriveEmptyPasswordSeed(identity: UserIdentity) {
   try {
-    const wallet = mostWallet(identity.username, '', identity.iterations)
-    return wallet.address.toLowerCase() === identity.address.toLowerCase()
-      ? wallet.danger
+    const seed = await deriveChatSeed(identity.username, '')
+    return chatAccountFromSeed(seed).address.toLowerCase() ===
+      identity.address.toLowerCase()
+      ? seed
       : null
   } catch {
     return null
+  }
+}
+
+/**
+ * Hands the v1 account's data on the connected node to the v2 identity
+ * (POST /api/user/migrate). Best effort: an empty v1 account is a no-op, and
+ * a node that is not reachable now keeps the old data until the next login.
+ */
+export async function migrateLegacyAccount(migration?: {
+  oldAddress: string
+  signature: string
+}) {
+  if (!migration) return
+  try {
+    await api.post('/api/user/migrate', { json: migration }).json()
+  } catch {
+    // Ignored on purpose; see above.
   }
 }
 
@@ -112,6 +143,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   const value = input as Partial<UserIdentity>
   const device = value.device
   if (
+    value.version !== IDENTITY_VERSION ||
     !value.username ||
     !value.address ||
     !device?.cert ||
@@ -123,7 +155,6 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     return null
   }
   const address = value.address
-  const iterations = Number(value.iterations)
   const displayName = getDisplayName(value as UserIdentity)
   const avatar =
     typeof value.avatar === 'string'
@@ -136,6 +167,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
       : normalizeLocalizedTag(value.tag)
     : undefined
   return {
+    version: IDENTITY_VERSION,
     username: value.username,
     address,
     device: {
@@ -146,7 +178,6 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     syncKey: value.syncKey,
     syncTopic: value.syncTopic,
     publicKeys: value.publicKeys,
-    iterations: Number.isSafeInteger(iterations) ? iterations : undefined,
     displayName,
     logo: typeof value.logo === 'string' ? value.logo : undefined,
     logo_dark:
@@ -190,6 +221,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   loginLoading: false,
   loginError: '',
   seed: null,
+  legacySeed: null,
   unlockOpen: false,
   unlockError: '',
 
@@ -236,14 +268,19 @@ export const useUserStore = create<UserState>((set, get) => ({
     set(state => ({ showPassword: !state.showPassword }))
   },
 
-  previewLoginIdentity: () => {
+  previewLoginIdentity: async () => {
     const { loginUsername, loginPassword } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
       set({ loginError: 'login.error.credentialsRequired' })
       return null
     }
-    const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
+    set({ loginLoading: true, loginError: '' })
+    const identity = await createLoginIdentity(
+      loginUsername.trim(),
+      loginPassword
+    )
     set({
+      loginLoading: false,
       loginPreviewAddress: identity.address,
       hasPreviewedAvatar: true,
       loginError: '',
@@ -264,18 +301,18 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     set({ loginLoading: true, loginError: '' })
     try {
-      const { identity, danger } = await createLoginSession(
-        loginUsername.trim(),
-        loginPassword
-      )
+      const { identity, danger, legacySeed, migration } =
+        await createLoginSession(loginUsername.trim(), loginPassword)
       saveIdentity(identity)
       set({
         identity,
         wallet: identity,
         seed: danger,
+        legacySeed,
         showLoginModal: false,
         ...resetLoginForm(),
       })
+      void migrateLegacyAccount(migration)
       return identity
     } catch {
       set({
@@ -304,6 +341,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       identity: null,
       wallet: undefined,
       seed: null,
+      legacySeed: null,
       unlockOpen: false,
       unlockError: '',
     })
@@ -313,35 +351,47 @@ export const useUserStore = create<UserState>((set, get) => ({
     const { seed, identity } = get()
     if (seed) return Promise.resolve(seed)
     if (!identity) return Promise.resolve(null)
-    const inviteSeed = deriveEmptyPasswordSeed(identity)
-    if (inviteSeed) {
-      set({ seed: inviteSeed })
-      return Promise.resolve(inviteSeed)
-    }
-    return new Promise(resolve => {
+    // Register the caller first, so logging out or cancelling during the
+    // invite check below still settles it.
+    const pending = new Promise<string | null>(resolve => {
       unlockWaiters.push(resolve)
-      set({ unlockOpen: true, unlockError: '' })
     })
+    if (!inviteCheckRunning) {
+      inviteCheckRunning = true
+      void deriveEmptyPasswordSeed(identity).then(inviteSeed => {
+        inviteCheckRunning = false
+        if (get().identity !== identity || unlockWaiters.length === 0) return
+        if (inviteSeed) {
+          set({ seed: inviteSeed })
+          settleUnlock(inviteSeed)
+        } else {
+          set({ unlockOpen: true, unlockError: '' })
+        }
+      })
+    }
+    return pending
   },
 
-  submitUnlock: password => {
+  submitUnlock: async password => {
     const { identity } = get()
     if (!identity || !password) {
       set({ unlockError: 'unlock.error.passwordRequired' })
       return
     }
     try {
-      const wallet = mostWallet(
-        identity.username,
-        password,
-        identity.iterations
-      )
-      if (wallet.address.toLowerCase() !== identity.address.toLowerCase()) {
+      const seed = await deriveChatSeed(identity.username, password)
+      const { address } = chatAccountFromSeed(seed)
+      if (address.toLowerCase() !== identity.address.toLowerCase()) {
         set({ unlockError: 'unlock.error.wrongPassword' })
         return
       }
-      set({ seed: wallet.danger, unlockOpen: false, unlockError: '' })
-      settleUnlock(wallet.danger)
+      set({
+        seed,
+        legacySeed: mostWallet(identity.username, password).danger,
+        unlockOpen: false,
+        unlockError: '',
+      })
+      settleUnlock(seed)
     } catch {
       set({ unlockError: 'unlock.error.wrongPassword' })
     }

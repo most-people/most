@@ -6,6 +6,20 @@ import {
 } from '~server/src/utils/accountBackup.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
+
+/**
+ * Backups made before protocol v2 were encrypted with the v1 wallet seed;
+ * after a v2 sign-in that seed is kept in memory as `legacySeed`.
+ */
+function decryptWithKnownSeeds(text: string, seed: string) {
+  try {
+    return decryptAccountBackup(text, seed)
+  } catch (error) {
+    const legacySeed = useUserStore.getState().legacySeed
+    if (!legacySeed) throw error
+    return decryptAccountBackup(text, legacySeed)
+  }
+}
 import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 import {
@@ -366,7 +380,7 @@ export function useAccountBackup() {
           setAction('import')
           setStatus('working')
           try {
-            const payload = decryptAccountBackup(
+            const payload = decryptWithKnownSeeds(
               String(reader.result || ''),
               seed
             ) as AccountBackupPayload

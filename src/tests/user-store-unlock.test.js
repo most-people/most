@@ -46,11 +46,19 @@ async function loadModules() {
   return { useUserStore }
 }
 
+async function waitFor(check) {
+  const deadline = Date.now() + 10000
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error('timed out')
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
 async function signIn(useUserStore) {
   const state = () => useUserStore.getState()
   state().setLoginUsername(USERNAME)
   state().setLoginPassword(PASSWORD)
-  state().previewLoginIdentity()
+  await state().previewLoginIdentity()
   return state().loginUser()
 }
 
@@ -83,17 +91,18 @@ test('a reload drops the seed and unlocking needs the right password', async () 
       settled = true
       return seed
     })
-  assert.equal(state().unlockOpen, true)
+  // Checking for an invite identity runs scrypt before the prompt opens.
+  await waitFor(() => state().unlockOpen)
 
-  state().submitUnlock('')
+  await state().submitUnlock('')
   assert.equal(state().unlockError, 'unlock.error.passwordRequired')
-  state().submitUnlock('this is definitely not the password')
+  await state().submitUnlock('this is definitely not the password')
   assert.equal(state().unlockError, 'unlock.error.wrongPassword')
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(settled, false)
   assert.equal(state().unlockOpen, true)
 
-  state().submitUnlock(PASSWORD)
+  await state().submitUnlock(PASSWORD)
   const seed = await pending
   assert.match(seed, /^0x[0-9a-f]{64}$/)
   assert.equal(state().unlockOpen, false)
@@ -141,10 +150,9 @@ test('a certificate close to expiry asks for the password and is renewed', async
   const state = () => useUserStore.getState()
 
   state().initializeUser()
-  await new Promise(resolve => setImmediate(resolve))
-  assert.equal(state().unlockOpen, true)
+  await waitFor(() => state().unlockOpen)
 
-  state().submitUnlock(PASSWORD)
+  await state().submitUnlock(PASSWORD)
   for (
     let i = 0;
     i < 50 && state().identity.device.cert === old.identity.device.cert;
@@ -189,4 +197,16 @@ test('an invite identity with an empty password unlocks without a prompt', async
   assert.equal(seed, danger)
   assert.equal(state().unlockOpen, false)
   assert.equal(state().seed, danger)
+})
+
+test('a stored v1 identity is dropped so the user signs in again', async () => {
+  const { useUserStore } = await loadModules()
+  const identity = await signIn(useUserStore)
+  const v1 = { ...identity }
+  delete v1.version
+  localStorage.setItem('mostbox_identity', JSON.stringify(v1))
+
+  useUserStore.getState().initializeUser()
+  assert.equal(useUserStore.getState().identity, null)
+  assert.equal(localStorage.getItem('mostbox_identity'), null)
 })
