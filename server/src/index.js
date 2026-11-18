@@ -29,7 +29,6 @@ import {
   parseMostLink,
   buildMostLink,
 } from './core/cid.js'
-import { normalizeChannelAttachment } from './core/channelAttachment.js'
 import { ACCOUNT_HELLO_TYPE, AccountSync } from './node/accountSync.js'
 import {
   compareChannelHistoryEntries,
@@ -68,7 +67,6 @@ import {
   verifyChannelProof,
 } from './core/channelKeysV2.js'
 import {
-  CHANNEL_MEMBER_JOINED_EVENT,
   CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS,
   CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
   getChannelHistoryDedupeKey,
@@ -79,9 +77,11 @@ import {
 import {
   SIGNED_TS_FUTURE_LIMIT_MS,
   buildSignedEntry,
-  isSignedEntry,
+  readSignedEntry,
   readSignedMessageEntry,
+  readSignedProfileEntry,
   signedMessageError,
+  signedProfileError,
 } from './core/channelSignedEntry.js'
 import { canonicalJson } from './core/canonicalJson.js'
 import { ChannelPresenceManager } from './core/channelPresence.js'
@@ -164,7 +164,6 @@ import {
   PROGRESS_THROTTLE,
   DEFAULT_READ_LIMIT,
   CHANNEL_MESSAGE_LIMIT,
-  MAX_MESSAGE_LENGTH,
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -3968,17 +3967,12 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #joinExistingChannel(existing, options) {
-    const wasMember = this.#channelHasMember(existing, options.ownerAddress)
     const memberChanged = this.#upsertChannelMember(existing, options)
     if (memberChanged) {
       existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
       this.#saveChannelsMetadata()
       this.#broadcastChannelHello()
     }
-    if (!wasMember || memberChanged) {
-      await this.#appendChannelMemberProfileMessage(existing, options)
-    }
-    await this.#appendChannelWelcomeMessage(existing, options, wasMember)
     return this.#formatChannelForResponse(existing, options.ownerAddress)
   }
 
@@ -4196,11 +4190,12 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  /** Message shape of a writer core block, or null when it is not shown. */
+  /**
+   * A writer core block as a message or a member profile event, or null:
+   * v2 cores hold only signed entries (signatures.md §6).
+   */
   #decodeChannelEntry(entry, channelKey) {
-    if (isSignedEntry(entry)) return readSignedMessageEntry(entry, channelKey)
-    // Unsigned system events stay readable until they are signed too.
-    return entry?.type === 'system' ? entry : null
+    return readSignedEntry(entry, channelKey)
   }
 
   async #readChannelHistory(channel, { strict = false } = {}) {
@@ -4356,175 +4351,6 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  // Unsigned system events (joined, profile) until they become signed
-  // entries (signatures.md §6).
-  async #sendLegacySystemMessage(
-    channelKeyInput,
-    content,
-    author,
-    authorName,
-    options = {}
-  ) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const key = channel.channelKey
-    return this.#enqueueChannelWrite(key, () =>
-      this.#sendChannelMessage(key, content, author, authorName, options)
-    )
-  }
-
-  async #sendChannelMessage(
-    channelKeyInput,
-    content,
-    author,
-    authorName,
-    options
-  ) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-
-    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
-    const coresMap = this.#channelCores.get(channel.channelKey)
-    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
-    if (!core) {
-      throw new Error('频道未初始化或无可写 core')
-    }
-
-    if (!content || !content.trim()) {
-      throw new Error('消息内容不能为空')
-    }
-
-    const trimmed = content.trim()
-    const authorAddress = normalizeOwnerAddress(author)
-    if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
-    }
-    const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
-      strict: hasOwnProperty(options, 'clientMessageId'),
-    })
-    const attachment = normalizeChannelAttachment(options.attachment)
-    const mentions = normalizeChannelMentionList(options.mentions, trimmed, {
-      strict: hasOwnProperty(options, 'mentions'),
-      attachment,
-    })
-    if (attachment && trimmed !== attachment.link) {
-      throw new ValidationError('attachment content must match link')
-    }
-    if (clientMessageId) {
-      const index = await this.#refreshChannelHistoryIndex(channel, {
-        strict: true,
-      })
-      const existing = index.byClientId.get(
-        `${authorAddress}:${clientMessageId}`
-      )
-      if (existing) {
-        const samePayload =
-          existing.content === trimmed &&
-          JSON.stringify(existing.attachment || null) ===
-            JSON.stringify(attachment) &&
-          JSON.stringify(existing.mentions || []) ===
-            JSON.stringify(mentions) &&
-          existing.type === (options.type === 'system' ? 'system' : 'message')
-        if (!samePayload) {
-          throw new ConflictError(
-            'clientMessageId already identifies another message'
-          )
-        }
-        const message = { ...existing }
-        delete message._coreKey
-        delete message._index
-        return this.#normalizeChannelMessageForResponse(
-          channel.channelKey,
-          message
-        )
-      }
-    }
-    const existingMember = Array.isArray(channel?.members)
-      ? channel.members.find(
-          member => normalizeOwnerAddress(member?.address) === authorAddress
-        )
-      : null
-    let normalizedAuthorTag
-    if (hasOwnProperty(options, 'authorTag')) {
-      normalizedAuthorTag = normalizeLocalizedChatTag(options.authorTag)
-      if (!normalizedAuthorTag) {
-        throw new ValidationError('Invalid authorTag')
-      }
-    } else if (existingMember?.tag && typeof existingMember.tag === 'object') {
-      normalizedAuthorTag = normalizeLocalizedChatTag(existingMember.tag)
-    }
-    if (
-      channel &&
-      this.#upsertChannelMember(channel, {
-        ownerAddress: options.ownerAddress,
-        displayName: authorName,
-        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
-          ? { avatar: options.avatar }
-          : {}),
-      })
-    ) {
-      this.#saveChannelsMetadata()
-    }
-
-    const normalizedAvatar = normalizeChannelAvatar(options.avatar)
-    const message = {
-      type: options.type === 'system' ? 'system' : 'message',
-      author,
-      authorName: normalizeChannelDisplayName(
-        authorName,
-        normalizeOwnerAddress(author)
-      ),
-      content: trimmed,
-      timestamp: await this.#getNextChannelMessageTimestamp(channel),
-    }
-    if (normalizedAuthorTag) {
-      message.authorTag = normalizedAuthorTag
-    }
-    if (clientMessageId) {
-      message.clientMessageId = clientMessageId
-    }
-    if (normalizedAvatar) {
-      message.avatar = normalizedAvatar
-    }
-    if (attachment) {
-      message.attachment = attachment
-    }
-    if (mentions.length > 0) {
-      message.mentions = mentions
-    }
-    if (message.type === 'system') {
-      const event = String(options.event || '').trim()
-      if (event) message.event = event
-      if (
-        event === CHANNEL_MEMBER_PROFILE_UPDATED_EVENT &&
-        options.memberProfile &&
-        typeof options.memberProfile === 'object'
-      ) {
-        message.member = options.memberProfile
-      }
-    }
-
-    try {
-      await core.append(message)
-    } catch (err) {
-      if (!this.#isRecoverableChannelAppendError(err)) {
-        throw err
-      }
-      const reopenedCore = await this.#reopenChannelLocalWriter(channel, {
-        forceNamedWriter: this.#isReadOnlySessionError(err),
-      })
-      await reopenedCore.append(message)
-    }
-    if (channel && !isChannelMemberProfileEventEntry(message)) {
-      channel.lastMessageAt = new Date(message.timestamp).toISOString()
-      this.#saveChannelsMetadata()
-    }
-
-    return this.#normalizeChannelMessageForResponse(channel.channelKey, message)
-  }
-
   /**
    * 获取频道内在线用户
    * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
@@ -4567,29 +4393,50 @@ export class MostBoxEngine extends EventEmitter {
     return this.#getChannelMembers(channel)
   }
 
-  async updateChannelMemberProfile(channelKeyInput, options = {}) {
+  /**
+   * Writes a member profile the client signed (signatures.md §4.2, §6).
+   * @param {{ body: object, device: string, cert: string, sig: string }} signed
+   */
+  async updateChannelMemberProfile(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const author = normalizeOwnerAddress(options.author)
-    if (!ownerAddress || !author || ownerAddress !== author) {
+    this.#assertChannelMember(channelKeyInput, ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    const error = signedProfileError(signed, { channelId: channel.channelKey })
+    if (error) throw new ValidationError(`Invalid signed profile: ${error}`)
+    if (ownerAddress && signed.body.author !== ownerAddress) {
       throw new PermissionError(
         'member profile author must match logged-in user'
       )
     }
-    this.#assertChannelMember(channelKeyInput, ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
-    const event = await this.#appendChannelMemberProfileMessage(channel, {
-      ...options,
-      ownerAddress,
-      author,
+    const author = signed.body.author
+    return this.#enqueueChannelWrite(channel.channelKey, async () => {
+      const entry = buildSignedEntry(
+        signed,
+        await this.#getNextChannelMessageTimestamp(channel)
+      )
+      // Applying fails for a createdAt too far ahead; refuse it unwritten.
+      const profileEvent = readSignedProfileEntry(entry, channel.channelKey)
+      if (!this.#normalizeChannelMemberProfileEvent(profileEvent)) {
+        throw new ValidationError('createdAt is too far ahead')
+      }
+      await this.#appendLocalChannelEntry(channel, entry)
+      const event = this.#applyChannelMemberProfileEvent(
+        channel,
+        profileEvent,
+        {
+          save: true,
+          emit: true,
+        }
+      )
+      return {
+        success: true,
+        member: this.#getChannelMembers(channel).find(
+          member => member.address === author
+        ),
+        event,
+      }
     })
-    return {
-      success: Boolean(event),
-      member: this.#getChannelMembers(channel).find(
-        member => member.address === ownerAddress
-      ),
-      event,
-    }
   }
 
   /**
@@ -4667,8 +4514,6 @@ export class MostBoxEngine extends EventEmitter {
     await this.#openChannelRuntime(channelInfo)
     await this.#joinChannelDiscoveryTopics(channelInfo)
     this.#saveChannelsMetadata()
-    await this.#appendChannelMemberProfileMessage(channelInfo, options)
-    await this.#appendChannelWelcomeMessage(channelInfo, options, false)
     this.#broadcastChannelHello()
     return channelInfo
   }
@@ -4929,106 +4774,6 @@ export class MostBoxEngine extends EventEmitter {
     return Math.floor(value)
   }
 
-  #getNextMemberProfileUpdatedAt(channel, address) {
-    const normalizedAddress = normalizeOwnerAddress(address)
-    const existing = Array.isArray(channel?.members)
-      ? channel.members.find(
-          member => normalizeOwnerAddress(member?.address) === normalizedAddress
-        )
-      : null
-    const current = this.#normalizeMemberProfileUpdatedAt(
-      existing?.profileUpdatedAt
-    )
-    return Math.max(Date.now(), current + 1)
-  }
-
-  async #appendChannelWelcomeMessage(channel, options = {}, wasMember = false) {
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    if (wasMember || !ownerAddress || !channel) {
-      return false
-    }
-    await this.#sendLegacySystemMessage(
-      channel.channelKey,
-      CHANNEL_MEMBER_JOINED_EVENT,
-      ownerAddress,
-      normalizeChannelDisplayName(options.displayName, ownerAddress),
-      {
-        ownerAddress,
-        type: 'system',
-        event: CHANNEL_MEMBER_JOINED_EVENT,
-        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
-          ? { avatar: options.avatar }
-          : {}),
-      }
-    )
-    return true
-  }
-
-  async #appendChannelMemberProfileMessage(channel, options = {}) {
-    const ownerAddress = normalizeOwnerAddress(
-      options.ownerAddress || options.author
-    )
-    if (!ownerAddress || !channel) {
-      return null
-    }
-
-    const hasTag = hasOwnProperty(options, 'tag')
-    const tagPatch = normalizeChatMemberTagPatch(options.tag, hasTag)
-    if (tagPatch.action === 'invalid') {
-      throw new ValidationError('Invalid member tag')
-    }
-    const displayName = normalizeChannelDisplayName(
-      options.displayName,
-      ownerAddress
-    )
-    const avatar = normalizeChannelAvatar(options.avatar)
-    const profileUpdatedAt = this.#getNextMemberProfileUpdatedAt(
-      channel,
-      ownerAddress
-    )
-    const memberProfile = {
-      address: ownerAddress,
-      displayName,
-      profileUpdatedAt,
-    }
-    if (hasOwnProperty(options, 'avatar')) {
-      memberProfile.avatar = avatar
-    }
-    if (tagPatch.action === 'set') {
-      memberProfile.tag = tagPatch.tag
-    } else if (tagPatch.action === 'clear') {
-      memberProfile.tag = null
-    }
-
-    if (
-      this.#upsertChannelMember(channel, {
-        ownerAddress,
-        displayName,
-        ...(hasOwnProperty(options, 'avatar') ? { avatar } : {}),
-        ...(hasTag ? { tag: memberProfile.tag } : {}),
-        profileUpdatedAt,
-      })
-    ) {
-      channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
-      this.#saveChannelsMetadata()
-      this.#broadcastChannelHello()
-    }
-
-    return this.#sendLegacySystemMessage(
-      channel.channelKey,
-      CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
-      ownerAddress,
-      displayName,
-      {
-        ownerAddress,
-        type: 'system',
-        event: CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
-        memberProfile,
-        ...(hasOwnProperty(options, 'avatar') ? { avatar } : {}),
-      }
-    )
-  }
-
   #normalizeChannelMemberProfileEvent(message, { strict = false } = {}) {
     if (!isChannelMemberProfileEventEntry(message)) {
       if (strict) throw new ValidationError('Invalid member profile event')
@@ -5186,11 +4931,10 @@ export class MostBoxEngine extends EventEmitter {
     const entries = []
     for (let i = 0; i < core.length; i++) {
       try {
-        const entry = await core.get(i, { wait: false })
-        if (entry === null) break
-        if (isChannelMemberProfileEventEntry(entry)) {
-          entries.push(entry)
-        }
+        const raw = await core.get(i, { wait: false })
+        if (raw === null) break
+        const entry = readSignedProfileEntry(raw, channel.channelKey)
+        if (entry) entries.push(entry)
       } catch {
         break
       }
@@ -5272,7 +5016,7 @@ export class MostBoxEngine extends EventEmitter {
         const message = this.#decodeChannelEntry(entry, channelKey)
         if (!message) continue
         index.timestamps.push(Number(message.timestamp) || 0)
-        if (isSignedEntry(entry)) {
+        if (message.type === 'message') {
           const key = `${message.author}:${message.clientMessageId}`
           const candidate = {
             ...message,

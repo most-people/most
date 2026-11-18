@@ -22,6 +22,7 @@ import {
   addressOf,
   sendTestMessage,
   signedMessage,
+  updateTestProfile,
 } from '../helpers/signedMessage.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -4019,59 +4020,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     })
   })
 
-  describe('channel welcome messages', () => {
-    it('writes a system member-joined message with the joining profile snapshot', async () => {
-      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
-      const channelName = `welcome-${uid}`
-      await engine.createChannel(channelName, 'public', {
-        ownerAddress,
-        displayName: 'Alice#5678',
-        avatar: 'data:image/png;base64,alice',
-      })
-
-      const messages = await engine.getChannelMessages(channelName, {
-        ownerAddress,
-      })
-
-      assert.strictEqual(messages.length, 1)
-      assert.strictEqual(messages[0].type, 'system')
-      assert.strictEqual(messages[0].event, 'channel.member.joined')
-      assert.strictEqual(messages[0].content, 'channel.member.joined')
-      assert.strictEqual(messages[0].author, ownerAddress)
-      assert.strictEqual(messages[0].authorName, 'Alice#5678')
-      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,alice')
-    })
-
-    it('does not repeat the welcome message for an existing member', async () => {
-      const alice = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-      const channelName = `welcome-once-${uid}`
-      await engine.createChannel(channelName, 'public', {
-        ownerAddress: alice,
-        displayName: 'Alice',
-      })
-      await engine.createChannel(channelName, 'public', {
-        ownerAddress: alice,
-        displayName: 'Alice Fresh',
-        avatar: 'alice.png',
-      })
-      await engine.joinChannel(channelName, null, {
-        ownerAddress: alice,
-        displayName: 'Alice Again',
-      })
-
-      const messages = await engine.getChannelMessages(channelName, {
-        ownerAddress: alice,
-      })
-      const welcomeMessages = messages.filter(
-        message => message.event === 'channel.member.joined'
-      )
-
-      assert.strictEqual(welcomeMessages.length, 1)
-      assert.strictEqual(welcomeMessages[0].type, 'system')
-      assert.strictEqual(welcomeMessages[0].authorName, 'Alice')
-    })
-  })
-
   describe('sendMessage() and getChannelMessages()', () => {
     let msgEngine
     let msgTmpDir
@@ -4186,7 +4134,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         'zh-CN': '有人@我',
         en: 'Mentioned',
       })
-      assert.ok(profiles[0].profileUpdatedAt)
 
       const msg = await sendTestMessage(msgEngine, ch, 'hello with tag', {
         signer,
@@ -4205,18 +4152,57 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       assert.ok(messages.some(item => item.content === 'hello with tag'))
       assert.ok(messages.every(item => item.content !== profileEvent))
 
-      await msgEngine.updateChannelMemberProfile(ch, {
+      const cleared = await updateTestProfile(msgEngine, ch, {
+        signer,
         ownerAddress: author,
-        author,
         displayName: 'Tagged Sender',
         tag: null,
       })
+      assert.strictEqual(cleared.member.tag, null)
       profiles = msgEngine.getChannelMemberProfiles(ch, {
         ownerAddress: author,
       })
       assert.strictEqual(profiles[0].tag, null)
+      const clearedAt = profiles[0].profileUpdatedAt
+      assert.ok(clearedAt)
+      const history = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.ok(history.every(item => item.content !== profileEvent))
 
+      // An older signed profile does not win (newest createdAt wins).
+      await updateTestProfile(msgEngine, ch, {
+        signer,
+        ownerAddress: author,
+        displayName: 'Stale Sender',
+        tag: { default: 'stale' },
+        createdAt: clearedAt - 1000,
+      })
+      // A createdAt more than 5 minutes ahead is refused.
+      await assert.rejects(
+        updateTestProfile(msgEngine, ch, {
+          signer,
+          ownerAddress: author,
+          displayName: 'Future Sender',
+          createdAt: Date.now() + 10 * 60 * 1000,
+        }),
+        /too far ahead/
+      )
+      profiles = msgEngine.getChannelMemberProfiles(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(profiles[0].tag, null)
       assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
+
+      // Another account cannot write this member's profile.
+      await assert.rejects(
+        updateTestProfile(msgEngine, ch, {
+          signer: Wallet.createRandom(),
+          ownerAddress: author,
+          displayName: 'Impostor',
+        }),
+        /must match logged-in user/
+      )
     })
 
     it('replays the latest member tag after restart', async () => {
@@ -4225,7 +4211,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const dataPath = path.join(restartTmpDir, 'data')
       const ch = `tag-restart-${uid}`
-      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       let restartEngine
 
       try {
@@ -4239,9 +4226,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           displayName: 'Restart Tagged',
           tag: { default: 'old', en: 'Old' },
         })
-        await restartEngine.updateChannelMemberProfile(ch, {
+        await updateTestProfile(restartEngine, ch, {
+          signer,
           ownerAddress: author,
-          author,
           displayName: 'Restart Tagged',
           tag: { default: 'new', en: 'New' },
         })
@@ -4257,9 +4244,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         })
         assert.deepStrictEqual(profiles[0].tag, { default: 'new', en: 'New' })
 
-        await restartEngine.updateChannelMemberProfile(ch, {
+        await updateTestProfile(restartEngine, ch, {
+          signer,
           ownerAddress: author,
-          author,
           displayName: 'Restart Tagged',
           tag: null,
         })
@@ -4777,6 +4764,53 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
         fs.rmSync(clockTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('carries a signed member profile to another node', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'most-profile-sync-'))
+      const ch = `profile-sync-${uid}`
+      const signer = Wallet.createRandom()
+      let firstEngine
+      let secondEngine
+      let replication
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: path.join(tmp, 'first'),
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: path.join(tmp, 'second'),
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+        await firstEngine.createChannel(ch, 'public')
+        await secondEngine.createChannel(ch, 'public')
+        replication = firstEngine.replicateWith(secondEngine)
+
+        await updateTestProfile(firstEngine, ch, {
+          signer,
+          displayName: 'Remote Member',
+          tag: { en: 'Host' },
+        })
+        const deadline = Date.now() + 5000
+        let member
+        while (!member && Date.now() < deadline) {
+          await secondEngine.getChannelMessages(ch)
+          member = secondEngine
+            .getChannelMemberProfiles(ch)
+            .find(item => item.address === addressOf(signer))
+          if (!member) await sleep(25)
+        }
+        assert.ok(member, 'profile did not reach the other node')
+        assert.strictEqual(member.displayName, 'Remote Member')
+        assert.deepStrictEqual(member.tag, { en: 'Host' })
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(tmp, { recursive: true, force: true })
       }
     })
 
@@ -5540,68 +5574,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
         fs.rmSync(mergeTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('deduplicates the same member-joined system message from multiple writer cores', async () => {
-      const joinTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-channel-join-dedupe-test-')
-      )
-      const firstDataPath = path.join(joinTmpDir, 'first')
-      const secondDataPath = path.join(joinTmpDir, 'second')
-      const channelName = `join-dedupe-${uid}`
-      const visitor = `0x${'9'.repeat(40)}`
-      let firstEngine
-      let secondEngine
-      let replication
-
-      try {
-        firstEngine = new MostBoxEngine({
-          dataPath: firstDataPath,
-          disableNetwork: true,
-        })
-        secondEngine = new MostBoxEngine({
-          dataPath: secondDataPath,
-          disableNetwork: true,
-        })
-        await firstEngine.start()
-        await secondEngine.start()
-
-        const first = await firstEngine.createChannel(channelName, 'public', {
-          ownerAddress: visitor,
-          displayName: 'Visitor',
-        })
-        const second = await secondEngine.createChannel(channelName, 'public', {
-          ownerAddress: visitor,
-          displayName: 'Visitor',
-        })
-        await firstEngine.joinChannel(channelName, toChannelCandidate(second), {
-          ownerAddress: visitor,
-          displayName: 'Visitor',
-        })
-        await secondEngine.joinChannel(channelName, toChannelCandidate(first), {
-          ownerAddress: visitor,
-          displayName: 'Visitor',
-        })
-
-        replication = firstEngine.replicateWith(secondEngine)
-        await sleep(50)
-
-        const messages = await firstEngine.getChannelMessages(channelName, {
-          ownerAddress: visitor,
-        })
-        const welcomeMessages = messages.filter(
-          message => message.event === 'channel.member.joined'
-        )
-
-        assert.strictEqual(welcomeMessages.length, 1)
-        assert.strictEqual(welcomeMessages[0].author, visitor)
-        assert.strictEqual(welcomeMessages[0].authorName, 'Visitor')
-      } finally {
-        replication?.close()
-        if (firstEngine) await firstEngine.stop().catch(() => {})
-        if (secondEngine) await secondEngine.stop().catch(() => {})
-        fs.rmSync(joinTmpDir, { recursive: true, force: true })
       }
     })
 

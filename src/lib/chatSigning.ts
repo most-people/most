@@ -98,6 +98,45 @@ export function buildMessageBody(input: MessageBodyInput): MessageBody {
   return body
 }
 
+export interface ProfileBody {
+  kind: 'profile'
+  channelId: string
+  author: string
+  id: string
+  createdAt: number
+  displayName: string
+  avatar: string
+  tag?: LocalizedTag | null
+}
+
+/** Absent `tag` leaves it unchanged; `null` clears it (signatures.md §4.2). */
+export function buildProfileBody(input: {
+  channelId: string
+  author: string
+  id: string
+  displayName?: string
+  avatar?: string
+  tag?: LocalizedTag | null
+}): ProfileBody {
+  if (!isChannelId(input.channelId)) throw new Error('Unknown channel ID')
+  const author = input.author.toLowerCase()
+  const body: ProfileBody = {
+    kind: 'profile',
+    channelId: input.channelId,
+    author,
+    id: input.id,
+    createdAt: Date.now(),
+    displayName: normalizeDisplayName(input.displayName, author.slice(0, 10)),
+    avatar: normalizeAvatar(input.avatar),
+  }
+  if (input.tag === null) body.tag = null
+  else if (input.tag !== undefined) {
+    const tag = normalizeLocalizedChatTag(input.tag) as LocalizedTag | undefined
+    if (tag) body.tag = tag
+  }
+  return body
+}
+
 export function signChatBody<Body extends { kind: string }>(
   body: Body,
   device: DeviceCredential

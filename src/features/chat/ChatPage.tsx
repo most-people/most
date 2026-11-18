@@ -66,6 +66,7 @@ import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { shortAddress } from '~/lib/format'
+import { buildProfileBody, isChannelId, signChatBody } from '~/lib/chatSigning'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
@@ -963,9 +964,17 @@ function ChatPage() {
       stringifyMemberTag(persistedProfile?.tag) ===
         stringifyMemberTag(desiredProfile.tag)
 
-    if (persistedProfile && displayNameMatches && avatarMatches && tagMatches) {
+    // Without profileUpdatedAt the node only holds what this client sent when
+    // joining; other members learn the profile from a signed entry.
+    if (
+      persistedProfile?.profileUpdatedAt &&
+      displayNameMatches &&
+      avatarMatches &&
+      tagMatches
+    ) {
       return
     }
+    if (!isChannelId(activeChannelKey)) return
 
     const submitKey = JSON.stringify([
       activeChannelKey,
@@ -980,12 +989,17 @@ function ChatPage() {
     lastSubmittedMemberProfileKeyRef.current = submitKey
 
     let cancelled = false
-    const profilePayload = {
-      channelName: activeChannelKey,
+    const profileBody = buildProfileBody({
+      channelId: activeChannelKey,
       author: desiredAuthor,
+      id: crypto.randomUUID(),
       displayName: desiredProfile.displayName,
       avatar: desiredProfile.avatar,
-      ...(shouldSyncTag ? { tag: desiredProfile.tag } : {}),
+      ...(shouldSyncTag ? { tag: desiredProfile.tag ?? null } : {}),
+    })
+    const profilePayload = {
+      channelName: activeChannelKey,
+      signed: signChatBody(profileBody, userIdentity.device),
     }
 
     channelApi

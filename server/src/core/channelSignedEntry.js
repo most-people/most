@@ -9,7 +9,10 @@ import {
 import { normalizeLocalizedChatTag } from '../utils/chatLabels.js'
 import { canonicalJson } from './canonicalJson.js'
 import { normalizeChannelAttachment } from './channelAttachment.js'
-import { normalizeChannelMentionList } from './channelMessage.js'
+import {
+  CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
+  normalizeChannelMentionList,
+} from './channelMessage.js'
 import { readableBodyError } from './chatSigning.js'
 import { verifySignedEnvelope } from './chatSignaturesV2.js'
 
@@ -120,4 +123,62 @@ export function readSignedMessageEntry(entry, channelId) {
     if (has(body, field) && check(body)) message[field] = body[field]
   }
   return message
+}
+
+// Profile fields (§4.2): absent leaves a field unchanged; `tag: null` clears
+// the tag. Same rule as messages: written only in normal form, and a field not
+// in normal form is not applied on read.
+const PROFILE_FIELD_CHECKS = {
+  displayName: body =>
+    typeof body.displayName === 'string' &&
+    normalizeChannelDisplayName(body.displayName, body.author) ===
+      body.displayName,
+  avatar: body => normalizeChannelAvatar(body.avatar) === body.avatar,
+  tag: body =>
+    body.tag === null ||
+    sameJson(normalizeLocalizedChatTag(body.tag), body.tag),
+}
+
+/** Checks a signed `profile` envelope a client sends; '' when acceptable. */
+export function signedProfileError(envelope, { channelId } = {}) {
+  const verified = verifySignedEnvelope(envelope, { channelId })
+  if (!verified.ok) return verified.error
+  const { body } = envelope
+  if (body.kind !== 'profile') return 'expected a profile body'
+  for (const [field, check] of Object.entries(PROFILE_FIELD_CHECKS)) {
+    if (has(body, field) && !check(body)) return `invalid ${field}`
+  }
+  return ''
+}
+
+/**
+ * A signed `profile` entry as the member profile event the engine applies
+ * (newest createdAt wins), or null when it is not one.
+ */
+export function readSignedProfileEntry(entry, channelId) {
+  if (!isSignedEntry(entry)) return null
+  if (!Number.isSafeInteger(entry.ts) || entry.ts <= 0) return null
+  if (!verifySignedEnvelope(entry, { channelId }).ok) return null
+  const { body } = entry
+  if (body.kind !== 'profile' || readableBodyError(body)) return null
+  const member = { address: body.author, profileUpdatedAt: body.createdAt }
+  for (const [field, check] of Object.entries(PROFILE_FIELD_CHECKS)) {
+    if (has(body, field) && check(body)) member[field] = body[field]
+  }
+  return {
+    type: 'system',
+    event: CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
+    content: CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
+    author: body.author,
+    member,
+    timestamp: entry.ts,
+  }
+}
+
+/** What a writer core block shows: a message, a profile event, or null. */
+export function readSignedEntry(entry, channelId) {
+  return (
+    readSignedMessageEntry(entry, channelId) ||
+    readSignedProfileEntry(entry, channelId)
+  )
 }

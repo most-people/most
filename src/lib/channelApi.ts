@@ -1,7 +1,11 @@
 import type { FileSubtype } from '~/lib/filePreview'
 import type { LocalizedTag, MemberTag } from '~/lib/localizedTag'
 import { api, getApiUrl } from '~server/src/utils/api'
-import type { MessageBody, SignedEnvelope } from '~/lib/chatSigning'
+import type {
+  MessageBody,
+  ProfileBody,
+  SignedEnvelope,
+} from '~/lib/chatSigning'
 
 export interface ChannelAttachment {
   kind: FileSubtype
@@ -98,9 +102,9 @@ interface ChannelProfileInput {
   tag?: MemberTag
 }
 
-interface UpdateMemberProfileInput extends ChannelProfileInput {
+interface UpdateMemberProfileInput {
   channelName: string
-  author: string
+  signed: SignedEnvelope<ProfileBody>
 }
 
 interface UpdateMemberProfileResult {
@@ -191,22 +195,12 @@ export const channelApi = {
 
   updateChannelMemberProfile({
     channelName,
-    author,
-    displayName,
-    avatar,
-    tag,
+    signed,
   }: UpdateMemberProfileInput) {
     return api
       .post<UpdateMemberProfileResult>(
         `/api/channels/${encodeURIComponent(channelName)}/member-profile`,
-        {
-          json: {
-            author,
-            displayName,
-            avatar,
-            tag,
-          },
-        }
+        { json: { signed } }
       )
       .json()
   },

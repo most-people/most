@@ -1,4 +1,3 @@
-import { normalizeAddress } from '../../core/shared.js'
 import { badRequestOrAppError } from '../errors.js'
 
 export function registerChannelRoutes(app, { engine }) {
@@ -122,36 +121,20 @@ export function registerChannelRoutes(app, { engine }) {
   app.post('/api/channels/:name/member-profile', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
-    if (!body.author) {
-      return c.json({ error: 'author is required' }, 400)
+    const signed = body?.signed
+    if (!signed || typeof signed !== 'object' || Array.isArray(signed)) {
+      return c.json({ error: 'signed profile is required' }, 400)
     }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
-      return c.json({ error: 'Invalid author format' }, 400)
-    }
-    if (normalizeAddress(body.author) !== c.get('userAddress')) {
+    if (signed.body?.author !== c.get('userAddress')) {
       return c.json(
         { error: 'member profile author must match logged-in user' },
         403
       )
     }
     try {
-      const profileOptions = {
+      const result = await engine.updateChannelMemberProfile(name, signed, {
         ownerAddress: c.get('userAddress'),
-        author: body.author,
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'displayName')) {
-        profileOptions.displayName = body.displayName
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
-        profileOptions.avatar = body.avatar
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'tag')) {
-        profileOptions.tag = body.tag
-      }
-      const result = await engine.updateChannelMemberProfile(
-        name,
-        profileOptions
-      )
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return badRequestOrAppError(c, err)

@@ -13,7 +13,7 @@ import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginSession } from '../../src/utils/userIdentity.js'
 import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
-import { signedMessage } from '../helpers/signedMessage.js'
+import { signedMessage, signedProfile } from '../helpers/signedMessage.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
@@ -776,7 +776,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         { $ref: '#/components/schemas/LocalizedTagInput' }
       )
       assert.deepStrictEqual(
-        spec.components.schemas.ChannelMemberProfileRequest.properties.tag,
+        spec.components.schemas.ChannelMemberProfileRequest.properties.signed
+          .properties.body.properties.tag,
         { $ref: '#/components/schemas/MemberTagInput' }
       )
       assert.ok(spec.components.schemas.ChannelMessage.properties.mentions)
@@ -3069,7 +3070,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         'zh-CN': '有人@我',
         en: 'Mentioned',
       })
-      assert.ok(profiles[0].profileUpdatedAt)
     })
 
     it('returns existing channel if already created', async () => {
@@ -3220,9 +3220,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            author: TEST_IDENTITY.address,
-            displayName: 'Tagged API User',
-            tag: null,
+            signed: await signedProfile(engine.resolveChannelKey(channelName), {
+              identity: TEST_IDENTITY,
+              displayName: 'Tagged API User',
+              tag: null,
+            }),
           }),
         }
       )
@@ -3465,14 +3467,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
+      // Joining writes nothing to the channel (signatures.md §6).
       assert.deepStrictEqual(
-        data.map(message => message.type),
-        ['system', 'message', 'message']
-      )
-      assert.strictEqual(data[0].event, 'channel.member.joined')
-      assert.deepStrictEqual(
-        data.slice(1).map(message => message.content),
-        ['msg1', 'msg2']
+        data.map(message => [message.type, message.content]),
+        [
+          ['message', 'msg1'],
+          ['message', 'msg2'],
+        ]
       )
     })
 
@@ -3491,19 +3492,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
 
-    it('returns a system member-joined message for a newly joined chat channel', async () => {
-      await engine.createChannel(`empty-${uid}`)
-      const res = await fetch(`${baseUrl}/api/channels/empty-${uid}/messages`)
-      const data = await res.json()
-      assert.strictEqual(res.status, 200)
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].type, 'system')
-      assert.strictEqual(data[0].event, 'channel.member.joined')
-      assert.strictEqual(data[0].content, 'channel.member.joined')
-      assert.strictEqual(data[0].author, TEST_IDENTITY.address.toLowerCase())
-    })
-
     it('supports pagination with limit and offset', async () => {
       await engine.createChannel(`page-${uid}`)
       for (let i = 0; i < 5; i++) {
@@ -3519,71 +3507,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('channel join history messages', () => {
-    it('records each new chat member with a welcome message snapshot', async () => {
-      const channelName = `members-${uid}`
-      const firstJoin = await fetch(`${baseUrl}/api/channels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: channelName,
-          type: 'public',
-          displayName: 'FirstUser',
-          avatar: 'first.png',
-        }),
-      })
-      assert.strictEqual(firstJoin.status, 200)
-
-      await new Promise(resolve => setTimeout(resolve, 5))
-      const secondJoin = await fetchAs(
-        SECOND_IDENTITY,
-        `${baseUrl}/api/channels`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: channelName,
-            type: 'public',
-            displayName: 'SecondUser',
-            avatar: 'second.png',
-          }),
-        }
-      )
-      assert.strictEqual(secondJoin.status, 200)
-
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`)
-      const data = await res.json()
-      const welcomeMessages = data.filter(
-        message => message.event === 'channel.member.joined'
-      )
-
-      assert.strictEqual(res.status, 200)
-      assert.deepStrictEqual(
-        welcomeMessages.map(message => message.author),
-        [
-          TEST_IDENTITY.address.toLowerCase(),
-          SECOND_IDENTITY.address.toLowerCase(),
-        ]
-      )
-      assert.deepStrictEqual(
-        welcomeMessages.map(message => message.type),
-        ['system', 'system']
-      )
-      assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
-      assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
-      assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
-      assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
-      const listRes = await fetch(`${baseUrl}/api/channels`)
-      const channels = await listRes.json()
-      const channel = channels.find(item => item.name === channelName)
-      assert.strictEqual(listRes.status, 200)
-      assert.strictEqual(channel.members, undefined)
-      assert.ok(
-        Number(welcomeMessages[0].timestamp) <=
-          Number(welcomeMessages[1].timestamp)
-      )
-    })
-
+  describe('channel members endpoint', () => {
     it('does not expose the old channel members endpoint', async () => {
       const channelName = `removed-members-${uid}`
       await engine.createChannel(channelName)

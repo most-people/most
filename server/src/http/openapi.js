@@ -871,12 +871,33 @@ const schemas = {
   },
   ChannelMemberProfileRequest: {
     type: 'object',
-    required: ['author'],
+    required: ['signed'],
     properties: {
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      displayName: { type: 'string' },
-      avatar: { type: 'string' },
-      tag: ref('MemberTagInput'),
+      signed: {
+        type: 'object',
+        description:
+          'A profile body signed by the client device key (docs/protocol/v2/signatures.md §4.2). Absent fields stay unchanged; tag null clears the tag. The newest createdAt wins.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: ['kind', 'channelId', 'author', 'id', 'createdAt'],
+            properties: {
+              kind: { const: 'profile' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              displayName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              tag: ref('MemberTagInput'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelRemarkRequest: {

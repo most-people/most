@@ -8,7 +8,10 @@ import {
   createDeviceKey,
   issueDeviceCertWithSigner,
 } from '../../server/src/utils/auth.js'
-import { signedMessageError } from '../../server/src/core/channelSignedEntry.js'
+import {
+  signedMessageError,
+  signedProfileError,
+} from '../../server/src/core/channelSignedEntry.js'
 
 async function importSigningModule() {
   const result = await build({
@@ -30,7 +33,8 @@ async function importSigningModule() {
   )
 }
 
-const { buildMessageBody, signChatBody } = await importSigningModule()
+const { buildMessageBody, buildProfileBody, signChatBody } =
+  await importSigningModule()
 const wallet = Wallet.createRandom()
 const key = createDeviceKey()
 const device = {
@@ -106,4 +110,21 @@ test('a signed message does not verify for another channel', () => {
       content: 'x',
     })
   )
+})
+
+test('the node accepts profiles the web client signs', () => {
+  for (const tag of [{ en: ' Host ' }, null, undefined]) {
+    const body = buildProfileBody({
+      channelId,
+      author: wallet.address,
+      id: randomUUID(),
+      displayName: '  Web User ',
+      avatar: '',
+      tag,
+    })
+    assert.equal(
+      signedProfileError(signChatBody(body, device), { channelId }),
+      ''
+    )
+  }
 })
