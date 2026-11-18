@@ -163,10 +163,19 @@ function fileExists(filePath) {
   }
 }
 
-// Secret that names this node's own CID drives; losing it equals losing the
-// drive data, so it lives with the store.
-function loadOrCreateCidDriveSecret(storagePath) {
-  const filePath = path.join(storagePath, 'cid-drive-secret')
+// This node's secret (channel-keys §6.1): it names the node's own CID drives
+// and writer cores; losing it equals losing that data, so it lives with the
+// store. Before 0.8.0 the file was called `cid-drive-secret`; it is renamed
+// in place with the same content.
+const NODE_SECRET_FILE = 'node-secret'
+const LEGACY_NODE_SECRET_FILE = 'cid-drive-secret'
+
+function loadOrCreateNodeSecret(storagePath) {
+  const filePath = path.join(storagePath, NODE_SECRET_FILE)
+  const legacyPath = path.join(storagePath, LEGACY_NODE_SECRET_FILE)
+  if (!fs.existsSync(filePath) && fs.existsSync(legacyPath)) {
+    fs.renameSync(legacyPath, filePath)
+  }
   try {
     const existing = b4a.from(fs.readFileSync(filePath, 'utf8').trim(), 'hex')
     if (existing.byteLength === 32) return existing
@@ -699,7 +708,7 @@ export class MobileP2PCore {
       },
     })
 
-    this.#cidDriveSecret = loadOrCreateCidDriveSecret(this.#storagePath)
+    this.#cidDriveSecret = loadOrCreateNodeSecret(this.#storagePath)
     this.#transfers = this.#loadTransfers()
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {

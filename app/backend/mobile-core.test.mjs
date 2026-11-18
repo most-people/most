@@ -760,6 +760,33 @@ describe('mobile file downloads', () => {
     assert.equal(available.transfer.status, 'completed')
   })
 
+  it('renames the pre-0.8.0 cid-drive-secret to node-secret unchanged', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-node-secret-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    // A 0.7.0 data directory: the store exists and the secret has its old
+    // name (a fresh store would wipe unknown files, so start once first).
+    await core.start()
+    await core.stop()
+    const secret = 'ab'.repeat(32)
+    await fs.rm(path.join(storagePath, 'node-secret'))
+    await fs.writeFile(path.join(storagePath, 'cid-drive-secret'), secret)
+    await core.start()
+    assert.equal(
+      (await fs.readFile(path.join(storagePath, 'node-secret'), 'utf8')).trim(),
+      secret
+    )
+    await assert.rejects(fs.access(path.join(storagePath, 'cid-drive-secret')))
+  })
+
   it('migrates 0.5.x shared-drive holdings and joins only the v2 topic', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-legacy-drive-')
@@ -2359,9 +2386,7 @@ describe('mobile channel metadata management', () => {
     await externalStore.ready()
     // The writer core key pair comes from the node secret (channel-keys.md §6.1).
     const nodeSecret = b4a.from(
-      (
-        await fs.readFile(path.join(storagePath, 'cid-drive-secret'), 'utf8')
-      ).trim(),
+      (await fs.readFile(path.join(storagePath, 'node-secret'), 'utf8')).trim(),
       'hex'
     )
     const keyPair = channelWriterKeyPair(
