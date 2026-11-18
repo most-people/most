@@ -14,6 +14,8 @@ export type NodeMode = 'local' | 'remote'
 
 /** 持久化的身份只含设备密钥和授权证书，不含账号种子。 */
 export type MobileIdentity = {
+  /** 2 = v2 chat identity; older stored identities sign in again. */
+  version: number
   username: string
   address: string
   syncKey: string

@@ -580,6 +580,14 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     await this.#requestJson('DELETE', '/api/user/sync')
   }
 
+  /** Moves the v1 account's data on this node to the signed-in v2 identity. */
+  async migrateLegacyAccount(migration: {
+    oldAddress: string
+    signature: string
+  }) {
+    await this.#requestJson('POST', '/api/user/migrate', migration)
+  }
+
   async #requestJson(
     method: string,
     path: string,

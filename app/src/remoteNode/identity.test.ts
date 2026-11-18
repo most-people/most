@@ -1,34 +1,65 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import { verifyMessage } from 'ethers'
 import {
   DEVICE_CERT_TTL_MS,
+  MOBILE_IDENTITY_VERSION,
   buildMobileAuthHeader,
   createMobileIdentity,
   isUsableDevice,
   readDeviceCertExpiry,
+  signLegacyAccountMigration,
 } from './identity'
+import { deriveChatSeedJs } from './chatIdentity'
 
-const GOLDEN_OPTIONS = { now: 1_700_000_000_000, deviceLabel: 'golden-device' }
+const vectors = JSON.parse(
+  fs.readFileSync(
+    new URL(
+      '../../../docs/protocol/vectors/v2/chat-identity.json',
+      import.meta.url
+    ),
+    'utf8'
+  )
+) as {
+  cases: {
+    username: string
+    password: string
+    chatSeed: string
+    syncKey: string
+  }[]
+}
+const alice = vectors.cases[0]
+
+// Most tests do not care how the seed is derived; skip scrypt there.
+const fixedSeed = async () => alice.chatSeed
+const GOLDEN_OPTIONS = {
+  now: 1_700_000_000_000,
+  deviceLabel: 'golden-device',
+  deriveChatSeed: fixedSeed,
+}
 
 describe('mobile remote identity', () => {
-  it('keeps the desktop address golden sample and never stores the seed', async () => {
+  it('uses the v2 chat seed vectors and never stores the seed', async () => {
     const identity = await createMobileIdentity(
-      'alice',
-      'correct horse battery staple',
-      GOLDEN_OPTIONS
+      alice.username,
+      alice.password,
+      {
+        ...GOLDEN_OPTIONS,
+        deriveChatSeed: deriveChatSeedJs,
+      }
     )
+    assert.equal(identity.version, MOBILE_IDENTITY_VERSION)
     assert.equal(identity.username, 'alice')
-    assert.equal(identity.address, '0x023B10b4e691580966D160FbF50Dce5596A97D4C')
-    // 与节点侧 deriveAccountSyncKeys(seed).syncKey 的黄金样本一致（server/tests/unit/accountSync.test.js）。
-    assert.equal(
-      identity.syncKey,
-      '0x9f8f3de373f36ff63d410183a178b67d30f7ad431859ad63f88a713db9251b40'
+    // v2 chat identity, separate from the v1 wallet 0x023B…7D4C (D3).
+    assert.notEqual(
+      identity.address,
+      '0x023B10b4e691580966D160FbF50Dce5596A97D4C'
     )
+    assert.equal(identity.syncKey, alice.syncKey)
     assert.equal(JSON.stringify(identity).includes('danger'), false)
     assert.equal(
-      JSON.stringify(identity).includes(
-        '4b3dc89d94ac8b7dfac567f811278e08d853af3be74ee0582e75350edb831dbf'
-      ),
+      JSON.stringify(identity).includes(alice.chatSeed.slice(2)),
       false
     )
     assert.equal(
@@ -40,12 +71,15 @@ describe('mobile remote identity', () => {
   it('derives distinct device keys per label and the same key per label', async () => {
     const a = await createMobileIdentity('alice', 'password', {
       deviceLabel: 'a',
+      deriveChatSeed: fixedSeed,
     })
     const a2 = await createMobileIdentity('alice', 'password', {
       deviceLabel: 'a',
+      deriveChatSeed: fixedSeed,
     })
     const b = await createMobileIdentity('alice', 'password', {
       deviceLabel: 'b',
+      deriveChatSeed: fixedSeed,
     })
     assert.equal(a.device.publicKey, a2.device.publicKey)
     assert.notEqual(a.device.publicKey, b.device.publicKey)
@@ -71,13 +105,38 @@ describe('mobile remote identity', () => {
   })
 
   it('treats expired or malformed device credentials as unusable', async () => {
-    const fresh = await createMobileIdentity('alice', 'password')
+    const fresh = await createMobileIdentity('alice', 'password', {
+      deriveChatSeed: fixedSeed,
+    })
     assert.equal(isUsableDevice(fresh.device), true)
     const expired = await createMobileIdentity('alice', 'password', {
       now: Date.now() - DEVICE_CERT_TTL_MS - 1000,
+      deriveChatSeed: fixedSeed,
     })
     assert.equal(isUsableDevice(expired.device), false)
     assert.equal(isUsableDevice({ ...fresh.device, secretKey: 'x' }), false)
     assert.equal(isUsableDevice(undefined), false)
+  })
+
+  it('signs the v1 account approval for moving to the v2 address', async () => {
+    const newAddress = '0x' + '2'.repeat(40)
+    const migration = await signLegacyAccountMigration(
+      ' alice ',
+      'correct horse battery staple',
+      newAddress
+    )
+    assert.equal(
+      migration.oldAddress,
+      '0x023B10b4e691580966D160FbF50Dce5596A97D4C'
+    )
+    const message = [
+      'most-box-account-migrate-v2',
+      migration.oldAddress.toLowerCase(),
+      newAddress,
+    ].join('\n')
+    assert.equal(
+      verifyMessage(message, migration.signature),
+      migration.oldAddress
+    )
   })
 })

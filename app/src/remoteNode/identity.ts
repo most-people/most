@@ -20,7 +20,7 @@ export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const DEVICE_CERT_PREFIX = 'dc1'
 const DEVICE_CERT_DOMAIN = 'most-box-device-cert-v1'
 const DEVICE_KEY_DOMAIN = 'most-box-device-key-v1'
-const SYNC_KEY_DOMAIN = 'most-box-account-sync-key-v1'
+const SYNC_KEY_LABEL = 'most/v2/account/sync-key\0'
 
 function toBase64Url(bytes: Uint8Array) {
   return encodeBase64(bytes)
@@ -52,15 +52,10 @@ function hexToBytes(hex: string) {
  * RN 没有可靠的安全随机数源，所以设备密钥由 HMAC(种子, 设备标签) 派生：
  * 保密性来自种子，标签只需让不同设备不重复。
  */
-export async function createMobileIdentity(
-  usernameInput: string,
-  password: string,
-  options: { now?: number; deviceLabel?: string; ttlMs?: number } = {}
-): Promise<MobileIdentity> {
-  const username = usernameInput.trim()
-  if (!username || !password)
-    throw new Error('Username and password are required')
+export const MOBILE_IDENTITY_VERSION = 2
 
+/** v1 wallet seed: PBKDF2-SHA512, 50000 iterations (kept for migration only). */
+function deriveLegacySeed(username: string, password: string) {
   const key = pbkdf2(
     toUtf8Bytes(password),
     toUtf8Bytes(SALT_PREFIX + username),
@@ -68,7 +63,48 @@ export async function createMobileIdentity(
     PBKDF2_KEY_LENGTH,
     'sha512'
   )
-  const seed = getBytes(sha256(getBytes(key)))
+  return getBytes(sha256(getBytes(key)))
+}
+
+/**
+ * The v1 account's approval to move its node data to the v2 identity, as
+ * checked by POST /api/user/migrate (server/src/utils/chatIdentity.js).
+ */
+export async function signLegacyAccountMigration(
+  usernameInput: string,
+  password: string,
+  newAddress: string
+) {
+  const wallet = HDNodeWallet.fromPhrase(
+    Mnemonic.entropyToPhrase(deriveLegacySeed(usernameInput.trim(), password))
+  )
+  const message = [
+    'most-box-account-migrate-v2',
+    wallet.address.toLowerCase(),
+    newAddress.toLowerCase(),
+  ].join('\n')
+  return {
+    oldAddress: wallet.address,
+    signature: await wallet.signMessage(message),
+  }
+}
+
+export async function createMobileIdentity(
+  usernameInput: string,
+  password: string,
+  options: {
+    /** v2 chat seed (0x-hex); the app derives it natively in the Bare core. */
+    deriveChatSeed: (username: string, password: string) => Promise<string>
+    now?: number
+    deviceLabel?: string
+    ttlMs?: number
+  }
+): Promise<MobileIdentity> {
+  const username = usernameInput.trim()
+  if (!username || !password)
+    throw new Error('Username and password are required')
+
+  const seed = getBytes(await options.deriveChatSeed(username, password))
   const wallet = HDNodeWallet.fromPhrase(Mnemonic.entropyToPhrase(seed))
 
   const label =
@@ -98,10 +134,11 @@ export async function createMobileIdentity(
   )
 
   return {
+    version: MOBILE_IDENTITY_VERSION,
     username,
     address: wallet.address,
-    // 账号同步子密钥：与节点侧 deriveAccountSyncKeys 一致，单向派生，不含种子。
-    syncKey: hexlify(computeHmac('sha256', seed, toUtf8Bytes(SYNC_KEY_DOMAIN))),
+    // 账号同步子密钥：与 server/src/utils/chatIdentity.js 一致，单向派生，不含种子。
+    syncKey: hexlify(computeHmac('sha256', seed, toUtf8Bytes(SYNC_KEY_LABEL))),
     device: {
       publicKey,
       secretKey: bytesToHex(keyPair.secretKey),

@@ -32,7 +32,10 @@ import {
   setRemoteAccountSync,
   type StoredRemoteNode,
 } from '../remoteNode/connectionHistory'
-import { createMobileIdentity } from '../remoteNode/identity'
+import {
+  createMobileIdentity,
+  signLegacyAccountMigration,
+} from '../remoteNode/identity'
 import { resolveRemoteUrl } from '../remoteNode/protocol'
 import {
   loadMobileIdentity,
@@ -175,7 +178,14 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   async signIn(input: { username: string; password: string }) {
     this.#assertSwitchAllowed()
-    const identity = await createMobileIdentity(input.username, input.password)
+    const identity = await createMobileIdentity(
+      input.username,
+      input.password,
+      {
+        deriveChatSeed: (username, password) =>
+          this.#local.deriveChatSeed(username, password),
+      }
+    )
     if (this.#mode === 'remote' && this.#remoteConfig) {
       const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
       try {
@@ -184,6 +194,16 @@ export class MobileNodeClient implements MostBoxMobileClient {
         await remote.stop()
         throw error
       }
+      // Best effort: move the v1 account's data on this node to the v2 identity.
+      await remote
+        .migrateLegacyAccount(
+          await signLegacyAccountMigration(
+            input.username,
+            input.password,
+            identity.address
+          )
+        )
+        .catch(() => {})
       await saveMobileIdentity(identity)
       this.#identity = identity
       await this.#activate(remote, 'remote', this.#remoteConfig)

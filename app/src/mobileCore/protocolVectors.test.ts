@@ -9,7 +9,7 @@ import {
   MOST_LINK_ERROR_CODES,
   parseMostLink,
 } from './protocol'
-import { createMobileIdentity } from '../remoteNode/identity'
+import { signLegacyAccountMigration } from '../remoteNode/identity'
 
 function readVectors(name: string) {
   const url = new URL(`../../../docs/protocol/vectors/${name}`, import.meta.url)
@@ -54,14 +54,13 @@ describe('protocol vectors (mobile app)', () => {
     }
   })
 
-  it('derives the account address and sync key', async () => {
+  it('derives the v1 wallet address (kept for account migration)', async () => {
     const vectors = readVectors('account.json')
-    const identity = await createMobileIdentity(
+    const { oldAddress } = await signLegacyAccountMigration(
       vectors.username,
       vectors.password,
-      { deviceLabel: 'protocol-vectors' }
+      `0x${'2'.repeat(40)}`
     )
-    assert.equal(identity.address, vectors.address)
-    assert.equal(identity.syncKey, vectors.syncKey)
+    assert.equal(oldAddress, vectors.address)
   })
 })
