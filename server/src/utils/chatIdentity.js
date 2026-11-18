@@ -66,3 +66,24 @@ export function chatAccountFromSeed(chatSeed) {
     syncKey: computeHmac('sha256', seed, label('account/sync-key')),
   }
 }
+
+const ACCOUNT_MIGRATION_DOMAIN = 'most-box-account-migrate-v2'
+
+/** Text the v1 account signs (EIP-191) to hand its node data to the v2 identity. */
+export function buildAccountMigrationMessage(oldAddress, newAddress) {
+  return [
+    ACCOUNT_MIGRATION_DOMAIN,
+    String(oldAddress).toLowerCase(),
+    String(newAddress).toLowerCase(),
+  ].join('\n')
+}
+
+/** Signs the migration with the v1 wallet seed (0x-hex), returning the signature. */
+export function signAccountMigration(v1Seed, newAddress) {
+  const wallet = HDNodeWallet.fromPhrase(
+    Mnemonic.entropyToPhrase(getBytes(v1Seed))
+  )
+  return wallet.signMessage(
+    buildAccountMigrationMessage(wallet.address, newAddress)
+  )
+}

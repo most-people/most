@@ -18,11 +18,11 @@ describe('MostBox OpenAPI contract', () => {
   })
   const operations = listOpenApiOperations(spec)
 
-  it('describes the 53 stable operations with unique ids and known tags', () => {
+  it('describes the 54 stable operations with unique ids and known tags', () => {
     assert.equal(spec.openapi, '3.1.0')
     assert.equal(spec.info.version, 'test-version')
     assert.deepEqual(spec.servers, [{ url: 'http://localhost:1976' }])
-    assert.equal(operations.length, 53)
+    assert.equal(operations.length, 54)
 
     const operationIds = operations.map(item => item.operation.operationId)
     assert.equal(new Set(operationIds).size, operationIds.length)
@@ -74,6 +74,7 @@ describe('MostBox OpenAPI contract', () => {
       'updateUserProfile',
       'registerAccountSync',
       'importUserData',
+      'migrateUserData',
       'cacheFileByCid',
       'publishFile',
       'shareFolder',
@@ -129,6 +130,7 @@ describe('MostBox OpenAPI contract', () => {
       'clearNodeLogs',
       'importUserData',
       'leaveChannel',
+      'migrateUserData',
       'removeMcpClient',
       'updateNodeConfig',
     ])
@@ -186,6 +188,6 @@ describe('MostBox OpenAPI contract', () => {
     const daemonSpec = buildOpenApiSpec(4242)
     assert.equal(daemonSpec.info.version, getPackageVersion())
     assert.deepEqual(daemonSpec.servers, [{ url: 'http://localhost:4242' }])
-    assert.equal(listOpenApiOperations(daemonSpec).length, 53)
+    assert.equal(listOpenApiOperations(daemonSpec).length, 54)
   })
 })

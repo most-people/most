@@ -1591,6 +1591,46 @@ export function createOpenApiSpec({
           ),
         }),
       },
+      '/api/user/migrate': {
+        post: operation({
+          tag: 'Users',
+          operationId: 'migrateUserData',
+          summary: 'Move a v1 account to the authenticated v2 chat identity',
+          description:
+            'Requires the v1 account EIP-191 signature over "most-box-account-migrate-v2", the old and the new address (lowercase, newline separated). Moves profile, files and channels on this node, then clears the old address.',
+          sideEffect: 'dangerous',
+          confirmation: true,
+          security: signedSecurity,
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['oldAddress', 'signature'],
+            properties: {
+              oldAddress: { type: 'string' },
+              signature: { type: 'string' },
+            },
+          }),
+          responses: responses(
+            {
+              200: jsonResponse('Migration result', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: {
+                      migrated: { type: 'boolean' },
+                      result: {
+                        type: ['object', 'null'],
+                        additionalProperties: true,
+                      },
+                    },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+      },
       '/api/files': {
         get: operation({
           tag: 'Files',

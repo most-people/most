@@ -2,6 +2,7 @@ import { HDNodeWallet, decodeBase64, encodeBase64, verifyMessage } from 'ethers'
 import nacl from 'tweetnacl'
 import { normalizeAddress } from '../core/shared.js'
 import { mostMnemonic } from './mostWallet.js'
+import { buildAccountMigrationMessage } from './chatIdentity.js'
 
 export const AUTH_MAX_AGE_MS = 5 * 60 * 1000
 export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -180,6 +181,22 @@ export function verifyDeviceCert(
     return { ok: true, address, devicePublicKey, expiresAt }
   } catch {
     return { ok: false, error: 'Invalid device certificate' }
+  }
+}
+
+/** True when `signature` is the v1 account `oldAddress` approving the move to `newAddress`. */
+export function verifyAccountMigration({ oldAddress, newAddress, signature }) {
+  const from = normalizeAddress(oldAddress)
+  const to = normalizeAddress(newAddress)
+  if (!from || !to || from === to) return false
+  try {
+    return (
+      normalizeAddress(
+        verifyMessage(buildAccountMigrationMessage(from, to), signature)
+      ) === from
+    )
+  } catch {
+    return false
   }
 }
 

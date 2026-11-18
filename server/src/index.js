@@ -2949,6 +2949,81 @@ export class MostBoxEngine extends EventEmitter {
     return { ...profile }
   }
 
+  /**
+   * Moves a v1 account's data on this node to its v2 chat identity
+   * (docs/protocol/v2/signatures.md §7.4) by renaming the owner: published
+   * files, channel membership with remarks and pins, and the profile. The
+   * caller has already proven control of both addresses. Returns what moved,
+   * or null when the old address has nothing on this node.
+   */
+  async migrateUserData(oldAddressInput, newAddressInput) {
+    this.#ensureInitialized()
+    const oldAddress = normalizeOwnerAddress(oldAddressInput)
+    const newAddress = normalizeOwnerAddress(newAddressInput)
+    if (!oldAddress || !newAddress || oldAddress === newAddress) {
+      throw new ValidationError('two different owner addresses are required')
+    }
+    const files = this.#getPublishedBucket(oldAddress)
+    const channels = this.#channels.filter(channel =>
+      this.#channelHasMember(channel, oldAddress)
+    )
+    const profile = this.#accountMetadata.profiles?.[oldAddress]
+    if (files.length === 0 && channels.length === 0 && !profile) return null
+
+    if (files.length > 0) {
+      const target = this.#getPublishedBucket(newAddress, true)
+      const known = new Set(target.map(file => file.cid))
+      for (const file of files) {
+        if (!known.has(file.cid)) target.push(file)
+      }
+      this.#setPublishedBucket(newAddress, target)
+      this.#setPublishedBucket(oldAddress, [])
+      this.#savePublishedMetadata()
+    }
+
+    const renameKey = map => {
+      if (!map || typeof map !== 'object') return map
+      const next = {}
+      for (const [address, value] of Object.entries(map)) {
+        const owner = normalizeOwnerAddress(address)
+        if (owner === oldAddress) {
+          if (!(newAddress in next)) next[newAddress] = value
+        } else {
+          next[address] = value
+        }
+      }
+      return next
+    }
+    for (const channel of channels) {
+      const hasNew = this.#channelHasMember(channel, newAddress)
+      channel.members = channel.members.flatMap(member => {
+        if (normalizeOwnerAddress(member?.address) !== oldAddress) {
+          return [member]
+        }
+        return hasNew ? [] : [{ ...member, address: newAddress }]
+      })
+      channel.remarks = renameKey(channel.remarks)
+      channel.pinnedBy = renameKey(channel.pinnedBy)
+      channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
+    }
+    if (channels.length > 0) {
+      this.#saveChannelsMetadata()
+      this.#broadcastChannelHello()
+    }
+
+    if (profile) {
+      this.#accountMetadata.profiles[newAddress] ??= profile
+      delete this.#accountMetadata.profiles[oldAddress]
+      this.#saveAccountMetadata()
+    }
+
+    return {
+      filesMoved: files.length,
+      channelsMoved: channels.length,
+      profileMoved: Boolean(profile),
+    }
+  }
+
   exportUserData(ownerAddressInput) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
