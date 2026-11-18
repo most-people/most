@@ -702,11 +702,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 54)
+      assert.strictEqual(documentedOperations.length, 55)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        54
+        55
       )
       assert.ok(
         documentedOperations.every(
@@ -744,6 +744,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/member-profile'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
+      assert.ok(spec.paths['/api/channels/{name}/fold'])
       assert.ok(spec.components.schemas.ChannelMention)
       assert.ok(spec.components.schemas.LocalizedTag)
       assert.ok(spec.components.schemas.LocalizedTagInput)
@@ -3704,6 +3705,52 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const clearData = await clearRes.json()
       assert.strictEqual(clearRes.status, 200)
       assert.strictEqual(clearData.pinned, false)
+    })
+  })
+
+  describe('PUT /api/channels/:name/fold', () => {
+    it('requires login before folding a channel', async () => {
+      await engine.createChannel(`auth-fold-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-fold-${uid}/fold`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folded: true }),
+        }
+      )
+      assert.strictEqual(res.status, 401)
+    })
+
+    it('folds and unfolds a channel', async () => {
+      await engine.createChannel(`fold-${uid}`, 'personal', {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+      const findChannel = async () => {
+        const channels = await (await fetch(`${baseUrl}/api/channels`)).json()
+        return channels.find(c => c.name === `fold-${uid}`)
+      }
+      assert.strictEqual((await findChannel()).folded, undefined)
+
+      const foldRes = await fetch(`${baseUrl}/api/channels/fold-${uid}/fold`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folded: true }),
+      })
+      assert.strictEqual(foldRes.status, 200)
+      assert.strictEqual((await foldRes.json()).folded, true)
+      assert.strictEqual((await findChannel()).folded, true)
+
+      const unfoldRes = await fetch(
+        `${baseUrl}/api/channels/fold-${uid}/fold`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folded: false }),
+        }
+      )
+      assert.strictEqual((await unfoldRes.json()).folded, false)
+      assert.strictEqual((await findChannel()).folded, false)
     })
   })
 

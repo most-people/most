@@ -187,6 +187,12 @@ function hasOwnProperty(value, key) {
   return Object.prototype.hasOwnProperty.call(value || {}, key)
 }
 
+// 折叠是三态：true/false 为用户手动设置，undefined 表示交给前端自动判断。
+function getOwnerFolded(channel, owner) {
+  const value = owner ? channel?.foldedBy?.[owner] : undefined
+  return typeof value === 'boolean' ? value : undefined
+}
+
 function getDirectoryBlockBytes(directory) {
   let bytes = 0
   for (const block of directory?.blocks?.values?.() || []) {
@@ -2742,6 +2748,7 @@ export class MostBoxEngine extends EventEmitter {
         createdAt: channel.createdAt,
         remark: channel.remark,
         pinned: channel.pinned,
+        folded: channel.folded,
         member: channel.member
           ? {
               displayName: channel.member.displayName,
@@ -2765,6 +2772,7 @@ export class MostBoxEngine extends EventEmitter {
     const data = { ...record }
     if (!data.remark) delete data.remark
     if (!data.pinned) delete data.pinned
+    if (typeof data.folded !== 'boolean') delete data.folded
     return data
   }
 
@@ -3035,6 +3043,7 @@ export class MostBoxEngine extends EventEmitter {
       })
       channel.remarks = renameKey(channel.remarks)
       channel.pinnedBy = renameKey(channel.pinnedBy)
+      channel.foldedBy = renameKey(channel.foldedBy)
       channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
     }
     if (channels.length > 0) {
@@ -4154,6 +4163,30 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * 设置当前用户对频道的折叠偏好：true 手动折叠，false 手动取消折叠；
+   * 未设置时由前端按“无消息且未置顶”自动折叠。
+   */
+  setChannelFolded(channelKeyInput, folded, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new Error('需要登录才能设置折叠')
+    }
+
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    this.#assertChannelMember(channel.channelKey, ownerAddress)
+
+    if (!channel.foldedBy) {
+      channel.foldedBy = {}
+    }
+    channel.foldedBy[ownerAddress] = Boolean(folded)
+
+    channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
+    this.#saveChannelsMetadata()
+    return channel.foldedBy[ownerAddress]
+  }
+
+  /**
    * 列出频道；默认排除带点号的系统频道。
    * @returns {Array<{ channelId: string, channelKey: string, name: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
    */
@@ -4691,6 +4724,7 @@ export class MostBoxEngine extends EventEmitter {
       peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
       remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
       pinned: Boolean(owner && channel.pinnedBy?.[owner]),
+      folded: getOwnerFolded(channel, owner),
     }
   }
 
@@ -5237,6 +5271,7 @@ export class MostBoxEngine extends EventEmitter {
       ),
       remark: channel.remarks?.[owner] || '',
       pinned: Boolean(channel.pinnedBy?.[owner]),
+      folded: getOwnerFolded(channel, owner),
       updatedAt,
     }
   }
@@ -5490,6 +5525,11 @@ export class MostBoxEngine extends EventEmitter {
     if (hasOwnProperty(record, 'pinned')) {
       if (record.pinned) channel.pinnedBy[owner] = true
       else delete channel.pinnedBy[owner]
+    }
+
+    if (typeof record.folded === 'boolean') {
+      channel.foldedBy = channel.foldedBy || {}
+      channel.foldedBy[owner] = record.folded
     }
 
     if (!this.#channelLocalCoreKey.get(channel.channelKey)) {
@@ -6273,8 +6313,18 @@ export class MostBoxEngine extends EventEmitter {
               )
             )
           : undefined
+        const foldedBy = channel.foldedBy
+          ? Object.fromEntries(
+              Object.entries(channel.foldedBy).filter(
+                ([address]) =>
+                  normalizeOwnerAddress(address) !== normalizedOwner
+              )
+            )
+          : undefined
         return {
           ...channel,
+          foldedBy:
+            foldedBy && Object.keys(foldedBy).length > 0 ? foldedBy : undefined,
           remarks:
             remarks && Object.keys(remarks).length > 0 ? remarks : undefined,
           pinnedBy:

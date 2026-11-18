@@ -124,6 +124,8 @@ function mergeDuplicateChannel(channels, channel) {
   }
   existing.remarks = mergeAddressMap(existing.remarks, channel.remarks)
   existing.pinnedBy = mergeAddressMap(existing.pinnedBy, channel.pinnedBy)
+  const foldedBy = mergeAddressMap(existing.foldedBy, channel.foldedBy)
+  if (foldedBy) existing.foldedBy = foldedBy
   if (channel.createdAt && !(existing.createdAt <= channel.createdAt)) {
     existing.createdAt = channel.createdAt
   }
@@ -177,6 +179,7 @@ export function serializeChannelsMetadata(channels) {
       members: Array.isArray(channel.members) ? channel.members : [],
       remarks: channel.remarks,
       pinnedBy: channel.pinnedBy,
+      foldedBy: channel.foldedBy,
     })),
     null,
     2

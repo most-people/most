@@ -22,6 +22,8 @@ import {
   ChannelMemberGrid,
   ChatAttachmentBubble,
   ChatChannelNavItem,
+  ChatFoldedEntryItem,
+  ChatFoldedHeader,
   ChatComposer,
   ChatMessageItem,
   ChatSystemMessageItem,
@@ -82,6 +84,7 @@ import {
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
+import { isChannelFolded, splitFoldedChannels } from '~/lib/chatFold.js'
 import {
   completeMentionDraftFromTargets,
   finalizeMentionDraftForSend,
@@ -158,6 +161,9 @@ function ChatPage() {
   const [requestedChannelName, setRequestedChannelName] = useState('')
   const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
+  const [channelListView, setChannelListView] = useState<'main' | 'folded'>(
+    'main'
+  )
   const [channelInput, setChannelInput] = useState('')
   const [channelMentions, setChannelMentions] = useState<ChannelMention[]>([])
   const [composerSelection, setComposerSelection] = useState<ComposerSelection>(
@@ -1592,6 +1598,33 @@ function ChatPage() {
     }
   }
 
+  async function handleToggleChannelFold(channel: Channel) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const nextFolded = !isChannelFolded(channel)
+    const channelKey = getChannelKey(channel)
+    try {
+      const result = await channelApi.setChannelFolded(channelKey, nextFolded)
+      setChannels(prev =>
+        prev.map(item =>
+          getChannelKey(item) === channelKey
+            ? { ...item, folded: result.folded }
+            : item
+        )
+      )
+      setActiveChannel(prev =>
+        prev && getChannelKey(prev) === channelKey
+          ? { ...prev, folded: result.folded }
+          : prev
+      )
+    } catch (err) {
+      await showApiError(
+        err,
+        nextFolded ? t('chat.error.fold') : t('chat.error.unfold')
+      )
+    }
+  }
+
   async function handleOpenChannelId(
     channelName: string,
     options: { replaceHistory?: boolean } = {}
@@ -2348,8 +2381,40 @@ function ChatPage() {
       }),
     [channelLastReadAt, channelMentionUnread, channels, compareStrings]
   )
+  const foldedSplit = useMemo(
+    () =>
+      splitFoldedChannels(sortedChannels, {
+        activeKey: activeChannelKey,
+        view: channelListView,
+        getKey: getChannelKey,
+      }),
+    [activeChannelKey, channelListView, sortedChannels]
+  )
+  const hasFoldedChannels = foldedSplit.folded.length > 0
+  useEffect(() => {
+    if (channelListView === 'folded' && !hasFoldedChannels) {
+      setChannelListView('main')
+    }
+  }, [channelListView, hasFoldedChannels])
+  const showFoldedView =
+    channelListView === 'folded' &&
+    !channelSearchQuery &&
+    foldedSplit.folded.length > 0
+  const visibleChannels = channelSearchQuery
+    ? sortedChannels
+    : showFoldedView
+      ? foldedSplit.folded
+      : foldedSplit.main
+  const showFoldedEntry =
+    !channelSearchQuery && !showFoldedView && foldedSplit.folded.length > 0
+  const foldedUnread = foldedSplit.folded.some(channel =>
+    hasUnreadChannelMessage(channel, channelLastReadAt)
+  )
+  const foldedMentionUnread = foldedSplit.folded.some(channel =>
+    hasUnreadChannelMention(channel, channelMentionUnread)
+  )
   const filteredChannels = channelSearchQuery
-    ? sortedChannels.filter(channel => {
+    ? visibleChannels.filter(channel => {
         const displayName = getChannelTitle(channel)
         return [
           displayName,
@@ -2357,7 +2422,7 @@ function ChatPage() {
           getChannelKey(channel),
         ].some(value => value.toLowerCase().includes(channelSearchQuery))
       })
-    : sortedChannels
+    : visibleChannels
 
   return (
     <AppShell
@@ -2391,14 +2456,27 @@ function ChatPage() {
           </div>
 
           <nav className="sidebar-nav">
+            {showFoldedView && (
+              <ChatFoldedHeader onBack={() => setChannelListView('main')} />
+            )}
+            {showFoldedEntry && (
+              <ChatFoldedEntryItem
+                count={foldedSplit.folded.length}
+                unread={foldedUnread}
+                mentionUnread={foldedMentionUnread}
+                onSelect={() => setChannelListView('folded')}
+              />
+            )}
             {channels.length === 0 ? (
               <div className="sidebar-empty-state">
                 <p>{t('chat.empty.noChannels')}</p>
               </div>
             ) : filteredChannels.length === 0 ? (
-              <div className="sidebar-empty-state">
-                <p>{t('chat.empty.noMatches')}</p>
-              </div>
+              showFoldedEntry ? null : (
+                <div className="sidebar-empty-state">
+                  <p>{t('chat.empty.noMatches')}</p>
+                </div>
+              )
             ) : (
               filteredChannels.map(channel => (
                 <ChatChannelNavItem
@@ -2407,6 +2485,7 @@ function ChatPage() {
                     getChannelKey(activeChannel) === getChannelKey(channel)
                   }
                   pinned={Boolean(channel.pinned)}
+                  folded={isChannelFolded(channel)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
                   mentionUnread={hasUnreadChannelMention(
                     channel,
@@ -2422,6 +2501,7 @@ function ChatPage() {
                     closeSidebar()
                   }}
                   onTogglePin={() => void handleToggleChannelPin(channel)}
+                  onToggleFold={() => void handleToggleChannelFold(channel)}
                   onRename={() => setChannelToRename(channel)}
                   onLeave={() => {
                     setChannelToLeave(channel)

@@ -190,4 +190,17 @@ export function registerChannelRoutes(app, { engine }) {
       return c.json({ error: err.message }, 400)
     }
   })
+
+  app.put('/api/channels/:name/fold', async c => {
+    const name = c.req.param('name')
+    const body = await c.req.json()
+    try {
+      const folded = engine.setChannelFolded(name, Boolean(body.folded), {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json({ success: true, folded })
+    } catch (err) {
+      return c.json({ error: err.message }, 400)
+    }
+  })
 }

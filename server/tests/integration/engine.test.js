@@ -5353,6 +5353,36 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     })
   })
 
+  describe('setChannelFolded()', () => {
+    it('stores a per-user tri-state fold preference', async () => {
+      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
+      const channelName = `fold-${uid}`
+      await engine.createChannel(channelName, 'personal', { ownerAddress })
+      const findChannel = () =>
+        engine.listChannels({ ownerAddress }).find(c => c.name === channelName)
+
+      assert.strictEqual(findChannel().folded, undefined)
+      assert.strictEqual(
+        engine.setChannelFolded(channelName, true, { ownerAddress }),
+        true
+      )
+      assert.strictEqual(findChannel().folded, true)
+      assert.strictEqual(
+        engine.setChannelFolded(channelName, false, { ownerAddress }),
+        false
+      )
+      assert.strictEqual(findChannel().folded, false)
+    })
+
+    it('throws without ownerAddress', async () => {
+      await engine.createChannel(`fold-no-${uid}`)
+      assert.throws(
+        () => engine.setChannelFolded(`fold-no-${uid}`, true),
+        /需要登录/
+      )
+    })
+  })
+
   describe('getDisplayName() and setDisplayName()', () => {
     it('returns null initially', () => {
       const name = engine.getDisplayName()

@@ -135,7 +135,7 @@ describe('engine account state sync', () => {
       .listChannels({ ownerAddress: ADDRESS })
       .find(channel => channel.channelId === channelId)
 
-  it('propagates joining, remarks, pins and leaving a channel', async t => {
+  it('propagates joining, remarks, pins, folds and leaving a channel', async t => {
     const { first, second } = await pair(t)
     const created = await first.createChannel('sync-room', 'group', {
       ownerAddress: ADDRESS,
@@ -155,6 +155,19 @@ describe('engine account state sync', () => {
         channelOf(second, 'sync-room')?.pinned === true &&
         channelOf(second, 'sync-room')?.remark === 'work',
       'pin and remark to sync'
+    )
+
+    first.setChannelFolded(created.channelKey, true, { ownerAddress: ADDRESS })
+    await waitFor(
+      () => channelOf(second, 'sync-room')?.folded === true,
+      'fold to sync'
+    )
+    first.setChannelFolded(created.channelKey, false, {
+      ownerAddress: ADDRESS,
+    })
+    await waitFor(
+      () => channelOf(second, 'sync-room')?.folded === false,
+      'manual unfold to sync'
     )
 
     await second.leaveChannel(created.channelKey, { ownerAddress: ADDRESS })

@@ -734,6 +734,11 @@ const schemas = {
       peerCount: { type: 'number' },
       remark: { type: 'string' },
       pinned: { type: 'boolean' },
+      folded: {
+        type: 'boolean',
+        description:
+          'Manual fold preference of the current user; absent means automatic',
+      },
     },
     additionalProperties: true,
   },
@@ -909,6 +914,11 @@ const schemas = {
     type: 'object',
     required: ['pinned'],
     properties: { pinned: { type: 'boolean' } },
+  },
+  ChannelFoldRequest: {
+    type: 'object',
+    required: ['folded'],
+    properties: { folded: { type: 'boolean' } },
   },
 }
 
@@ -2227,6 +2237,31 @@ export function createOpenApiSpec({
                   {
                     type: 'object',
                     properties: { pinned: { type: 'boolean' } },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 404, 429, 500]
+          ),
+        }),
+      },
+      '/api/channels/{name}/fold': {
+        put: operation({
+          tag: 'Channels',
+          operationId: 'updateChannelFold',
+          summary: 'Fold or unfold a channel',
+          sideEffect: 'write',
+          security: signedSecurity,
+          parameters: [channelNameParameter],
+          requestBody: jsonRequest(ref('ChannelFoldRequest')),
+          responses: responses(
+            {
+              200: jsonResponse('Updated fold state', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: { folded: { type: 'boolean' } },
                   },
                 ],
               }),

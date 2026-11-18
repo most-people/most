@@ -55,6 +55,8 @@ export interface Channel {
   public?: boolean
   peerCount?: number
   pinned?: boolean
+  /** 手动折叠偏好；缺省表示按“无消息且未置顶”自动折叠。 */
+  folded?: boolean
 }
 
 interface ChannelPeer {
@@ -121,6 +123,11 @@ interface SetChannelRemarkResult {
 interface SetChannelPinnedResult {
   success: boolean
   pinned: boolean
+}
+
+interface SetChannelFoldedResult {
+  success: boolean
+  folded: boolean
 }
 
 interface CreateChannelResult extends Channel {
@@ -219,6 +226,15 @@ export const channelApi = {
       .put<SetChannelPinnedResult>(
         `/api/channels/${encodeURIComponent(name)}/pin`,
         { json: { pinned } }
+      )
+      .json()
+  },
+
+  setChannelFolded(name: string, folded: boolean) {
+    return api
+      .put<SetChannelFoldedResult>(
+        `/api/channels/${encodeURIComponent(name)}/fold`,
+        { json: { folded } }
       )
       .json()
   },
