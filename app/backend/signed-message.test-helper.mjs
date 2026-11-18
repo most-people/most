@@ -62,14 +62,24 @@ export async function signMessage(
   content,
   { wallet = defaultWallet, ...fields } = {}
 ) {
+  return signEvent(channelId, wallet, { kind: 'message', content, ...fields })
+}
+
+export function signPresence(
+  channelId,
+  status,
+  { wallet = defaultWallet, ...fields } = {}
+) {
+  return signEvent(channelId, wallet, { kind: 'presence', status, ...fields })
+}
+
+async function signEvent(channelId, wallet, fields) {
   const device = await deviceFor(wallet)
   const body = {
-    kind: 'message',
     channelId,
     author: wallet.address.toLowerCase(),
     id: randomUUID(),
     createdAt: Date.now(),
-    content,
     ...fields,
   }
   return {

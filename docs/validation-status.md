@@ -164,9 +164,14 @@
 - **未解决**：停止引擎时若有块仍在途，hypercore 在存储关闭后继续校验该块，抛出未捕获的 `RocksDB session is closed`（`Replicator._resolveBlocksLocally` ← `Core.onappend`），进程崩溃；修复前的 147 轮中出现 1 次。检查器在断开连接后等待 100ms 再停止以绕开；生产中 `swarm.destroy()` 后立即关闭存储也可能触发，尚未处理。
 - 未覆盖：真实网络（Hyperswarm/DHT）下的分区；`kill -9`；移动核心参与的混沌轮次；超过 4 个成员。
 
+## 2026-11-18：协议 v2 在线状态（本地回归）
+
+- `npm run test:cross-core`：桌面引擎与移动核心在本地 HyperDHT 的私有、公开频道双向交换签名在线状态。同一账号的两个桌面会话依次离开，移动核心在第一个离开后仍能看到第二个的资料更新，最后一个离开后才显示离线。
+- `node --test server/tests/integration/voice-websocket.test.js server/tests/integration/channelAuthorization.test.js`：覆盖 WebSocket 身份和动作绑定、断开后本机清理与对端心跳超时、频道授权，以及中途加入时的会话恢复。超时用模拟时钟验证。未进行移动真机、系统清理或公网 NAT 测试。
+
 ## 当前未完成
 
-- 协议 v2 聊天签名：桌面已接入客户端签名的消息与成员资料，移动端已接入消息签名；在线状态与语音的签名帧、移动端成员资料及统一迁移仍在实现中。设计与测试向量见 `docs/protocol/v2/signatures.md`、`docs/protocol/vectors/v2/signatures.json`。
+- 协议 v2 聊天签名：桌面与移动端已接入客户端签名的消息和在线状态，桌面也已接入成员资料签名；语音签名帧、移动端成员资料及统一迁移仍待完成。设计与测试向量见 `docs/protocol/v2/signatures.md`、`docs/protocol/vectors/v2/signatures.json`。
 
 - 聊天剩余：真实网络分区、`kill -9`、移动核心参与；停止引擎时 hypercore 在途块校验导致的未捕获崩溃。
 - F5 剩余：蜂窝、网络切换、逐连接记录路径；real-wifi 首轮“有 peer 但 0 字节”的原因。

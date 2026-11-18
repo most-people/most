@@ -293,9 +293,7 @@ export function createWebSocketServer({
     ws.on('close', () => {
       cleanupWsSubscriptions(ws)
       try {
-        engine.clearChannelPresenceSource(ws.presenceSourceId, {
-          broadcast: true,
-        })
+        engine.clearChannelPresenceSource(ws.presenceSourceId)
       } catch {}
     })
     ws.on('message', raw => {
@@ -342,10 +340,7 @@ export function createWebSocketServer({
               engine.joinChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
-                displayName: data.displayName,
-                avatar: data.avatar,
-                profileUpdatedAt: data.profileUpdatedAt,
+                signed: data.signed,
               })
             }
             break
@@ -354,7 +349,7 @@ export function createWebSocketServer({
               engine.heartbeatChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
+                signed: data.signed,
               })
             }
             break
@@ -363,10 +358,7 @@ export function createWebSocketServer({
               engine.updateChannelPresenceProfile(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
-                displayName: data.displayName,
-                avatar: data.avatar,
-                profileUpdatedAt: data.profileUpdatedAt,
+                signed: data.signed,
               })
             }
             break
@@ -375,7 +367,7 @@ export function createWebSocketServer({
               engine.leaveChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
+                signed: data.signed,
               })
             }
             break

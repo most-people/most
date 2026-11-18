@@ -6,6 +6,12 @@ import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { MostBoxEngine } from '../server/src/index.js'
 
+import {
+  addressOf,
+  defaultSigner,
+  presenceOptions,
+} from '../server/tests/helpers/signedMessage.js'
+
 // node scripts/benchmark-channel-presence.mjs <output-directory>
 const channelCount = 850
 const peerCount = 8
@@ -14,9 +20,8 @@ const outputDirectory = path.resolve(process.argv[2] || os.tmpdir())
 const temporaryDirectory = fs.mkdtempSync(
   path.join(os.tmpdir(), 'most-presence-benchmark-')
 )
-const ownerAddress = `0x${'1'.repeat(40)}`
+const ownerAddress = addressOf(defaultSigner)
 const channelName = 'presence-benchmark-0'
-const presenceOptions = { ownerAddress, sessionId: 'benchmark' }
 const engines = []
 const connections = []
 const session = new Session()
@@ -75,9 +80,19 @@ try {
     await peer.createChannel(channelName, 'public', { ownerAddress })
     connections.push(engine.replicateWith(peer))
   }
-  engine.joinChannelPresence(channelName, presenceOptions)
+  const fields = { ownerAddress, sessionId: 'benchmark' }
+  const heartbeat = await presenceOptions(
+    engine,
+    channelName,
+    'heartbeat',
+    fields
+  )
+  engine.joinChannelPresence(
+    channelName,
+    await presenceOptions(engine, channelName, 'online', fields)
+  )
   await Promise.all(engines.slice(1).map(waitForPresence))
-  engine.heartbeatChannelPresence(channelName, presenceOptions)
+  engine.heartbeatChannelPresence(channelName, heartbeat)
   await new Promise(resolve => setImmediate(resolve))
 
   session.connect()
@@ -94,7 +109,7 @@ try {
     setTimeout(() => resolve(performance.now() - start), 0)
   })
   for (let index = 0; index < heartbeats; index++) {
-    engine.heartbeatChannelPresence(channelName, presenceOptions)
+    engine.heartbeatChannelPresence(channelName, heartbeat)
   }
   const heartbeatMs = performance.now() - start
   const eventLoopProbeMs = await eventLoopProbe
@@ -106,7 +121,7 @@ try {
   let profileHeartbeats = heartbeats
   while (performance.now() - start < 1000) {
     for (let index = 0; index < heartbeats; index++) {
-      engine.heartbeatChannelPresence(channelName, presenceOptions)
+      engine.heartbeatChannelPresence(channelName, heartbeat)
     }
     profileHeartbeats += heartbeats
     await new Promise(resolve => setImmediate(resolve))

@@ -11,8 +11,6 @@ import {
   CHANNEL_PRESENCE_HEARTBEAT_MS,
   CHANNEL_PRESENCE_TIMEOUT_MS,
   CHANNELS_FILE,
-  DIAGNOSTIC_AUTHOR,
-  DIAGNOSTIC_AUTHOR_NAME,
   MAX_CHANNEL_FRAME_BYTES,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
   buildChannelHelloMessages,
@@ -48,6 +46,12 @@ import {
   readSignedMessageEntry,
   signedMessageError,
 } from './channel-signed-entry.mjs'
+import {
+  createSignedPresenceFrame,
+  readSignedPresenceFrame,
+  presenceSession,
+  signedPresenceError,
+} from './channel-signed-presence.mjs'
 import { canonicalJson } from '../shared/canonical-json.mjs'
 import { attachCidDriveChannel, cidDriveName } from './cid-drive-exchange.mjs'
 import {
@@ -716,7 +720,7 @@ export class MobileP2PCore {
   async stop() {
     this.#node = { ...this.#node, status: 'stopping' }
     this.#emitSnapshot()
-    this.#clearChannelPresenceRuntime({ broadcast: true })
+    this.#clearChannelPresenceRuntime()
 
     if (this.#p2pPingManager) {
       await this.#p2pPingManager.destroy()
@@ -1028,52 +1032,53 @@ export class MobileP2PCore {
     return this.#getChannelPresenceList(channel.channelKey)
   }
 
-  joinChannelPresence(input = {}) {
+  #applyPresence(channel, body, session) {
+    switch (body.status) {
+      case 'online':
+        return this.#upsertChannelPresenceSession(channel, session)
+      case 'heartbeat':
+        return this.#touchChannelPresenceSession(channel, session)
+      case 'profile':
+        return this.#updateChannelPresenceProfile(channel, session)
+      case 'offline':
+        return this.#removeChannelPresenceSessions(
+          channel.channelKey,
+          session
+        ).at(-1)
+    }
+  }
+
+  #acceptLocalPresence(input, status) {
     this.#ensureReady()
     const channel = this.#resolvePresenceChannel(input)
-    const event = this.#upsertChannelPresenceSession(channel, {
-      ...this.#normalizeLocalPresenceOptions(input),
-      local: true,
+    const error = signedPresenceError(input.signed, {
+      channelId: channel.channelKey,
+      status,
     })
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
+    if (error) throw new Error(error)
+    const frame = createSignedPresenceFrame(
+      JSON.parse(JSON.stringify(input.signed))
+    )
+    this.#applyPresence(channel, frame.body, {
+      ...presenceSession(frame.body, 'local'),
+      local: true,
+      frame,
+    })
+    this.#broadcastChannelPresence(frame)
     this.#emitSnapshot()
     return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  joinChannelPresence(input = {}) {
+    return this.#acceptLocalPresence(input, 'online')
   }
 
   heartbeatChannelPresence(input = {}) {
-    this.#ensureReady()
-    const channel = this.#resolvePresenceChannel(input)
-    const options = {
-      ...this.#normalizeLocalPresenceOptions(input, { includeProfile: false }),
-      local: true,
-    }
-    const event =
-      this.#touchChannelPresenceSession(channel, options) ||
-      this.#formatChannelPresence(
-        channel.channelKey,
-        options.address,
-        'heartbeat'
-      )
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
-    this.#emitSnapshot()
-    return this.#getChannelPresenceList(channel.channelKey)
+    return this.#acceptLocalPresence(input, 'heartbeat')
   }
 
   leaveChannelPresence(input = {}) {
-    this.#ensureReady()
-    const channel = this.#resolvePresenceChannel(input)
-    const events = this.#removeChannelPresenceSessions(channel.channelKey, {
-      ...this.#normalizeLocalPresenceOptions(input, { includeProfile: false }),
-    })
-    for (const event of events) {
-      this.#broadcastChannelPresence(event)
-    }
-    this.#emitSnapshot()
-    return this.#getChannelPresenceList(channel.channelKey)
+    return this.#acceptLocalPresence(input, 'offline')
   }
 
   async publishFile(input = {}, requestId = createId('publish')) {
@@ -1643,33 +1648,6 @@ export class MobileP2PCore {
     return this.#channels.some(channel => channel.channelKey === channelKey)
   }
 
-  #normalizeLocalPresenceOptions(input = {}, options = {}) {
-    const address =
-      normalizeChannelPresenceAddress(input.address) || DIAGNOSTIC_AUTHOR
-    const result = {
-      address,
-      sessionId: input.sessionId || 'android-default',
-      sourceId: 'local',
-      lastSeen: Number(input.lastSeen) || Date.now(),
-    }
-
-    if (options.includeProfile !== false) {
-      result.displayName = normalizeChannelPresenceDisplayName(
-        input.displayName || input.authorName || DIAGNOSTIC_AUTHOR_NAME,
-        address
-      )
-      if (Object.prototype.hasOwnProperty.call(input, 'avatar')) {
-        result.avatar = normalizeChannelPresenceAvatar(input.avatar)
-      }
-      const profileUpdatedAt = Number(input.profileUpdatedAt)
-      if (Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0) {
-        result.profileUpdatedAt = Math.floor(profileUpdatedAt)
-      }
-    }
-
-    return result
-  }
-
   async #getNextChannelMessageTimestamp(channelKey) {
     const coresMap = this.#channelCores.get(channelKey)
     const now = Date.now()
@@ -2044,31 +2022,15 @@ export class MobileP2PCore {
     }
   }
 
-  #sendChannelPresence(stream, event) {
-    if (!stream || stream.destroyed || stream.writableEnded || !event) {
+  #sendChannelPresence(stream, frame) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
-    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
+    if (!this.#isChannelAllowedForStream(stream, frame.body.channelId))
+      return true
     try {
-      stream.write(
-        b4a.from(
-          `${JSON.stringify({
-            type: 'channel-presence',
-            peerId: this.#nodeId(),
-            channelId: channelKey,
-            channelKey,
-            address: event.address,
-            status: event.status,
-            displayName: event.displayName,
-            avatar: event.avatar,
-            profileUpdatedAt: event.profileUpdatedAt,
-            lastSeen: event.lastSeen || Date.now(),
-            sessionId: event.sessionId || 'default',
-          })}\n`
-        )
-      )
+      stream.write(b4a.from(JSON.stringify(frame) + '\n'))
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -2077,17 +2039,10 @@ export class MobileP2PCore {
   }
 
   #sendCurrentChannelPresence(stream) {
-    for (const presences of this.#channelPresenceSessions.values()) {
-      for (const session of presences.values()) {
-        if (!session.local) continue
-        this.#sendChannelPresence(
-          stream,
-          this.#formatChannelPresence(
-            session.channelKey,
-            session.address,
-            'online'
-          )
-        )
+    this.#pruneStaleChannelPresence()
+    for (const sessions of this.#channelPresenceSessions.values()) {
+      for (const session of sessions.values()) {
+        if (session.frame) this.#sendChannelPresence(stream, session.frame)
       }
     }
   }
@@ -2101,7 +2056,7 @@ export class MobileP2PCore {
   #normalizePresenceSessionId(sessionId) {
     const value = String(sessionId || 'default')
       .trim()
-      .slice(0, 100)
+      .slice(0, 120)
     return value || 'default'
   }
 
@@ -2265,6 +2220,7 @@ export class MobileP2PCore {
       address,
       channelKey,
       lastSeen: now,
+      frame: options.frame,
       local: options.local === true,
       sourcePeerId: String(options.sourcePeerId || '').trim(),
     }
@@ -2303,6 +2259,7 @@ export class MobileP2PCore {
         address,
       })
     }
+    existing.frame = options.frame
     existing.lastSeen = Number(options.lastSeen) || Date.now()
     sessions.set(sessionKey, existing)
     return null
@@ -2364,20 +2321,7 @@ export class MobileP2PCore {
   }
 
   #clearChannelPresenceForChannel(channelKey) {
-    const sessions = this.#channelPresenceSessions.get(channelKey)
-    if (sessions) {
-      const localAddresses = uniqueStrings(
-        [...sessions.values()]
-          .filter(session => session.local)
-          .map(session => session.address)
-      )
-      this.#channelPresenceSessions.delete(channelKey)
-      for (const address of localAddresses) {
-        this.#broadcastChannelPresence(
-          this.#formatChannelPresence(channelKey, address, 'offline')
-        )
-      }
-    }
+    this.#channelPresenceSessions.delete(channelKey)
     this.#channelPresenceProfiles.delete(channelKey)
   }
 
@@ -2456,17 +2400,10 @@ export class MobileP2PCore {
     this.#channelPresenceSweepTimer.unref?.()
   }
 
-  #clearChannelPresenceRuntime(options = {}) {
+  #clearChannelPresenceRuntime() {
     if (this.#channelPresenceSweepTimer) {
       clearInterval(this.#channelPresenceSweepTimer)
       this.#channelPresenceSweepTimer = null
-    }
-    if (options.broadcast) {
-      for (const event of this.#removeChannelPresenceSessionsBySource(
-        'local'
-      )) {
-        this.#broadcastChannelPresence(event)
-      }
     }
     this.#channelPresenceSessions.clear()
     this.#channelPresenceProfiles.clear()
@@ -2574,59 +2511,22 @@ export class MobileP2PCore {
     return true
   }
 
-  #processChannelPresenceMessage(stream, msg) {
-    if (msg.type !== 'channel-presence') return null
-    const peerId = String(msg.peerId || '').trim()
-    if (!peerId || peerId === this.#nodeId()) return null
-    const channelKey = normalizeChannelKey(msg.channelId || msg.channelKey)
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === channelKey
+  #processChannelPresenceMessage(stream, msg, sourceId) {
+    const channel = this.#channels.find(
+      item => item.channelKey === msg.body?.channelId
     )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
-      return null
-    }
-
-    const address = normalizeChannelPresenceAddress(msg.address)
-    if (!address) return null
-
-    const status = String(msg.status || '').trim()
-    const options = {
-      address,
-      sessionId: msg.sessionId,
-      sourcePeerId: peerId,
-      local: false,
-      displayName: msg.displayName,
-      avatar: msg.avatar,
-      profileUpdatedAt: msg.profileUpdatedAt,
-      lastSeen: Number(msg.lastSeen) || Date.now(),
-    }
-    let event = null
-    let changed = false
-
-    if (status === 'online') {
-      event = this.#upsertChannelPresenceSession(localChannel, options)
-      changed = true
-    } else if (status === 'heartbeat') {
-      event = this.#touchChannelPresenceSession(localChannel, options)
-      changed = true
-    } else if (status === 'profile') {
-      event = this.#updateChannelPresenceProfile(localChannel, options)
-      changed = true
-    } else if (status === 'offline') {
-      const events = this.#removeChannelPresenceSessions(
-        localChannel.channelKey,
-        options
-      )
-      event = events[events.length - 1] || null
-      changed = true
-    }
-
-    if (changed) {
-      this.#emitChannelPresenceSnapshot(event)
-    }
-
-    return changed ? peerId : null
+    if (
+      !channel ||
+      !this.#isChannelAllowedForStream(stream, channel.channelKey)
+    )
+      return
+    if (!readSignedPresenceFrame(msg, { channelId: channel.channelKey })) return
+    const event = this.#applyPresence(
+      channel,
+      msg.body,
+      presenceSession(msg.body, sourceId)
+    )
+    this.#emitChannelPresenceSnapshot(event)
   }
 
   async #processChannelHelloMessage(stream, msg) {
@@ -2689,6 +2589,7 @@ export class MobileP2PCore {
 
   async #handleChannelConnection(conn, info = {}) {
     const stream = conn
+    const presenceSourceId = 'stream:' + b4a.toString(randomBytes(16), 'hex')
     let connectedPeerId = null
     let readBuffer = b4a.alloc(0)
     let closed = false
@@ -2732,10 +2633,15 @@ export class MobileP2PCore {
             continue
           }
           if (this.#processChannelProofMessage(stream, message)) continue
-          const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(stream, message)
-              : await this.#processChannelHelloMessage(stream, message)
+          if (message.type === 'channel-presence') {
+            this.#processChannelPresenceMessage(
+              stream,
+              message,
+              presenceSourceId
+            )
+            continue
+          }
+          const peerId = await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           this.#log('warn', `Failed to process channel hello: ${err.message}`)
@@ -2748,13 +2654,12 @@ export class MobileP2PCore {
       closed = true
       info?.removeListener?.('topic', handleTopic)
       this.#removeChannelStream(stream)
-      if (!connectedPeerId) return
-      for (const [, peers] of this.#channelPeers) {
-        peers.delete(connectedPeerId)
+      if (connectedPeerId) {
+        for (const peers of this.#channelPeers.values())
+          peers.delete(connectedPeerId)
       }
-      const events = this.#removeChannelPresenceSessionsBySource(
-        `peer:${connectedPeerId}`
-      )
+      const events =
+        this.#removeChannelPresenceSessionsBySource(presenceSourceId)
       if (events.length > 0) {
         this.#send('channel.presence', {
           presence: events[events.length - 1],

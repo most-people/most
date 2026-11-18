@@ -15,7 +15,12 @@ import {
   resolveChannelHandle,
 } from '../../src/core/channelKeysV2.js'
 
-const alice = `0x${'1'.repeat(40)}`
+import {
+  presenceOptions,
+  addressOf,
+  defaultSigner,
+} from '../helpers/signedMessage.js'
+const alice = addressOf(defaultSigner)
 const bob = `0x${'2'.repeat(40)}`
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
@@ -72,7 +77,13 @@ function presence(engine, channel, address, ownerAddress = alice) {
 }
 
 async function expectPresence(first, second, channel, sessionId) {
-  first.joinChannelPresence(channel, { ownerAddress: alice, sessionId })
+  first.joinChannelPresence(
+    channel,
+    await presenceOptions(first, channel, 'online', {
+      ownerAddress: alice,
+      sessionId,
+    })
+  )
   await waitFor(
     () => presence(second, channel, alice),
     `presence for ${channel}`
@@ -174,28 +185,27 @@ describe('channel authorization cache', () => {
     await join(second, 'cached-0')
     test.connect(first, second)
     await expectPresence(first, second, 'cached-0', 'warm-up')
-    first.heartbeatChannelPresence('cached-0', {
+    const heartbeat = await presenceOptions(first, 'cached-0', 'heartbeat', {
       ownerAddress: alice,
       sessionId: 'warm-up',
     })
-    await tick()
-
-    const hash = context.mock.method(crypto, 'createHash')
-    for (let index = 0; index < 100; index++) {
-      first.heartbeatChannelPresence('cached-0', {
-        ownerAddress: alice,
-        sessionId: 'warm-up',
-      })
-    }
-    await tick()
-    assert.equal(hash.mock.callCount(), 0)
-    first.setChannelRemark('cached-0', 'renamed', { ownerAddress: alice })
-    first.updateChannelPresenceProfile('cached-0', {
+    const profile = await presenceOptions(first, 'cached-0', 'profile', {
       ownerAddress: alice,
       sessionId: 'warm-up',
       displayName: 'New profile',
       profileUpdatedAt: Date.now(),
     })
+    first.heartbeatChannelPresence('cached-0', heartbeat)
+    await tick()
+
+    const hash = context.mock.method(crypto, 'createHash')
+    for (let index = 0; index < 100; index++) {
+      first.heartbeatChannelPresence('cached-0', heartbeat)
+    }
+    await tick()
+    assert.equal(hash.mock.callCount(), 0)
+    first.setChannelRemark('cached-0', 'renamed', { ownerAddress: alice })
+    first.updateChannelPresenceProfile('cached-0', profile)
     await tick()
     assert.equal(hash.mock.callCount(), 0)
     assert.equal(presence(second, 'cached-0', alice).displayName, 'New profile')
@@ -214,6 +224,54 @@ describe('channel authorization cache', () => {
     }
   })
 
+  it('sends both live sessions and a subsequent signed profile to a newly authorized peer', async context => {
+    const test = await fixture(context)
+    const first = await test.engine()
+    const second = await test.engine()
+    const channel = 'late-presence'
+    for (const engine of [first, second]) await join(engine, channel)
+    for (const sessionId of ['one', 'two']) {
+      first.joinChannelPresence(
+        channel,
+        await presenceOptions(first, channel, 'online', { sessionId })
+      )
+    }
+    const profile = name =>
+      presenceOptions(first, channel, 'profile', {
+        sessionId: 'two',
+        displayName: name,
+      })
+    first.updateChannelPresenceProfile(channel, await profile('Before connect'))
+    test.connect(first, second)
+    await waitFor(
+      () => presence(second, channel, alice)?.displayName === 'Before connect',
+      'cached signed profile'
+    )
+    first.leaveChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'offline', { sessionId: 'two' })
+    )
+    first.updateChannelPresenceProfile(
+      channel,
+      await presenceOptions(first, channel, 'profile', {
+        sessionId: 'one',
+        displayName: 'Remaining tab',
+      })
+    )
+    await waitFor(
+      () => presence(second, channel, alice)?.displayName === 'Remaining tab',
+      'remaining session after late connect'
+    )
+    first.leaveChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'offline', { sessionId: 'one' })
+    )
+    await waitFor(
+      () => !presence(second, channel, alice),
+      'last session leaving'
+    )
+  })
+
   it('revokes a leaving channel before closing cores and supports rejoining', async context => {
     const test = await fixture(context)
     const first = await test.engine()
@@ -222,10 +280,13 @@ describe('channel authorization cache', () => {
     await join(first, channel)
     await join(second, channel, bob)
     test.connect(first, second)
-    first.joinChannelPresence(channel, {
-      ownerAddress: alice,
-      sessionId: 'warm',
-    })
+    first.joinChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'online', {
+        ownerAddress: alice,
+        sessionId: 'warm',
+      })
+    )
     await waitFor(
       () => presence(second, channel, alice, bob),
       'initial authorization'
@@ -345,10 +406,13 @@ describe('channel authorization cache', () => {
       proofs: [{ topic: chatTopic('allowed-channel'), proof: 'f'.repeat(64) }],
     })
     await tick()
-    engine.joinChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.joinChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'online', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(
       [first, second].every(
         remote =>
@@ -374,10 +438,13 @@ describe('channel authorization cache', () => {
       proofs: [second.proof('allowed-channel', first.challenge)],
     })
     await tick()
-    engine.heartbeatChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.heartbeatChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'heartbeat', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(!second.frames.some(frame => frame.type === 'channel-presence'))
 
     const voices = []
@@ -390,17 +457,20 @@ describe('channel authorization cache', () => {
       sessionId: 'untrusted-session',
       sender: { address: bob },
     })
-    engine.joinChannelPresence('private-channel', {
-      ownerAddress: alice,
-      sessionId: 'private',
-    })
+    engine.joinChannelPresence(
+      'private-channel',
+      await presenceOptions(engine, 'private-channel', 'online', {
+        ownerAddress: alice,
+        sessionId: 'private',
+      })
+    )
     await tick()
     assert.equal(voices.length, 0)
     assert.ok(
       first.frames.every(
         frame =>
           frame.type !== 'channel-presence' ||
-          frame.channelId !== channelKey('private-channel')
+          frame.body.channelId !== channelKey('private-channel')
       )
     )
     assert.ok(
@@ -430,10 +500,13 @@ describe('channel authorization cache', () => {
       challenge: replacement.challenge,
       proofs: [first.proof('allowed-channel')],
     })
-    engine.heartbeatChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.heartbeatChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'heartbeat', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(
       !replacement.frames.some(frame => frame.type === 'channel-presence')
     )
@@ -451,10 +524,13 @@ describe('channel authorization cache', () => {
     const remote = remoteConnection(discovery.swarms.at(-1))
     test.track(remote)
     remote.authorize('wire-channel')
-    engine.joinChannelPresence('wire-channel', {
-      ownerAddress: alice,
-      sessionId: 'wire',
-    })
+    engine.joinChannelPresence(
+      'wire-channel',
+      await presenceOptions(engine, 'wire-channel', 'online', {
+        ownerAddress: alice,
+        sessionId: 'wire',
+      })
+    )
     await tick()
 
     const hello = remote.frames.find(frame => frame.type === 'channel-hello')
@@ -466,7 +542,7 @@ describe('channel authorization cache', () => {
     const presenceFrame = remote.frames.find(
       frame => frame.type === 'channel-presence'
     )
-    assert.equal(presenceFrame.channelId, channelKey('wire-channel'))
+    assert.equal(presenceFrame.body.channelId, channelKey('wire-channel'))
     assert.ok(
       remote.frames.every(
         frame => !JSON.stringify(frame).includes('wire-channel')

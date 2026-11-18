@@ -365,7 +365,10 @@ export function ChatScreen({
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [hasOlderMessages, setHasOlderMessages] = useState(false)
   const [nearLatest, setNearLatest] = useState(true)
-  const [chatConnected, setChatConnected] = useState(false)
+  const [connectedSocket, setConnectedSocket] =
+    useState<ChatWebSocketSession | null>(null)
+  const chatConnected = Boolean(connectedSocket)
+  const leaveSocketPresenceRef = useRef<(() => void) | undefined>(undefined)
   const [sending, setSending] = useState(false)
   const [channelPeers, setChannelPeers] = useState<number | null>(null)
   const [peerMap, setPeerMap] = useState<Record<string, number>>({})
@@ -550,7 +553,7 @@ export function ChatScreen({
       identity,
       onConnectionChange: connected => {
         if (running && scopeRef.current === conversationScope)
-          setChatConnected(connected)
+          setConnectedSocket(connected ? session : null)
       },
       onEvent: event => {
         if (!running) return
@@ -567,7 +570,9 @@ export function ChatScreen({
     for (const name of names) void session.subscribe(name).catch(() => {})
     return () => {
       running = false
+      leaveSocketPresenceRef.current?.()
       session.close()
+      setConnectedSocket(null)
       if (socketRef.current === session) socketRef.current = null
     }
   }, [
@@ -800,7 +805,6 @@ export function ChatScreen({
 
   useEffect(
     () => () => {
-      socketRef.current?.close()
       voiceSessionRef.current?.close()
     },
     []
@@ -1353,24 +1357,99 @@ export function ChatScreen({
     return true
   }
 
-  const resolveChannelId = async (name: string) => {
-    if (isChannelId(name)) return name
-    const cached = channelIdsRef.current.get(name)
-    if (cached) return cached
-    const items = (await (localMode
-      ? bridge.listChannels?.()
-      : api?.listChannels())) as Array<Record<string, unknown>> | undefined
-    const wanted = normalizeChatChannel(name)
-    const item = (items || []).find(
-      value =>
-        normalizeChatChannel(String(value.name || value.channelId || '')) ===
-        wanted
+  const resolveChannelId = useCallback(
+    async (name: string) => {
+      if (isChannelId(name)) return name
+      const cached = channelIdsRef.current.get(name)
+      if (cached) return cached
+      const items = (await (localMode
+        ? bridge.listChannels?.()
+        : api?.listChannels())) as Array<Record<string, unknown>> | undefined
+      const wanted = normalizeChatChannel(name)
+      const item = (items || []).find(
+        value =>
+          normalizeChatChannel(String(value.name || value.channelId || '')) ===
+          wanted
+      )
+      const channelKey = String(item?.channelKey || '')
+      if (!isChannelId(channelKey)) throw new Error(t('chat.sendFailed'))
+      channelIdsRef.current.set(name, channelKey)
+      return channelKey
+    },
+    [localMode, bridge, api, t]
+  )
+
+  useEffect(() => {
+    if (
+      !identity ||
+      !active ||
+      !foreground ||
+      !chatOpen ||
+      !channel ||
+      snapshot.node.status !== 'ready'
     )
-    const channelKey = String(item?.channelKey || '')
-    if (!isChannelId(channelKey)) throw new Error(t('chat.sendFailed'))
-    channelIdsRef.current.set(name, channelKey)
-    return channelKey
-  }
+      return
+    if (!localMode && !connectedSocket?.connected) return
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | undefined
+    let leave: (() => void) | undefined
+    void resolveChannelId(channel)
+      .then(channelId => {
+        if (cancelled) return
+        const sessionId = createClientMessageId()
+        const send = (action: 'join' | 'heartbeat' | 'leave') => {
+          const body = {
+            kind: 'presence',
+            channelId,
+            author: identity.address.toLowerCase(),
+            id: createClientMessageId(),
+            createdAt: Date.now(),
+            sessionId,
+            status:
+              action === 'join'
+                ? 'online'
+                : action === 'leave'
+                  ? 'offline'
+                  : 'heartbeat',
+            displayName: identity.username,
+          }
+          const input = {
+            action,
+            channelName: channelId,
+            signed: signChatBody(body, identity),
+          }
+          if (localMode)
+            void bridge.sendChannelPresence?.(input).catch(() => {})
+          else connectedSocket?.sendPresence(input)
+        }
+        send('join')
+        leave = () => {
+          send('leave')
+          if (leaveSocketPresenceRef.current === leave)
+            leaveSocketPresenceRef.current = undefined
+          leave = undefined
+        }
+        if (!localMode) leaveSocketPresenceRef.current = leave
+        timer = setInterval(() => send('heartbeat'), 15000)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      leave?.()
+    }
+  }, [
+    identity,
+    active,
+    foreground,
+    chatOpen,
+    channel,
+    snapshot.node.status,
+    localMode,
+    connectedSocket,
+    resolveChannelId,
+    bridge,
+  ])
 
   // A retry resends the attempt's envelope unchanged, so the node treats it
   // as the same message.

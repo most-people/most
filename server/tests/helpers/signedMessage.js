@@ -20,14 +20,25 @@ export async function signedMessage(
   content,
   { signer = defaultSigner, identity, ...fields } = {}
 ) {
+  return signedEvent(channelId, {
+    signer,
+    identity,
+    ...fields,
+    kind: 'message',
+    content,
+  })
+}
+
+async function signedEvent(
+  channelId,
+  { signer = defaultSigner, identity, ...fields }
+) {
   const device = identity ? identity.device : await deviceFor(signer)
   const body = {
-    kind: 'message',
     channelId,
     author: (identity || signer).address.toLowerCase(),
     id: randomUUID(),
     createdAt: Date.now(),
-    content,
     ...fields,
   }
   return {
@@ -54,20 +65,29 @@ export async function signedProfile(
   channelId,
   { signer = defaultSigner, identity, ...fields } = {}
 ) {
-  const device = identity ? identity.device : await deviceFor(signer)
-  const body = {
-    kind: 'profile',
-    channelId,
-    author: (identity || signer).address.toLowerCase(),
-    id: randomUUID(),
-    createdAt: Date.now(),
+  return signedEvent(channelId, {
+    signer,
+    identity,
     ...fields,
-  }
+    kind: 'profile',
+  })
+}
+
+export function signedPresence(channelId, status, fields = {}) {
+  return signedEvent(channelId, { ...fields, kind: 'presence', status })
+}
+
+export async function presenceOptions(
+  engine,
+  channel,
+  status,
+  { ownerAddress = addressOf(defaultSigner), sourceId, ...fields }
+) {
+  const channelId = engine.resolveChannelKey(channel, { ownerAddress })
   return {
-    body,
-    device: device.publicKey,
-    cert: device.cert,
-    sig: signBody(body, device.secretKey),
+    ownerAddress,
+    sourceId,
+    signed: await signedPresence(channelId, status, fields),
   }
 }
 

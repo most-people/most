@@ -219,35 +219,54 @@ export function useChannelMessages({
     }
   }, [])
 
-  const getPresencePayload = useCallback((channel: string) => {
-    return {
-      channel,
-      sessionId: presenceSessionIdRef.current,
-      ...presenceProfileRef.current,
-    }
-  }, [])
+  const sendPresence = useCallback(
+    (channel: string, action: 'join' | 'heartbeat' | 'profile' | 'leave') => {
+      if (!userIdentity || wsRef.current?.readyState !== WebSocket.OPEN) return
+      const { displayName, avatar, profileUpdatedAt } =
+        presenceProfileRef.current
+      const body = {
+        kind: 'presence',
+        channelId: channel,
+        author: userIdentity.address.toLowerCase(),
+        id: createClientMessageId(),
+        createdAt: Date.now(),
+        sessionId: presenceSessionIdRef.current,
+        status:
+          action === 'join'
+            ? 'online'
+            : action === 'leave'
+              ? 'offline'
+              : action,
+        displayName: displayName || '',
+        avatar: avatar || '',
+        ...(profileUpdatedAt ? { profileUpdatedAt } : {}),
+      }
+      wsSend('channel:presence:' + action, {
+        channel,
+        signed: signChatBody(body, userIdentity.device),
+      })
+    },
+    [userIdentity, wsSend]
+  )
 
   const leavePresenceChannel = useCallback(
     (channel = joinedPresenceChannelRef.current) => {
       if (!channel) return
-      wsSend('channel:presence:leave', {
-        channel,
-        sessionId: presenceSessionIdRef.current,
-      })
+      sendPresence(channel, 'leave')
       if (joinedPresenceChannelRef.current === channel) {
         joinedPresenceChannelRef.current = ''
       }
     },
-    [wsSend]
+    [sendPresence]
   )
 
   const joinPresenceChannel = useCallback(
     (channel: string) => {
       if (!channel || !presenceEnabledRef.current || !userIdentity) return
-      wsSend('channel:presence:join', getPresencePayload(channel))
+      sendPresence(channel, 'join')
       joinedPresenceChannelRef.current = channel
     },
-    [getPresencePayload, userIdentity, wsSend]
+    [sendPresence, userIdentity]
   )
 
   const replaceSubscriptions = useCallback(
@@ -413,7 +432,13 @@ export function useChannelMessages({
   ])
 
   useEffect(() => {
-    if (!connected || !presenceEnabled || !userIdentity || !channelName) {
+    if (
+      !connected ||
+      !presenceEnabled ||
+      !userIdentity ||
+      !channelName ||
+      (waitForPeerId && !peerId)
+    ) {
       leavePresenceChannel()
       return
     }
@@ -430,6 +455,8 @@ export function useChannelMessages({
     connected,
     joinPresenceChannel,
     leavePresenceChannel,
+    waitForPeerId,
+    peerId,
     presenceEnabled,
     userIdentity,
   ])
@@ -451,10 +478,10 @@ export function useChannelMessages({
   useEffect(() => {
     const channel = joinedPresenceChannelRef.current
     if (!connected || !presenceEnabled || !channel || !userIdentity) return
-    wsSend('channel:presence:profile', getPresencePayload(channel))
+    sendPresence(channel, 'profile')
   }, [
     connected,
-    getPresencePayload,
+    sendPresence,
     presenceEnabled,
     presenceProfileKey,
     userIdentity,
@@ -466,13 +493,10 @@ export function useChannelMessages({
     const timer = window.setInterval(() => {
       const channel = joinedPresenceChannelRef.current
       if (!channel) return
-      wsSend('channel:presence:heartbeat', {
-        channel,
-        sessionId: presenceSessionIdRef.current,
-      })
+      sendPresence(channel, 'heartbeat')
     }, CHANNEL_PRESENCE_HEARTBEAT_MS)
     return () => window.clearInterval(timer)
-  }, [connected, presenceEnabled, userIdentity, wsSend])
+  }, [connected, presenceEnabled, userIdentity, sendPresence])
 
   useEffect(() => {
     if (!isReady || !enabled || (waitForPeerId && !peerIdRef.current)) return
@@ -540,9 +564,9 @@ export function useChannelMessages({
         } catch {}
       }
       ws.onclose = () => {
+        if (closed || wsRef.current !== ws) return
         setConnected(false)
         joinedPresenceChannelRef.current = ''
-        if (closed) return
         const attempt = reconnectAttemptRef.current
         if (attempt >= 20) return
         const delay = Math.min(reconnectBaseDelay * Math.pow(2, attempt), 30000)
@@ -559,6 +583,7 @@ export function useChannelMessages({
       closed = true
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       leavePresenceChannel()
+      setConnected(false)
       wsRef.current?.close()
       wsRef.current = null
       subscribedChannelsRef.current.clear()

@@ -23,6 +23,8 @@ import {
   sendTestMessage,
   signedMessage,
   updateTestProfile,
+  presenceOptions,
+  defaultSigner,
 } from '../helpers/signedMessage.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -4987,7 +4989,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('tracks local sessions and keeps profile separate from heartbeat', async () => {
       const channelName = `presence-local-${uid}`
-      const alice = `0x${'c'.repeat(40)}`
+      const alice = addressOf(defaultSigner)
       const events = []
       const onPresence = event => {
         if (event.channelKey === resolveChannelHandle(channelName).channelKey)
@@ -5003,19 +5005,25 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const now = Date.now()
 
         await withMockedDateNow(now, async () => {
-          engine.joinChannelPresence(channelName, {
-            ownerAddress: alice,
-            sessionId: 'one',
-            displayName: 'Alice',
-            avatar: 'https://example.test/a.png',
-            profileUpdatedAt: 1,
-          })
+          engine.joinChannelPresence(
+            channelName,
+            await presenceOptions(engine, channelName, 'online', {
+              ownerAddress: alice,
+              sessionId: 'one',
+              displayName: 'Alice',
+              avatar: 'https://example.test/a.png',
+              profileUpdatedAt: 1,
+            })
+          )
         })
         await withMockedDateNow(now + 1000, async () => {
-          engine.heartbeatChannelPresence(channelName, {
-            ownerAddress: alice,
-            sessionId: 'one',
-          })
+          engine.heartbeatChannelPresence(
+            channelName,
+            await presenceOptions(engine, channelName, 'heartbeat', {
+              ownerAddress: alice,
+              sessionId: 'one',
+            })
+          )
         })
 
         let presence = engine.getChannelPresence(channelName, {
@@ -5027,17 +5035,23 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.strictEqual(presence[0].avatar, 'https://example.test/a.png')
         assert.strictEqual(presence[0].lastSeen, now + 1000)
 
-        engine.joinChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'two',
-          displayName: 'Alice new',
-          avatar: 'https://example.test/new.png',
-          profileUpdatedAt: 2,
-        })
-        engine.leaveChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'one',
-        })
+        engine.joinChannelPresence(
+          channelName,
+          await presenceOptions(engine, channelName, 'online', {
+            ownerAddress: alice,
+            sessionId: 'two',
+            displayName: 'Alice new',
+            avatar: 'https://example.test/new.png',
+            profileUpdatedAt: 2,
+          })
+        )
+        engine.leaveChannelPresence(
+          channelName,
+          await presenceOptions(engine, channelName, 'offline', {
+            ownerAddress: alice,
+            sessionId: 'one',
+          })
+        )
         presence = engine.getChannelPresence(channelName, {
           ownerAddress: alice,
         })
@@ -5045,10 +5059,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.strictEqual(presence[0].displayName, 'Alice new')
         assert.strictEqual(presence[0].online, true)
 
-        engine.leaveChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'two',
-        })
+        engine.leaveChannelPresence(
+          channelName,
+          await presenceOptions(engine, channelName, 'offline', {
+            ownerAddress: alice,
+            sessionId: 'two',
+          })
+        )
         presence = engine.getChannelPresence(channelName, {
           ownerAddress: alice,
         })
@@ -5063,7 +5080,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('accepts presence profile without a profile timestamp', async () => {
       const channelName = `presence-profile-no-ts-${uid}`
-      const service = `0x${'e'.repeat(40)}`
+      const service = addressOf(defaultSigner)
       const now = Date.now()
 
       await engine.createChannel(channelName, 'personal', {
@@ -5072,12 +5089,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       })
 
       await withMockedDateNow(now, async () => {
-        engine.joinChannelPresence(channelName, {
-          ownerAddress: service,
-          sessionId: 'service-ai',
-          displayName: 'ST AI Support',
-          avatar: 'https://example.test/service.png',
-        })
+        engine.joinChannelPresence(
+          channelName,
+          await presenceOptions(engine, channelName, 'online', {
+            ownerAddress: service,
+            sessionId: 'service-ai',
+            displayName: 'ST AI Support',
+            avatar: 'https://example.test/service.png',
+          })
+        )
       })
 
       const presence = engine.getChannelPresence(channelName, {
@@ -5091,20 +5111,24 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('expires stale sessions after the presence timeout', async () => {
       const channelName = `presence-timeout-${uid}`
-      const alice = `0x${'d'.repeat(40)}`
+      const alice = addressOf(defaultSigner)
       await engine.createChannel(channelName, 'personal', {
         ownerAddress: alice,
         displayName: 'Alice',
       })
 
-      await withMockedDateNow(1000, async () => {
-        engine.joinChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'stale',
-          displayName: 'Alice',
-        })
+      const now = Date.now()
+      await withMockedDateNow(now, async () => {
+        engine.joinChannelPresence(
+          channelName,
+          await presenceOptions(engine, channelName, 'online', {
+            ownerAddress: alice,
+            sessionId: 'stale',
+            displayName: 'Alice',
+          })
+        )
       })
-      await withMockedDateNow(1000 + 45 * 1000 + 1, async () => {
+      await withMockedDateNow(now + 45 * 1000 + 1, async () => {
         engine.pruneChannelPresence()
       })
 
@@ -5121,7 +5145,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const firstDataPath = path.join(presenceTmpDir, 'first')
       const secondDataPath = path.join(presenceTmpDir, 'second')
       const channelName = `presence-remote-${uid}`
-      const alice = `0x${'3'.repeat(40)}`
+      const alice = addressOf(defaultSigner)
       const bob = `0x${'4'.repeat(40)}`
       let firstEngine
       let secondEngine
@@ -5152,13 +5176,16 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
         replication = firstEngine.replicateWith(secondEngine)
         await sleep(25)
-        firstEngine.joinChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'alice-tab',
-          displayName: 'Alice Live',
-          avatar: 'https://example.test/alice.png',
-          profileUpdatedAt: 3,
-        })
+        firstEngine.joinChannelPresence(
+          channelName,
+          await presenceOptions(firstEngine, channelName, 'online', {
+            ownerAddress: alice,
+            sessionId: 'alice-tab',
+            displayName: 'Alice Live',
+            avatar: 'https://example.test/alice.png',
+            profileUpdatedAt: 3,
+          })
+        )
 
         const remotePresence = await waitForChannelPresenceAddress(
           secondEngine,
@@ -5172,10 +5199,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           'https://example.test/alice.png'
         )
 
-        firstEngine.leaveChannelPresence(channelName, {
-          ownerAddress: alice,
-          sessionId: 'alice-tab',
-        })
+        firstEngine.leaveChannelPresence(
+          channelName,
+          await presenceOptions(firstEngine, channelName, 'offline', {
+            ownerAddress: alice,
+            sessionId: 'alice-tab',
+          })
+        )
         const start = Date.now()
         while (Date.now() - start < 5000) {
           const presence = secondEngine.getChannelPresence(channelName, {

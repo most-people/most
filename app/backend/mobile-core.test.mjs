@@ -12,7 +12,6 @@ import Hyperdrive from 'hyperdrive'
 import {
   CHANNEL_PROOF_VERSION,
   CHANNELS_FILE,
-  DIAGNOSTIC_AUTHOR,
   normalizeChannelMessage,
   sortChannelMessages,
 } from './channel-protocol.mjs'
@@ -34,7 +33,14 @@ function generateChannelDiscoveryKey(handle) {
 import { MobileP2PCore } from './mobile-core.mjs'
 import { Wallet } from 'ethers'
 import { buildSignedEntry } from './channel-signed-entry.mjs'
-import { signMessage, signedInput } from './signed-message.test-helper.mjs'
+import {
+  signMessage,
+  signedInput,
+  signPresence,
+  defaultWallet,
+} from './signed-message.test-helper.mjs'
+
+const remotePresenceWallet = Wallet.createRandom()
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 
@@ -1118,27 +1124,33 @@ describe('mobile channel presence', () => {
 
     const joined = core.joinChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
-      displayName: 'Android',
+      signed: await signPresence(channel.channelKey, 'online', {
+        sessionId: 'android-test',
+        displayName: 'Android',
+      }),
     })
     assert.equal(joined.length, 1)
-    assert.equal(joined[0].address, DIAGNOSTIC_AUTHOR)
+    assert.equal(joined[0].address, defaultWallet.address.toLowerCase())
     assert.equal(joined[0].displayName, 'Android')
     assert.equal(joined[0].online, true)
     assert.equal(joined[0].local, true)
 
     core.heartbeatChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
+      signed: await signPresence(channel.channelKey, 'heartbeat', {
+        sessionId: 'android-test',
+      }),
     })
     core.leaveChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
+      signed: await signPresence(channel.channelKey, 'offline', {
+        sessionId: 'android-test',
+      }),
     })
 
     const presenceWrites = parseStreamWrites(stream, 'channel-presence')
     assert.deepEqual(
-      presenceWrites.map(message => message.status),
+      presenceWrites.map(message => message.body.status),
       ['online', 'heartbeat', 'offline']
     )
     assert.equal(
@@ -1182,17 +1194,7 @@ describe('mobile channel presence', () => {
     stream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'desktop-peer',
-          channelId: channel.channelKey,
-          channelKey: channel.channelKey,
-          address: '0x0000000000000000000000000000000000000002',
-          displayName: 'Desktop',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(channel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Desktop' })) })}\n`
       )
     )
 
@@ -1228,17 +1230,7 @@ describe('mobile channel presence', () => {
     staleStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'stale-peer',
-          channelId: channel.channelKey,
-          channelKey: channel.channelKey,
-          address: '0x0000000000000000000000000000000000000003',
-          displayName: 'Stale',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(channel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Stale' })) })}\n`
       )
     )
     presences = await waitFor(
@@ -1336,17 +1328,21 @@ describe('mobile channel connection scoping', () => {
 
     core.joinChannelPresence({
       channelName: sharedChannel.channelKey,
-      sessionId: 'shared-session',
-      displayName: 'Android',
+      signed: await signPresence(sharedChannel.channelKey, 'online', {
+        sessionId: 'shared-session',
+        displayName: 'Android',
+      }),
     })
     core.joinChannelPresence({
       channelName: privateChannel.channelKey,
-      sessionId: 'private-session',
-      displayName: 'Android',
+      signed: await signPresence(privateChannel.channelKey, 'online', {
+        sessionId: 'private-session',
+        displayName: 'Android',
+      }),
     })
     assert.deepEqual(
       parseStreamWrites(stream, 'channel-presence').map(
-        message => message.channelId
+        message => message.body.channelId
       ),
       [sharedChannel.channelKey]
     )
@@ -1431,8 +1427,6 @@ describe('mobile channel connection scoping', () => {
       name: 'presence-private',
       discover: false,
     })
-    const remoteAddress = '0x0000000000000000000000000000000000000002'
-    const remotePeerId = 'desktop-peer'
     const chatSwarm = swarms[1]
 
     const acceptedStream = new RecordingStream()
@@ -1447,14 +1441,7 @@ describe('mobile channel connection scoping', () => {
     acceptedStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: remotePeerId,
-          channelId: sharedChannel.channelKey,
-          address: remoteAddress,
-          status: 'online',
-          sessionId: 'desktop',
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(sharedChannel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'desktop' })) })}\n`
       )
     )
     await waitFor(
@@ -1476,14 +1463,7 @@ describe('mobile channel connection scoping', () => {
     unauthorizedStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: remotePeerId,
-          channelId: sharedChannel.channelKey,
-          address: remoteAddress,
-          status: 'offline',
-          sessionId: 'desktop',
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(sharedChannel.channelKey, 'offline', { wallet: remotePresenceWallet, sessionId: 'desktop' })) })}\n`
       )
     )
     await waitForTick()
@@ -1605,8 +1585,10 @@ describe('mobile channel metadata management', () => {
 
     restartedCore.joinChannelPresence({
       channelName: restored.channelKey,
-      sessionId: 'android-leave-test',
-      displayName: 'Android',
+      signed: await signPresence(restored.channelKey, 'online', {
+        sessionId: 'android-leave-test',
+        displayName: 'Android',
+      }),
     })
     const chatSwarm = restartedSwarms[1]
     const stream = new RecordingStream()
@@ -1621,17 +1603,7 @@ describe('mobile channel metadata management', () => {
     stream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'desktop-peer',
-          channelId: restored.channelKey,
-          channelKey: restored.channelKey,
-          address: '0x0000000000000000000000000000000000000002',
-          displayName: 'Desktop',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(restored.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Desktop' })) })}\n`
       )
     )
     await waitForTick()

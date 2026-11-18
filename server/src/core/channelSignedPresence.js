@@ -1,5 +1,4 @@
-// Ephemeral v2 presence validation (signatures.md §4.3). This is separate
-// from the v1 presence wire path until both clients can sign every update.
+// Ephemeral v2 presence (signatures.md §4.3).
 import { verifySignedEnvelope } from './chatSignaturesV2.js'
 
 export const PRESENCE_FRESHNESS_MS = 2 * 60 * 1000
@@ -37,4 +36,28 @@ export function readSignedPresenceFrame(frame, options = {}) {
   if (frame?.v !== 2 || frame.type !== 'channel-presence') return null
   if (signedPresenceError(frame, options)) return null
   return frame
+}
+
+/** Only these fields go on the wire. Routing and receipt time stay local. */
+export function createSignedPresenceFrame({ body, device, cert, sig }) {
+  return { v: 2, type: 'channel-presence', body, device, cert, sig }
+}
+
+export function presenceSession(body, sourceId) {
+  const session = {
+    address: body.author,
+    sessionId: body.sessionId,
+    sourceId,
+    lastSeen: Date.now(),
+  }
+  if (typeof body.displayName === 'string')
+    session.displayName = body.displayName
+  if (typeof body.avatar === 'string') session.avatar = body.avatar
+  if (
+    Number.isSafeInteger(body.profileUpdatedAt) &&
+    body.profileUpdatedAt > 0
+  ) {
+    session.profileUpdatedAt = body.profileUpdatedAt
+  }
+  return session
 }

@@ -117,6 +117,18 @@ channel subscriptions. Reconnect, resubscribe and reload history after network
 loss. Unknown browser origins are refused; native connections without an
 Origin header still require remote invite and signature authentication.
 
+For presence, send `channel:presence:join|heartbeat|profile|leave` with
+`data: {channel, signed}`. Use the public channel ID in the signed body. Set
+`kind: "presence"` and the corresponding `status` (`online`, `heartbeat`,
+`profile`, or `offline`). Sign a fresh event with the authenticated account's
+device for each action; keep the same unique `sessionId` for the lifetime of
+one tab or active mobile conversation. See
+[the v2 signature format](protocol/v2/signatures.md#43-聊天-swarm-帧).
+Send a heartbeat every 15 seconds and a signed leave before closing normally.
+An abrupt socket close clears only that socket's sessions locally. A connected
+peer expires a session after 45 seconds without a heartbeat. An account stays
+online while any session remains. Unsigned presence frames are ignored.
+
 ## Attachments
 
 1. Read `GET /api/node/policy` with the remote invite and signature for the

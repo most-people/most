@@ -18,6 +18,7 @@ import type {
   MobileChannel,
   MobileChannelMessage,
   SendChannelMessageInput,
+  ChannelPresenceInput,
   RemoteNodeConfig,
   ShareFolderInput,
   StartP2PPingInput,
@@ -391,6 +392,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
   ): Promise<MobileChannelMessage[]> {
     if (!this.#active.getChannelMessages) return Promise.resolve([])
     return this.#active.getChannelMessages(channelName, options)
+  }
+
+  async sendChannelPresence(input: ChannelPresenceInput) {
+    await this.#active.sendChannelPresence?.(input)
   }
 
   sendChannelMessage(

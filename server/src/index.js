@@ -84,12 +84,16 @@ import {
   signedProfileError,
 } from './core/channelSignedEntry.js'
 import { canonicalJson } from './core/canonicalJson.js'
+import {
+  createSignedPresenceFrame,
+  readSignedPresenceFrame,
+  presenceSession,
+  signedPresenceError,
+} from './core/channelSignedPresence.js'
 import { ChannelPresenceManager } from './core/channelPresence.js'
 import {
-  createChannelPresenceMessage,
   createChannelVoiceMessage,
   normalizeRemoteChannelFrame,
-  normalizeRemoteChannelPresence,
 } from './core/channelWire.js'
 import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
 import {
@@ -348,75 +352,62 @@ export class MostBoxEngine extends EventEmitter {
     return event
   }
 
-  joinChannelPresence(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.join(channel, {
-      ...options,
-      address: options.ownerAddress,
-      local: true,
-    })
-    if (event) {
-      this.#broadcastChannelPresence(event)
+  #applyPresence(channel, body, session) {
+    switch (body.status) {
+      case 'online':
+        return this.#channelPresence.join(channel, session)
+      case 'heartbeat':
+        return this.#channelPresence.heartbeat(channel, session)
+      case 'profile':
+        return this.#channelPresence.updateProfile(channel, session)
+      case 'offline':
+        return this.#channelPresence.leave(channel.channelKey, session)
     }
-    return this.#channelPresence.list(channel.channelKey)
   }
 
-  heartbeatChannelPresence(channelKeyInput, options = {}) {
+  #acceptLocalPresence(
+    channelKeyInput,
+    { signed, ownerAddress, sourceId },
+    status
+  ) {
     this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.heartbeat(channel, {
-      ...options,
-      address: options.ownerAddress,
+    this.#assertChannelMember(channelKeyInput, ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    const error = signedPresenceError(signed, {
+      channelId: channel.channelKey,
+      author: normalizeOwnerAddress(ownerAddress),
+      status,
+    })
+    if (error) throw new ValidationError(error)
+    const frame = createSignedPresenceFrame(structuredClone(signed))
+    this.#applyPresence(channel, frame.body, {
+      ...presenceSession(frame.body, sourceId),
       local: true,
+      frame,
     })
-    this.#broadcastChannelPresence(
-      event ||
-        this.#channelPresence.format(
-          channel.channelKey,
-          options.ownerAddress,
-          'heartbeat'
-        )
-    )
+    this.#broadcastChannelPresence(frame)
     return this.#channelPresence.list(channel.channelKey)
   }
 
-  updateChannelPresenceProfile(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.updateProfile(channel, {
-      ...options,
-      address: options.ownerAddress,
-      local: true,
-    })
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
-    return this.#channelPresence.list(channel.channelKey)
+  joinChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'online')
   }
 
-  leaveChannelPresence(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const events = this.#channelPresence.leave(channel.channelKey, {
-      ...options,
-      address: options.ownerAddress,
-    })
-    events.forEach(event => this.#broadcastChannelPresence(event))
-    return this.#channelPresence.list(channel.channelKey)
+  heartbeatChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'heartbeat')
   }
 
-  clearChannelPresenceSource(sourceId, options = {}) {
+  updateChannelPresenceProfile(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'profile')
+  }
+
+  leaveChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'offline')
+  }
+
+  clearChannelPresenceSource(sourceId) {
     this.#ensureInitialized()
-    const events = this.#channelPresence.clearSource(sourceId)
-    if (options.broadcast) {
-      events.forEach(event => this.#broadcastChannelPresence(event))
-    }
-    return events
+    return this.#channelPresence.clearSource(sourceId)
   }
 
   pruneChannelPresence() {
@@ -6950,14 +6941,10 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
-    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
+    if (!this.#isChannelAllowedForStream(stream, event.body.channelId))
+      return true
     try {
-      stream.write(
-        `${JSON.stringify(
-          createChannelPresenceMessage(this.getNodeId(), event)
-        )}\n`
-      )
+      stream.write(`${JSON.stringify(event)}\n`)
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -6966,7 +6953,8 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #sendCurrentChannelPresence(stream) {
-    for (const event of this.#channelPresence.listLocal()) {
+    this.#channelPresence.prune()
+    for (const event of this.#channelPresence.localFrames()) {
       this.#sendChannelPresence(stream, event)
     }
   }
@@ -7180,28 +7168,17 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  #processChannelPresenceMessage(stream, msg) {
-    const presence = normalizeRemoteChannelPresence(msg, this.getNodeId())
-    if (!presence) return null
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === presence.channelKey
+  #processChannelPresenceMessage(stream, msg, sourceId) {
+    const channel = this.#channels.find(
+      item => item.channelKey === msg.body?.channelId
     )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
-      return null
-    }
-
-    if (presence.status === 'online') {
-      this.#channelPresence.join(localChannel, presence.options)
-    } else if (presence.status === 'heartbeat') {
-      this.#channelPresence.heartbeat(localChannel, presence.options)
-    } else if (presence.status === 'profile') {
-      this.#channelPresence.updateProfile(localChannel, presence.options)
-    } else {
-      this.#channelPresence.leave(localChannel.channelKey, presence.options)
-    }
-
-    return presence.peerId
+    if (
+      !channel ||
+      !this.#isChannelAllowedForStream(stream, channel.channelKey)
+    )
+      return
+    if (!readSignedPresenceFrame(msg, { channelId: channel.channelKey })) return
+    this.#applyPresence(channel, msg.body, presenceSession(msg.body, sourceId))
   }
 
   #processChannelVoiceMessage(stream, msg) {
@@ -7232,6 +7209,7 @@ export class MostBoxEngine extends EventEmitter {
 
   async #handleChannelConnection(conn, info = {}) {
     const stream = conn
+    const presenceSourceId = `stream:${crypto.randomUUID()}`
     let connectedPeerId = null
     let readBuffer = Buffer.alloc(0)
     let closed = false
@@ -7281,12 +7259,18 @@ export class MostBoxEngine extends EventEmitter {
             continue
           }
           if (this.#processChannelProofMessage(stream, message)) continue
+          if (message.type === 'channel-presence') {
+            this.#processChannelPresenceMessage(
+              stream,
+              message,
+              presenceSourceId
+            )
+            continue
+          }
           const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(stream, message)
-              : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(stream, message)
-                : await this.#processChannelHelloMessage(stream, message)
+            message.type === 'channel-voice'
+              ? this.#processChannelVoiceMessage(stream, message)
+              : await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)
@@ -7299,6 +7283,7 @@ export class MostBoxEngine extends EventEmitter {
       closed = true
       info?.removeListener?.('topic', handleTopic)
       this.#removeChannelStream(stream)
+      this.#channelPresence.clearSource(presenceSourceId)
       if (connectedPeerId) {
         for (const [channelKey, peers] of this.#channelPeers) {
           if (peers.has(connectedPeerId)) {
@@ -7316,7 +7301,6 @@ export class MostBoxEngine extends EventEmitter {
             })
           }
         }
-        this.#channelPresence.clearSource(`peer:${connectedPeerId}`)
       }
     }
 

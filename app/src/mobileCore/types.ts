@@ -291,13 +291,8 @@ export type SendChannelMessageInput = {
     sig: string
   }
 }
-export type ChannelPresenceInput = {
-  channelName: string
-  address?: string
-  displayName?: string
-  avatar?: string
-  profileUpdatedAt?: number
-  sessionId?: string
+export type ChannelPresenceInput = SendChannelMessageInput & {
+  action: 'join' | 'leave' | 'heartbeat'
 }
 
 export type CoreListener = (snapshot: MobileCoreSnapshot) => void
@@ -324,6 +319,7 @@ export type MostBoxMobileCore = {
     channelName: string,
     options?: { limit?: number; offset?: number }
   ) => Promise<MobileChannelMessage[]>
+  sendChannelPresence?: (input: ChannelPresenceInput) => Promise<void>
   sendChannelMessage?: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>

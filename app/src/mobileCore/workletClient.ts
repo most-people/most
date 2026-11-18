@@ -20,6 +20,7 @@ import type {
   MobileChannelAttachment,
   MobileChannelMessage,
   SendChannelMessageInput,
+  ChannelPresenceInput,
   MobileLogEntry,
   MobileTransfer,
   MostBoxMobileCore,
@@ -528,6 +529,25 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
         [EVENTS.CHANNEL_STATUS],
         30000
       )
+    )
+  }
+
+  async sendChannelPresence({
+    channelName,
+    signed,
+    action,
+  }: ChannelPresenceInput) {
+    if (!this.#worklet || this.#snapshot.node.status !== 'ready') return
+    const commands = {
+      join: COMMANDS.CHANNEL_PRESENCE_JOIN,
+      heartbeat: COMMANDS.CHANNEL_PRESENCE_HEARTBEAT,
+      leave: COMMANDS.CHANNEL_PRESENCE_LEAVE,
+    }
+    await this.#request(
+      commands[action],
+      { channelName, signed },
+      [EVENTS.CHANNEL_PRESENCE],
+      30000
     )
   }
 

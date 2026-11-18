@@ -10,8 +10,15 @@ import { MobileP2PCore } from '../app/backend/mobile-core.mjs'
 import { createRequire } from 'node:module'
 import b4a from 'b4a'
 import { Wallet } from 'ethers'
-import { sendTestMessage } from '../server/tests/helpers/signedMessage.js'
-import { signedInput } from '../app/backend/signed-message.test-helper.mjs'
+import {
+  sendTestMessage,
+  presenceOptions,
+} from '../server/tests/helpers/signedMessage.js'
+import {
+  signedInput,
+  signPresence,
+  defaultWallet,
+} from '../app/backend/signed-message.test-helper.mjs'
 import { calculateCid } from '../server/src/core/cid.js'
 import { getCidInfo } from '../server/src/core/cidTopic.js'
 import {
@@ -172,6 +179,15 @@ async function waitForMessage(read, content, timeoutMs = 45000) {
   assert.fail(`Timed out waiting for message: ${content}`)
 }
 
+async function waitForPresence(check, description) {
+  const deadline = Date.now() + 10000
+  while (Date.now() < deadline) {
+    if (check()) return
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+  assert.fail('Timed out waiting for ' + description)
+}
+
 // Protocol v2 channels (docs/protocol/v2/channel-keys.md): both cores must
 // derive the same topics and proofs from a channel handle and exchange
 // messages over a real (local) DHT, for a private credential and a public name.
@@ -230,6 +246,65 @@ it(
           () => desktop.getChannelMessages(handle, { ownerAddress: owner }),
           `mobile says hi in ${handle}`
         )
+
+        const channelName = mobileChannel.channelKey
+        const desktopInput = (status, sessionId, fields) =>
+          presenceOptions(desktop, handle, status, {
+            signer: ownerWallet,
+            ownerAddress: owner,
+            sessionId,
+            ...fields,
+          })
+        const onMobile = () =>
+          mobile
+            .getChannelPresence({ channelName })
+            .find(item => item.address === owner)
+        desktop.joinChannelPresence(
+          handle,
+          await desktopInput('online', 'tab-a')
+        )
+        desktop.joinChannelPresence(
+          handle,
+          await desktopInput('online', 'tab-b', { displayName: 'Both tabs' })
+        )
+        await waitForPresence(
+          () => onMobile()?.displayName === 'Both tabs',
+          'both desktop tabs'
+        )
+        desktop.leaveChannelPresence(
+          handle,
+          await desktopInput('offline', 'tab-a')
+        )
+        // Profile changes cannot make an offline account online. Seeing this
+        // update proves that the preceding leave was processed with tab B alive.
+        desktop.updateChannelPresenceProfile(
+          handle,
+          await desktopInput('profile', 'tab-b', { displayName: 'Tab B' })
+        )
+        await waitForPresence(
+          () => onMobile()?.displayName === 'Tab B',
+          'surviving desktop tab'
+        )
+        desktop.leaveChannelPresence(
+          handle,
+          await desktopInput('offline', 'tab-b')
+        )
+        await waitForPresence(() => !onMobile(), 'last desktop tab leaving')
+
+        const onDesktop = () =>
+          desktop
+            .getChannelPresence(handle, { ownerAddress: owner })
+            .find(item => item.address === defaultWallet.address.toLowerCase())
+        const mobileInput = async status => ({
+          channelName,
+          signed: await signPresence(channelName, status, {
+            sessionId: 'phone',
+          }),
+        })
+        mobile.joinChannelPresence(await mobileInput('online'))
+        await waitForPresence(onDesktop, 'mobile session on desktop')
+        mobile.leaveChannelPresence(await mobileInput('offline'))
+        await waitForPresence(() => !onDesktop(), 'mobile session leaving')
       }
     } finally {
       await Promise.allSettled(nodes.map(node => node.stop()))
