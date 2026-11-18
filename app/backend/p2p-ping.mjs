@@ -1,13 +1,11 @@
-import {
-  createHash,
-  createHmac,
-  randomBytes as nodeRandomBytes,
-} from 'node:crypto'
+import { randomBytes as nodeRandomBytes } from 'node:crypto'
 
 import Hyperswarm from 'hyperswarm'
+import { H, MAC } from './protocol-v2.mjs'
 
 export const P2P_PING_CODE_PATTERN = /^\d{6}$/
-export const P2P_PING_TOPIC_DOMAIN = 'most-box-p2p-ping-v2'
+/** Frame version on the ping swarm (envelope §6). */
+export const P2P_PING_FRAME_VERSION = 3
 export const P2P_PING_HOST_TTL_MS = 2 * 60 * 1000
 export const P2P_PING_JOIN_TIMEOUT_MS = 45 * 1000
 export const P2P_PING_DIRECTIONS = ['hostToJoin', 'joinToHost']
@@ -16,8 +14,6 @@ const DIRECTION_INITIATOR_ROLE = {
   hostToJoin: 'host',
   joinToHost: 'join',
 }
-const PROOF_KEY_DOMAIN = 'most-box-p2p-ping-proof-key-v2'
-const PROOF_DOMAIN = 'most-box-p2p-ping-proof-v2'
 const MAX_FRAME_BYTES = 4096
 const MAX_RECORDS = 20
 const TERMINAL_STATUSES = new Set([
@@ -64,30 +60,27 @@ function validateDirection(direction) {
   return direction
 }
 
+// envelope §3.1: variable-length fields end with 0x00.
+const field = value => `${value}\0`
+
 function proofKey(code) {
-  return createHash('sha256')
-    .update(PROOF_KEY_DOMAIN)
-    .update('\0')
-    .update(code)
-    .digest()
+  return H('p2p-ping/proof-key', field(code))
 }
 
 function createProof(code, direction, type, nonce) {
-  return createHmac('sha256', proofKey(code))
-    .update(PROOF_DOMAIN)
-    .update('\0')
-    .update(direction)
-    .update('\0')
-    .update(type)
-    .update('\0')
-    .update(nonce)
-    .digest('hex')
+  return MAC(
+    proofKey(code),
+    'p2p-ping/proof',
+    field(direction),
+    field(type),
+    field(nonce)
+  ).toString('hex')
 }
 
 function createFrame(code, direction, type, nonce) {
   return {
     type,
-    version: 2,
+    version: P2P_PING_FRAME_VERSION,
     direction,
     nonce,
     proof: createProof(code, direction, type, nonce),
@@ -98,7 +91,7 @@ function isValidFrame(code, direction, frame, expectedType, expectedNonce) {
   return (
     frame &&
     frame.type === expectedType &&
-    frame.version === 2 &&
+    frame.version === P2P_PING_FRAME_VERSION &&
     frame.direction === direction &&
     frame.nonce === expectedNonce &&
     typeof frame.proof === 'string' &&
@@ -147,13 +140,7 @@ export function generateP2PPingCode(randomBytes = nodeRandomBytes) {
 export function deriveP2PPingTopic(code, direction) {
   validateP2PPingCode(code)
   validateDirection(direction)
-  return createHash('sha256')
-    .update(P2P_PING_TOPIC_DOMAIN)
-    .update('\0')
-    .update(code)
-    .update('\0')
-    .update(direction)
-    .digest()
+  return H('p2p-ping/topic', field(code), field(direction))
 }
 
 export function encodeP2PPingFrame(code, direction, type, nonce) {

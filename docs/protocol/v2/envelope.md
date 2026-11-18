@@ -128,6 +128,16 @@ KDF(key, purpose)          = HMAC-SHA256(key, label(purpose))          // 32 字
 | 账号同步信封       | `ma://1`，`v: 1`          | 不变：内部格式已有版本，且只在自己设备间使用                |
 | P2P Ping           | `most-box-p2p-ping-v2` 等 | 换成 `p2p-ping/*` 标签，帧 `version: 3`；诊断工具，只为统一 |
 
+P2P Ping 的派生（按 §3.1，变长字段各以 `0x00` 结尾；`code` 为 6 位数字字符串，`direction` 为 `hostToJoin` / `joinToHost`，`type` 为 `p2p-ping` / `p2p-pong` / `p2p-ack`，`nonce` 为 32 位十六进制字符串）：
+
+```
+topic    = H("p2p-ping/topic", code ‖ 0x00 ‖ direction ‖ 0x00)
+proofKey = H("p2p-ping/proof-key", code ‖ 0x00)
+proof    = hex(MAC(proofKey, "p2p-ping/proof", direction ‖ 0x00 ‖ type ‖ 0x00 ‖ nonce ‖ 0x00))
+```
+
+帧仍是 `{ type, version: 3, direction, nonce, proof }`（Ping swarm 不走聊天信封）。向量见 `vectors/v2/p2p-ping.json`。
+
 Protomux 已核实：收到未注册的消息类型时忽略（`node_modules/protomux/index.js` `_recv`），因此 `most-cid-drive/3` 以后可以只增消息类型。
 
 ## 7. 冻结后的演进规则

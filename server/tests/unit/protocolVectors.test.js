@@ -199,11 +199,13 @@ describe('protocol vectors (desktop)', () => {
   })
 
   it('derives the P2P Ping topic and frames', () => {
-    const vectors = readVectors('p2p-ping.json')
-    assert.equal(
-      b4a.toString(deriveP2PPingTopic(vectors.code, vectors.direction), 'hex'),
-      vectors.topic
-    )
+    const vectors = readVectors('v2/p2p-ping.json')
+    for (const [direction, topic] of Object.entries(vectors.topics)) {
+      assert.equal(
+        b4a.toString(deriveP2PPingTopic(vectors.code, direction), 'hex'),
+        topic
+      )
+    }
     for (const [type, frame] of Object.entries(vectors.frames)) {
       assert.equal(
         encodeP2PPingFrame(
