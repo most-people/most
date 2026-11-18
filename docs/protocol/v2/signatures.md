@@ -157,7 +157,7 @@ v2 中 writer core 只包含 `type: "signed"` 条目。
 | B（**采纳**） | 聊天身份与钱包分离：`chatSeed = scrypt(password, H("identity", username), N, r=8, p=1, 32)`（盐固定 32 字节：libsodium 的接口要求如此），聊天地址由 `chatSeed` 按 v1 方式（BIP-39 → m/44'/60'/0'/0/0）得出；钱包地址仍用 v1 派生，不变 | 所有用户的**聊天地址改变**，需迁移（§7.4）；scrypt 在手机上较慢 |
 | C（未采纳）   | 在 B 基础上提供「随机身份」：生成 24 词助记词作为 `chatSeed`，不依赖密码；需要用户自行备份                                                                                                                                             | 多一种登录方式；丢失助记词即丢失身份                            |
 
-scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_modules/ethers/lib.esm/crypto/scrypt.js` 与移动 `app/node_modules/ethers/lib.esm/crypto/scrypt.js` 都存在）。`N` 【待核实】：在低端 Android 上实测，取单次派生 ≤ 3 秒的最大 2 的幂（预计 2^15–2^17），实测后写死进规范。
+scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_modules/ethers/lib.esm/crypto/scrypt.js` 与移动 `app/node_modules/ethers/lib.esm/crypto/scrypt.js` 都存在）。**`N = 2^17`**（r = 8，p = 1，输出 32 字节；2026-11-18 按下方实测确定）。各端实现：桌面与浏览器用 ethers `scrypt`；手机 App 用 Bare 后端的原生 libsodium（`app/backend/scrypt-native.mjs`），不在 Hermes 里计算。
 
 测量方法（2026-11-18 起可用）：
 
@@ -167,7 +167,8 @@ scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_module
 - 结论：手机上不能在 Hermes 里用纯 JS 派生。可行方向是交给 Bare 后端里的原生 libsodium（`sodium-native` 5.1.0 提供 `crypto_pwhash_scryptsalsa208sha256`），【待核实】其输出与标准 scrypt(N, r=8, p=1) 一致，以及在该机上的耗时；或改用 Argon2id。待负责人决定。
 - 2026-11-18 同一台手机改用 Bare 后端里的原生 libsodium（选项 A）：2^14 约 72 ms，2^15 约 123 ms，2^16 约 251 ms，2^17 约 524 ms，2^18 约 1078 ms（每档两次，中位数）。比 Hermes 纯 JS 快约 35 倍；计算在 Bare 线程里进行，界面不卡。
 - libsodium 高层接口 `crypto_pwhash_scryptsalsa208sha256` 取 `opslimit = 32·N`、`memlimit = 2048·N` 时，结果与标准 scrypt(N, r=8, p=1) 逐字节一致（桌面 Node 上对 2^13–2^18 逐档比对，`opslimit` 少 1 即降一档），实现见 `app/backend/scrypt-native.mjs` 及其测试。
-- N 的取值（待负责人确认）：3 秒目标下该机最大可到 2^18，但要占 256 MiB 内存；推荐 **N = 2^17**（该机 0.52 s、128 MiB；桌面 JS 约 0.33 s），为更弱的手机和浏览器留出余量。
+- 同一台手机的浏览器（Web 版的实际路径：ethers 纯 JS，由 `app/scripts/scrypt-benchmark-web.mjs` 打包同一测量模块，手机经 `adb reverse` 访问）：Chrome 151 为 2^14 约 168 ms、2^15 约 262 ms、2^16 约 511 ms、2^17 约 1033 ms；MIUI 浏览器 20.29（Chromium 135）为 180 / 256 / 532 / 1076 ms。V8 有 JIT，比 Hermes 快约 18 倍。计算期间页面不响应约 1 秒。
+- 取值：**N = 2^17**。最慢的路径（手机浏览器）约 1.1 s、128 MiB，在 3 秒目标内并为更弱的手机留出余量；2^18 在手机 App 原生路径约 1.1 s，但浏览器预计约 2.1 s、要 256 MiB，余量不足。
 - 实现：`app/src/devtools/scryptBenchmark.ts`（测量逻辑，手机与桌面共用）、`app/src/devtools/ScryptBenchmarkPanel.tsx`（仅 `__DEV__` 构建显示）。
 
 ### 7.3 密码强度（D4）
