@@ -5,6 +5,8 @@
 // 2048·N it selects exactly r = 8, p = 1 and N, which was checked byte for
 // byte against Node's standard crypto.scrypt for N = 2^13 .. 2^18.
 import sodium from 'sodium-native'
+import b4a from 'b4a'
+import { H, label } from './protocol-v2.mjs'
 
 export const SCRYPT_SALT_BYTES = 32
 
@@ -31,6 +33,26 @@ export async function nativeScrypt(password, salt, logN) {
     memlimit
   )
   return out
+}
+
+export const CHAT_IDENTITY_LOG_N = 17
+
+/**
+ * v2 chat identity seed, identical to server/src/utils/chatIdentity.js
+ * deriveChatSeed: scrypt(label("password") ‖ password, H("identity",
+ * username), N = 2^17, r = 8, p = 1, 32 bytes).
+ */
+export async function deriveChatSeed(
+  username,
+  password,
+  logN = CHAT_IDENTITY_LOG_N
+) {
+  const passwordBytes = b4a.concat([
+    label('password'),
+    b4a.from(String(password), 'utf8'),
+  ])
+  const salt = H('identity', b4a.from(String(username), 'utf8'))
+  return nativeScrypt(passwordBytes, salt, logN)
 }
 
 /** Dev benchmark: same shape as src/devtools/scryptBenchmark.ts runs. */

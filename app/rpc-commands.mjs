@@ -24,10 +24,12 @@ export const COMMANDS = Object.freeze({
   CHANNEL_PRESENCE_LEAVE: 'channel.presence.leave',
   LOG_LIST: 'log.list',
   DEV_SCRYPT_BENCHMARK: 'dev.scrypt.benchmark',
+  IDENTITY_DERIVE: 'identity.derive',
 })
 
 export const EVENTS = Object.freeze({
   DEV_SCRYPT_BENCHMARK_RESULT: 'dev.scrypt.benchmark.result',
+  IDENTITY_DERIVED: 'identity.derived',
   NODE_READY: 'node.ready',
   P2P_PING_STATUS: 'p2p.ping.status',
   NETWORK_STATUS: 'network.status',

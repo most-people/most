@@ -10,6 +10,7 @@ import hypercoreCrypto from 'hypercore-crypto'
 import { signedPayload } from '../shared/chat-signing.mjs'
 import { signBody, verifySignedEnvelope } from './chat-signatures-v2.mjs'
 import { verifyDeviceCertP2P } from './device-cert.mjs'
+import { deriveChatSeed } from './scrypt-native.mjs'
 import {
   channelIdFromKey,
   channelTopics,
@@ -201,5 +202,16 @@ describe('protocol v2 signatures (mobile core)', () => {
       certs.otherAccountAddress
     )
     assert.equal(verifyDeviceCertP2P(`${certs.cert}x`).ok, false)
+  })
+})
+
+describe('protocol v2 chat identity (mobile core, native)', () => {
+  const vectors = readVectors('chat-identity.json')
+
+  it('derives the same chat seed with libsodium', async () => {
+    for (const item of vectors.cases) {
+      const chatSeed = await deriveChatSeed(item.username, item.password)
+      assert.equal(`0x${hex(chatSeed)}`, item.chatSeed, item.username)
+    }
   })
 })

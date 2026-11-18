@@ -16,6 +16,12 @@ import {
 } from '../../src/core/chatSignaturesV2.js'
 import { verifyDeviceCert } from '../../src/utils/auth.js'
 import {
+  chatAccountFromSeed,
+  chatIdentityPassword,
+  chatIdentitySalt,
+  deriveChatSeed,
+} from '../../src/utils/chatIdentity.js'
+import {
   channelIdFromKey,
   channelTopics,
   channelWriterKeyPair,
@@ -208,5 +214,21 @@ describe('protocol v2 signatures (desktop)', () => {
       verifyDeviceCert(certs.expiredCert, { now: 1795000000000 }).ok,
       false
     )
+  })
+})
+
+describe('protocol v2 chat identity (desktop)', () => {
+  const vectors = readVectors('chat-identity.json')
+
+  it('derives the chat seed and sync key with scrypt N=2^17', async () => {
+    for (const item of vectors.cases) {
+      assert.equal(hex(chatIdentitySalt(item.username)), item.salt)
+      assert.equal(hex(chatIdentityPassword(item.password)), item.passwordBytes)
+      const chatSeed = await deriveChatSeed(item.username, item.password)
+      assert.equal(chatSeed, item.chatSeed, item.username)
+      const account = chatAccountFromSeed(chatSeed)
+      assert.equal(account.syncKey, item.syncKey)
+      assert.match(account.address, /^0x[0-9a-fA-F]{40}$/)
+    }
   })
 })

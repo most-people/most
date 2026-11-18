@@ -344,6 +344,21 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return ping
   }
 
+  /** v2 chat identity seed (0x-hex), derived natively in the Bare backend. */
+  async deriveChatSeed(username: string, password: string): Promise<string> {
+    await this.#ensureStarted()
+    const result = (await this.#request(
+      COMMANDS.IDENTITY_DERIVE,
+      { username, password },
+      [EVENTS.IDENTITY_DERIVED],
+      60000
+    )) as { chatSeed?: string }
+    if (!/^0x[0-9a-f]{64}$/.test(String(result?.chatSeed))) {
+      throw new Error('P2P core did not derive a chat identity')
+    }
+    return String(result.chatSeed)
+  }
+
   /** Dev only: native scrypt timing in the Bare backend. */
   async runNativeScryptBenchmark(): Promise<NativeScryptRun[]> {
     await this.#ensureStarted()
