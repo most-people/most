@@ -4,6 +4,24 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-18
+
+This release switches chat to protocol v2 and is not compatible with 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files, and a 0.7.0 node rejects message requests from older clients. Upgrade the node and its web clients in the same maintenance window, and back up the stopped data directory first. Records migrate on first start and the previous program must not open the migrated directory; roll back by restoring the backup. Customer-facing steps are in `docs/upgrade-0.7.0.md`.
+
+### Changed
+
+- **Breaking:** Channels use v2 keys. New channels get a 52-character random credential. Custom short names (anything other than a 26-character v1 random ID) become public channels, which the web client labels as joinable by anyone who knows the name. v1 channel IDs map deterministically to v2 keys, so members who upgrade meet again without coordination.
+- **Breaking:** The chat identity is derived with scrypt (N = 2^17) and is separate from the wallet. Chat addresses change and wallet addresses stay the same. On the first login after upgrading, the client proves both identities and the node moves that account's profile, channels and files to the new address.
+- **Breaking:** The client signs every message, member profile, presence frame and voice event with its device key, and nodes store and forward only signed content. Nodes no longer write join events. Voice signals go only to the target session.
+- Chat history written before the upgrade stays readable on that node as a read-only snapshot labeled "old message · unsigned · readable on this node only". It is shown only to members who were in the channel at upgrade time and is not replicated to other nodes.
+
+### Fixed
+
+- Migrated accounts see their files the first time they open the file library, without reconnecting.
+- Concurrent joins no longer create duplicate channel records.
+- Invite identities unlock without a password prompt.
+- The active channel scrolls into view in the sidebar, and message timestamps show "yesterday" or the date.
+
 ## [0.6.0] - 2026-11-17
 
 This release is not compatible with 0.5.x. Upgrade nodes, desktop apps and mobile apps together; 0.5.x and 0.6.0 cannot exchange files, and a 0.6.0 node rejects requests from older web clients. Back up the data directory before upgrading: file records migrate once on first start and cannot be read by 0.5.x afterwards.

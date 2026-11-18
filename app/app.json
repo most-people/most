@@ -2,7 +2,7 @@
   "expo": {
     "name": "MostBox",
     "slug": "mostbox",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "most",
@@ -16,7 +16,7 @@
       "output": "single"
     },
     "android": {
-      "versionCode": 600,
+      "versionCode": 700,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
@@ -52,7 +52,7 @@
     },
     "ios": {
       "bundleIdentifier": "most.box",
-      "buildNumber": "600",
+      "buildNumber": "700",
       "supportsTablet": false,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "按住说话时使用麦克风录制你选择发送的语音消息。",
