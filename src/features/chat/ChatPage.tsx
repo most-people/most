@@ -209,11 +209,9 @@ function ChatPage() {
   const isInviteUser = userIdentity?.theme === 'st'
   const inviteTicketUrl =
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
-  const inviteBaseLogo = isInviteUser ? userIdentity?.logo || '' : ''
+  const inviteBaseLogo = userIdentity?.logo || ''
   const inviteDarkLogo =
-    isInviteUser && resolvedAppearance === 'dark'
-      ? userIdentity?.logo_dark || ''
-      : ''
+    resolvedAppearance === 'dark' ? userIdentity?.logo_dark || '' : ''
   const invitePreferredLogo = inviteDarkLogo || inviteBaseLogo
   const inviteFallbackLogo =
     inviteDarkLogo && inviteBaseLogo && inviteDarkLogo !== inviteBaseLogo
@@ -2280,6 +2278,20 @@ function ChatPage() {
     .filter(Boolean)
     .join(' ')
   const stActionMenuClassName = isInviteUser ? 'st-chat-action-menu' : undefined
+  const inviteLogoImage = inviteLogo ? (
+    <img
+      className="sidebar-toggle-static-logo-img"
+      src={inviteLogo}
+      alt=""
+      onError={() => {
+        if (inviteLogo === inviteFallbackLogo) {
+          setHasInviteFallbackLogoError(true)
+          return
+        }
+        setHasInviteLogoError(true)
+      }}
+    />
+  ) : null
 
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title" translate="no">
@@ -2355,7 +2367,14 @@ function ChatPage() {
       languageTheme={isInviteUser ? 'st' : undefined}
       sidebar={({ closeSidebar }) => (
         <>
-          <AppTop onNavigate={closeSidebar} />
+          <AppTop
+            onNavigate={closeSidebar}
+            logo={
+              inviteLogoImage ? (
+                <span className="sidebar-header-logo">{inviteLogoImage}</span>
+              ) : undefined
+            }
+          />
 
           <div className="chat-channel-search">
             <div className="ui-input-control">
@@ -2426,22 +2445,7 @@ function ChatPage() {
       sidebarToggleReplacement={
         isInviteUser ? (
           <span className="sidebar-toggle-static-logo" aria-hidden="true">
-            {inviteLogo ? (
-              <img
-                className="sidebar-toggle-static-logo-img"
-                src={inviteLogo}
-                alt=""
-                onError={() => {
-                  if (inviteLogo === inviteFallbackLogo) {
-                    setHasInviteFallbackLogoError(true)
-                    return
-                  }
-                  setHasInviteLogoError(true)
-                }}
-              />
-            ) : (
-              <LogoIcon size={18} />
-            )}
+            {inviteLogoImage ?? <LogoIcon size={18} />}
           </span>
         ) : undefined
       }

@@ -1,12 +1,14 @@
+import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useI18n } from '~/lib/i18n'
 
 type AppTopProps = {
   onNavigate?: () => void
+  logo?: ReactNode
 }
 
-export function AppTop({ onNavigate }: AppTopProps) {
+export function AppTop({ onNavigate, logo }: AppTopProps) {
   const { t } = useI18n()
   const brand = t('common.brand')
 
@@ -19,7 +21,7 @@ export function AppTop({ onNavigate }: AppTopProps) {
       title={brand}
     >
       <ArrowLeft size={18} />
-      <h1>{brand}</h1>
+      {logo ?? <h1>{brand}</h1>}
     </Link>
   )
 }
