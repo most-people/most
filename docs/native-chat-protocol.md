@@ -129,6 +129,13 @@ An abrupt socket close clears only that socket's sessions locally. A connected
 peer expires a session after 45 seconds without a heartbeat. An account stays
 online while any session remains. Unsigned presence frames are ignored.
 
+For live voice, subscribe first and use the public channel ID from the
+acknowledgement. Send `channel:voice:<event>` with `data: {channel, signed}`;
+sign a fresh `kind: "voice"` body as described in [voice v2](protocol/v2/voice.md).
+The node emits verified `channel:voice` events to subscribers. A signal goes
+only to its target session; a missing or expired target receives nothing.
+WebRTC clients handle only `transport: "webrtc1"`.
+
 ## Attachments
 
 1. Read `GET /api/node/policy` with the remote invite and signature for the

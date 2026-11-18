@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import b4a from 'b4a'
+import {
+  defaultWallet,
+  deviceFor,
+} from '../../backend/signed-message.test-helper.mjs'
+import { verifySignedEnvelope } from '../../backend/chat-signatures-v2.mjs'
 import {
   buildVoiceEventFrame,
   createVoiceRoomState,
@@ -9,19 +15,33 @@ import {
   type VoiceSocket,
 } from './voiceProtocol'
 
-test('builds and parses a voice join frame', () => {
-  const frame = buildVoiceEventFrame('room', 'join', {
+const channel = 'ab'.repeat(32)
+async function voiceIdentity() {
+  const device = await deviceFor(defaultWallet)
+  return {
+    version: 2,
+    username: 'Alice',
+    syncKey: '',
+    address: defaultWallet.address,
+    device: { ...device, secretKey: b4a.toString(device.secretKey, 'hex') },
+  }
+}
+
+test('signs a voice join for the public channel ID', async () => {
+  const frame = buildVoiceEventFrame(channel, 'join', {
+    identity: await voiceIdentity(),
     sessionId: 'voice-local',
     profile: { displayName: 'Alice' },
     micMuted: false,
   })
-  const parsed = parseVoiceWebSocketMessage(frame)
-  assert.ok(parsed)
-  assert.equal(parsed.channel, 'room')
+  const signed = JSON.parse(frame).data.signed
+  assert.equal(verifySignedEnvelope(signed, { channelId: channel }).ok, true)
+  const parsed = signed.body
+  assert.equal(parsed.channelId, channel)
   assert.equal(parsed.event, 'join')
   assert.equal(parsed.sessionId, 'voice-local')
   assert.equal(parsed.micMuted, false)
-  assert.equal(typeof parsed.timestamp, 'number')
+  assert.equal(typeof parsed.createdAt, 'number')
 })
 
 test('normalizes server sender and applies room state updates', () => {
@@ -80,7 +100,7 @@ test('voice session subscribes, joins, updates state and leaves', async () => {
   const session = new VoiceWebSocketSession({
     baseUrl: 'https://node.example',
     invite: 'invite',
-    identity: null,
+    identity: await voiceIdentity(),
     channel: 'room',
     sessionId: 'voice-local',
     webSocketFactory: () => socket,
@@ -89,6 +109,13 @@ test('voice session subscribes, joins, updates state and leaves', async () => {
   await new Promise(resolve => setTimeout(resolve, 0))
   socket.open()
   await joining
+  assert.equal(socket.sent.length, 1)
+  socket.onmessage?.({
+    data: JSON.stringify({
+      event: 'channel:subscribed',
+      data: { channel: 'room', channelKey: channel },
+    }),
+  })
   session.setMuted(true)
   session.heartbeat()
   session.sendSignal('voice-remote', { type: 'offer', sdp: 'v=0' })

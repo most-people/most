@@ -77,6 +77,10 @@ export function signedPresence(channelId, status, fields = {}) {
   return signedEvent(channelId, { ...fields, kind: 'presence', status })
 }
 
+export function signedVoice(channelId, event, sessionId, fields = {}) {
+  return signedEvent(channelId, { ...fields, kind: 'voice', event, sessionId })
+}
+
 export async function presenceOptions(
   engine,
   channel,

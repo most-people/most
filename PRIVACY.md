@@ -40,6 +40,11 @@ are replicated to peers participating in the corresponding channel. CIDs,
 `most://` links, and channel identifiers act as capabilities and should be
 shared accordingly.
 
+In v2 live voice rooms, authorized channel members can see who joins, leaves,
+or changes microphone state. Connection setup data (SDP and ICE, which may
+include IP addresses) passes through the participating nodes to the target
+session. Other channel subscribers do not receive it.
+
 ## Optional photos and voice messages
 
 Camera and microphone access is requested only when the user chooses to take a

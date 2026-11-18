@@ -314,11 +314,25 @@ export function createApp(engine, options = {}) {
     return entry
   }
 
-  function wsSendToChannel(channelName, event, data) {
+  function wsSendToChannel(channelName, event, data, target) {
     const payload = JSON.stringify({ event, data })
     const subscribers = channelSubscriptions.get(channelName)
     if (subscribers) {
       subscribers.forEach(ws => {
+        if (target !== undefined && ws.presenceSourceId !== target) return
+        if (event === 'channel:voice') {
+          try {
+            if (
+              !ws.userAddress ||
+              engine.resolveChannelKey(channelName, {
+                ownerAddress: ws.userAddress,
+              }) !== channelName
+            )
+              return
+          } catch {
+            return
+          }
+        }
         if (ws.readyState === 1) {
           try {
             ws.send(payload)

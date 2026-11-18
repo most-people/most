@@ -174,9 +174,13 @@
 - `npm run test:cross-core`：桌面与移动核心通过本地 DHT，在私有和公开频道中双向读取签名成员资料。移动端的聊天记录仍只包含发送的两条消息。
 - `npm --prefix app test`：覆盖共享签名样本、资料更新与清空、拒绝非规范或时间过远的写入，以及移动核心重启后从本地 writer core 恢复资料。未覆盖真机 UI 和公网。
 
+## 2026-11-18：语音 v2（本地回归）
+
+五种签名事件通过独立 Python 样本校验。三个 WebSocket 订阅者中只有指定会话收到信令，两条已授权的模拟 swarm 连接中只有目标连接收到原帧。覆盖未知目标、离开、断线和超时。命令：`node --test server/tests/unit/channelSignedVoice.test.js server/tests/integration/voice-websocket.test.js server/tests/integration/channelAuthorization.test.js`。未验证实际音频通话、真机或公网 ICE。
+
 ## 当前未完成
 
-- 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；语音签名帧及统一迁移仍待完成。设计与测试向量见 `docs/protocol/v2/signatures.md`、`docs/protocol/vectors/v2/signatures.json`。
+- 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；桌面节点已接入语音签名与会话定向投递，移动核心继续忽略语音帧。统一迁移仍待完成。
 
 - 聊天剩余：真实网络分区、`kill -9`、移动核心参与；停止引擎时 hypercore 在途块校验导致的未捕获崩溃。
 - F5 剩余：蜂窝、网络切换、逐连接记录路径；real-wifi 首轮“有 peer 但 0 字节”的原因。

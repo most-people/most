@@ -143,3 +143,20 @@ vectors = {
 }
 with open(os.path.join(out_dir, 'signatures.json'), 'w', encoding='utf-8') as f:
     json.dump(vectors, f, ensure_ascii=False)
+
+# Voice §3: these signatures use the independent RFC 8032 implementation above.
+voice = []
+for index, event in enumerate(['join', 'state', 'heartbeat', 'leave', 'signal']):
+    body = {**common, 'kind': 'voice', 'id': f'{index}b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d',
+            'event': event, 'sessionId': 'voice-first', 'micMuted': False}
+    if event == 'signal':
+        body.update(targetSessionId='voice-second', transport='webrtc1', signal={'type': 'offer', 'sdp': 'v=0'})
+    voice.append({'v': 2, 'type': 'channel-voice', **envelope(body)})
+signal = voice[-1]
+invalid = [
+    {**signal, 'body': {**signal['body'], 'targetSessionId': 'voice-third'}},
+    {**signal, 'cert': cert['otherAccountCert']},
+    {**signal, **envelope({**signal['body'], 'createdAt': common['createdAt'] - 120001})},
+]
+with open(os.path.join(out_dir, 'voice.json'), 'w', encoding='utf-8') as f:
+    json.dump({'now': common['createdAt'], 'channelId': channel_id, 'valid': voice, 'invalid': invalid}, f)

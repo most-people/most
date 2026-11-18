@@ -252,8 +252,8 @@ export function bindEngineEvents({
   engine.on('channel:member-profile', data =>
     wsSendToChannel(data.channelKey, 'channel:member-profile', data)
   )
-  engine.on('channel:voice', data =>
-    wsSendToChannel(data.channelKey, 'channel:voice', data)
+  engine.on('channel:voice', (data, target) =>
+    wsSendToChannel(data.channelKey, 'channel:voice', data, target)
   )
   engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
@@ -377,16 +377,11 @@ export function createWebSocketServer({
           case 'channel:voice:leave':
           case 'channel:voice:signal':
             if (data.channel && ws.userAddress) {
-              engine.sendChannelVoiceEvent(
-                data.channel,
-                {
-                  ...data,
-                  event: event.replace('channel:voice:', ''),
-                },
-                {
-                  ownerAddress: ws.userAddress,
-                }
-              )
+              engine.sendChannelVoiceEvent(data.channel, data.signed, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                event: event.slice('channel:voice:'.length),
+              })
             }
             break
         }

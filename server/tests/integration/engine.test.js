@@ -24,6 +24,7 @@ import {
   signedMessage,
   updateTestProfile,
   presenceOptions,
+  signedVoice,
   defaultSigner,
 } from '../helpers/signedMessage.js'
 
@@ -4939,7 +4940,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
   describe('channel presence', () => {
     it('emits transient voice events without storing them in channel history', async () => {
       const channelName = `voice-${uid}`
-      const alice = `0x${'e'.repeat(40)}`
+      const alice = addressOf(defaultSigner)
       const events = []
       const onVoice = event => {
         if (event.channelKey === resolveChannelHandle(channelName).channelKey)
@@ -4958,15 +4959,19 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
         const result = engine.sendChannelVoiceEvent(
           channelName,
-          {
-            event: 'join',
-            sessionId: 'voice-alice',
-            micMuted: false,
-            displayName: 'Alice',
-            avatar: '/avatars/default/mint.svg',
-          },
+          await signedVoice(
+            resolveChannelHandle(channelName).channelKey,
+            'join',
+            'voice-alice',
+            {
+              micMuted: false,
+              displayName: 'Alice',
+              avatar: '/avatars/default/mint.svg',
+            }
+          ),
           {
             ownerAddress: alice,
+            sourceId: 'ws:alice',
           }
         )
 

@@ -47,7 +47,13 @@ import {
   normalizeChannelProofChallenge,
   normalizeChannelScopeTopics,
 } from './core/channelHello.js'
-import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
+import {
+  VoiceRoutes,
+  VOICE_FRAME_LIMIT,
+  voiceFrame,
+  voiceFrameError,
+  voiceEvent,
+} from './core/channelSignedVoice.js'
 import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
 import { attachCidDriveChannel, cidDriveName } from './core/cidDriveExchange.js'
 import { P2PPingManager } from './core/p2pPing.js'
@@ -91,10 +97,6 @@ import {
   signedPresenceError,
 } from './core/channelSignedPresence.js'
 import { ChannelPresenceManager } from './core/channelPresence.js'
-import {
-  createChannelVoiceMessage,
-  normalizeRemoteChannelFrame,
-} from './core/channelWire.js'
 import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
 import {
   normalizeOwnerAddress,
@@ -342,13 +344,35 @@ export class MostBoxEngine extends EventEmitter {
     return this.#channelPresence.list(channel.channelKey)
   }
 
-  sendChannelVoiceEvent(channelKeyInput, input = {}, options = {}) {
+  #voiceRoutes = new VoiceRoutes()
+
+  sendChannelVoiceEvent(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = normalizeChannelVoiceEvent(channel.channelKey, input, options)
-    this.#broadcastChannelVoice(event)
-    this.emit('channel:voice', event)
+    const frame = voiceFrame(signed)
+    const error = voiceFrameError(frame, {
+      channelId: channel.channelKey,
+      author: normalizeOwnerAddress(options.ownerAddress),
+      event: options.event,
+    })
+    if (error || !options.sourceId)
+      throw new ValidationError(error || 'voice source required')
+    return this.#routeVoice(frame, options.sourceId)
+  }
+
+  #routeVoice(frame, source) {
+    const route = this.#voiceRoutes.accept(frame, source)
+    if (!route) return null
+    const event = voiceEvent(frame)
+    if (route.broadcast) {
+      if (typeof source === 'string') this.#broadcastChannelVoice(frame)
+      this.emit('channel:voice', event)
+    } else if (typeof route.target === 'string') {
+      this.emit('channel:voice', event, route.target)
+    } else if (typeof source === 'string') {
+      this.#sendChannelVoice(route.target, frame)
+    }
     return event
   }
 
@@ -406,6 +430,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   clearChannelPresenceSource(sourceId) {
+    this.#voiceRoutes.clearSource(sourceId)
     this.#ensureInitialized()
     return this.#channelPresence.clearSource(sourceId)
   }
@@ -878,6 +903,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
     }
     this.#channelPresence.clear()
+    this.#voiceRoutes.clear()
     this.#channels = []
     this.#invalidateChannelTopicMap()
 
@@ -6887,6 +6913,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #removeChannelStream(stream) {
+    this.#voiceRoutes.clearSource(stream)
     this.#channelStreams.delete(stream)
   }
 
@@ -6970,14 +6997,10 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelKey = normalizeChannelKey(event.channelKey || event.channelId)
+    const channelKey = event.body.channelId
     if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
     try {
-      stream.write(
-        `${JSON.stringify(
-          createChannelVoiceMessage(this.getNodeId(), event)
-        )}\n`
-      )
+      stream.write(JSON.stringify(event) + '\n')
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -7182,29 +7205,10 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #processChannelVoiceMessage(stream, msg) {
-    const context = normalizeRemoteChannelFrame(
-      msg,
-      this.getNodeId(),
-      'channel-voice'
-    )
-    if (!context) return null
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === context.channelKey
-    )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelKey)) {
-      return null
-    }
-
-    try {
-      const event = normalizeChannelVoiceEvent(context.channelKey, msg, {
-        timestamp: msg.timestamp,
-      })
-      this.emit('channel:voice', event)
-      return context.peerId
-    } catch {
-      return null
-    }
+    const channelId = msg.body?.channelId
+    if (!channelId || !this.#isChannelAllowedForStream(stream, channelId))
+      return
+    if (!voiceFrameError(msg, { channelId })) this.#routeVoice(msg, stream)
   }
 
   async #handleChannelConnection(conn, info = {}) {
@@ -7267,10 +7271,12 @@ export class MostBoxEngine extends EventEmitter {
             )
             continue
           }
-          const peerId =
-            message.type === 'channel-voice'
-              ? this.#processChannelVoiceMessage(stream, message)
-              : await this.#processChannelHelloMessage(stream, message)
+          if (message.type === 'channel-voice') {
+            if (Buffer.byteLength(line) <= VOICE_FRAME_LIMIT)
+              this.#processChannelVoiceMessage(stream, message)
+            continue
+          }
+          const peerId = await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)

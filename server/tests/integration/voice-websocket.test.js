@@ -12,12 +12,13 @@ import {
   addressOf,
   defaultSigner,
   signedPresence,
+  signedVoice,
 } from '../helpers/signedMessage.js'
 
 const TEST_PORT = 19773
 const baseUrl = 'http://localhost:' + TEST_PORT
 const wsUrl = 'ws://localhost:' + TEST_PORT + '/ws'
-const OWNER = '0x2222222222222222222222222222222222222222'
+const OWNER = addressOf(defaultSigner)
 
 describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-voice-ws-test-'))
@@ -61,8 +62,8 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     })
     wssRef.current = wss
 
-    engine.on('channel:voice', data =>
-      appRuntime.wsSendToChannel(data.channelKey, 'channel:voice', data)
+    engine.on('channel:voice', (data, target) =>
+      appRuntime.wsSendToChannel(data.channelKey, 'channel:voice', data, target)
     )
 
     let ready = false
@@ -121,7 +122,7 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
 
   it('broadcasts authenticated voice join events to channel subscribers', async () => {
     const channelName = 'voice-ws-room'
-    await engine.createChannel(channelName, 'personal', {
+    const { channelKey } = await engine.createChannel(channelName, 'personal', {
       ownerAddress: OWNER,
       displayName: 'Alice',
     })
@@ -141,12 +142,10 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
         event: 'channel:voice:join',
         data: {
           channel: channelName,
-          sessionId: 'voice-ws-local',
-          displayName: 'Mallory',
-          micMuted: false,
-          sender: {
-            address: '0xffffffffffffffffffffffffffffffffffffffff',
-          },
+          signed: await signedVoice(channelKey, 'join', 'voice-ws-local', {
+            displayName: 'Alice',
+            micMuted: false,
+          }),
         },
       })
     )
@@ -156,10 +155,76 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     assert.strictEqual(message.data.event, 'join')
     assert.strictEqual(message.data.sessionId, 'voice-ws-local')
     assert.strictEqual(message.data.sender.address, OWNER)
-    assert.strictEqual(message.data.sender.displayName, 'Mallory')
+    assert.strictEqual(message.data.sender.displayName, 'Alice')
     assert.strictEqual(message.data.micMuted, false)
 
     ws.close()
+  })
+
+  it('delivers an opaque voice signal only to its subscribed target socket', async t => {
+    const { channelKey: channel } = await engine.createChannel(
+      'voice-directed',
+      'public',
+      { ownerAddress: OWNER }
+    )
+    const sockets = await Promise.all([
+      connectClient(),
+      connectClient(),
+      connectClient(),
+    ])
+    t.after(() => sockets.forEach(ws => ws.terminate()))
+    const logs = sockets.map(ws => {
+      const events = []
+      ws.on('message', raw => events.push(JSON.parse(raw)))
+      return events
+    })
+    const sync = async ws => {
+      // An acknowledgement is ordered behind earlier sends on this socket.
+      const ack = new Promise(resolve => {
+        const listener = raw => {
+          if (JSON.parse(raw).event !== 'channel:subscribed') return
+          ws.off('message', listener)
+          resolve()
+        }
+        ws.on('message', listener)
+      })
+      ws.send(JSON.stringify({ event: 'channel:subscribe', data: { channel } }))
+      await ack
+    }
+    const send = async (index, event, fields = {}) => {
+      const signed = await signedVoice(
+        channel,
+        event,
+        'session-' + index,
+        fields
+      )
+      sockets[index].send(
+        JSON.stringify({
+          event: 'channel:voice:' + event,
+          data: { channel, signed },
+        })
+      )
+      await sync(sockets[index])
+    }
+    await Promise.all(sockets.map(sync))
+    await send(1, 'join')
+    await send(0, 'join')
+    const fields = {
+      targetSessionId: 'session-1',
+      transport: 'future-audio',
+      signal: { opaque: 'test' },
+    }
+    await send(0, 'signal', fields)
+    await send(1, 'leave')
+    await send(0, 'signal', fields)
+    await Promise.all(sockets.map(sync))
+    const signals = logs.map(log => log.filter(e => e.data?.event === 'signal'))
+    assert.deepEqual(
+      signals.map(entries => entries.length),
+      [0, 1, 0]
+    )
+    assert.deepEqual(signals[1][0].data.signal, fields.signal)
+    assert.ok(logs.every(log => log.some(e => e.data?.event === 'join')))
   })
 
   it('binds signed presence to the socket account and action, and expires an abruptly closed session remotely', async t => {
@@ -208,9 +273,12 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
       body: { ...online.body, sessionId: 'different' },
     })
     // A valid envelope from a different account is still not this socket's.
-    const other = await connectClient(OWNER)
+    const otherAddress = '0x2222222222222222222222222222222222222222'
+    const other = await connectClient(otherAddress)
     try {
-      await engine.createChannel(channel, 'public', { ownerAddress: OWNER })
+      await engine.createChannel(channel, 'public', {
+        ownerAddress: otherAddress,
+      })
       send(other, 'join', online)
       await flush(other)
     } finally {

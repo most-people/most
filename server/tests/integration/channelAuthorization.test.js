@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { Wallet } from 'ethers'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -17,11 +18,13 @@ import {
 
 import {
   presenceOptions,
+  signedVoice,
   addressOf,
   defaultSigner,
 } from '../helpers/signedMessage.js'
 const alice = addressOf(defaultSigner)
-const bob = `0x${'2'.repeat(40)}`
+const bobSigner = Wallet.createRandom()
+const bob = addressOf(bobSigner)
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 async function waitFor(check, description) {
@@ -296,8 +299,10 @@ describe('channel authorization cache', () => {
     const leaving = first.leaveChannel(channel, { ownerAddress: alice })
     second.sendChannelVoiceEvent(
       channel,
-      { event: 'join', sessionId: 'during-leave' },
-      { ownerAddress: bob }
+      await signedVoice(channelKey(channel), 'join', 'during-leave', {
+        signer: bobSigner,
+      }),
+      { ownerAddress: bob, sourceId: 'ws:bob' }
     )
     await leaving
     await tick()
@@ -307,8 +312,10 @@ describe('channel authorization cache', () => {
     await join(first, channel)
     second.sendChannelVoiceEvent(
       channel,
-      { event: 'join', sessionId: 'after-rejoin' },
-      { ownerAddress: bob }
+      await signedVoice(channelKey(channel), 'join', 'after-rejoin', {
+        signer: bobSigner,
+      }),
+      { ownerAddress: bob, sourceId: 'ws:bob' }
     )
     await waitFor(
       () => voices.some(event => event.sessionId === 'after-rejoin'),
@@ -514,6 +521,55 @@ describe('channel authorization cache', () => {
     assert.ok(
       replacement.frames.some(frame => frame.type === 'channel-presence')
     )
+  })
+
+  it('sends signed signal frames only to the target swarm stream and drops unknown targets', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    const handle = 'voice-stream-routing'
+    await join(engine, handle)
+    const channelId = channelKey(handle)
+    const peers = [1, 2].map(() => remoteConnection(discovery.swarms.at(-1)))
+    for (const peer of peers) {
+      test.track(peer)
+      peer.authorize(handle)
+    }
+    await tick()
+    const frame = signed => ({ v: 2, type: 'channel-voice', ...signed })
+    peers[0].send(frame(await signedVoice(channelId, 'join', 'target')))
+    const options = { ownerAddress: alice, sourceId: 'ws:local' }
+    const signed = await signedVoice(channelId, 'signal', 'caller', {
+      targetSessionId: 'target',
+      transport: 'webrtc1',
+      signal: { type: 'offer', sdp: 'v=0' },
+    })
+    engine.sendChannelVoiceEvent(handle, signed, options)
+    assert.deepEqual(
+      peers[0].frames.filter(f => f.type === 'channel-voice'),
+      [frame(signed)]
+    )
+    assert.ok(!peers[1].frames.some(f => f.type === 'channel-voice'))
+    const delivered = []
+    engine.on('channel:voice', (event, target) =>
+      delivered.push({ event, target })
+    )
+    peers[0].send(
+      frame(
+        await signedVoice(channelId, 'signal', 'target', {
+          targetSessionId: 'caller',
+          transport: 'webrtc1',
+          signal: { type: 'answer', sdp: 'v=0' },
+        })
+      )
+    )
+    assert.deepEqual(
+      delivered.map(e => e.target),
+      ['ws:local']
+    )
+    peers[0].close()
+    await tick()
+    assert.equal(engine.sendChannelVoiceEvent(handle, signed, options), null)
   })
 
   it('identifies channels on the wire only by their public channel ID', async context => {
