@@ -40,7 +40,6 @@ import {
   consumeChannelFrames,
 } from './core/channelFrames.js'
 import {
-  CHANNEL_PROOF_VERSION,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
   buildChannelHelloMessages,
   chunkChannelScopeTopics,
@@ -59,6 +58,7 @@ import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
 import {
   buildSessionFrame,
   isSessionFrame,
+  isV2Frame,
   parseSessionFeatures,
   sharedFeatures,
 } from './core/channelSession.js'
@@ -6795,8 +6795,8 @@ export class MostBoxEngine extends EventEmitter {
       record.localChallenge = createChannelProofChallenge()
       stream.write(
         `${JSON.stringify({
-          type: 'channel-proof-challenge',
-          version: CHANNEL_PROOF_VERSION,
+          v: 2,
+          type: 'channel-challenge',
           challenge: record.localChallenge,
         })}\n`
       )
@@ -6849,8 +6849,8 @@ export class MostBoxEngine extends EventEmitter {
       ) {
         stream.write(
           `${JSON.stringify({
+            v: 2,
             type: 'channel-proof',
-            version: CHANNEL_PROOF_VERSION,
             challenge: record.remoteChallenge,
             proofs: proofs.slice(
               index,
@@ -7001,6 +7001,7 @@ export class MostBoxEngine extends EventEmitter {
     }))
     return buildChannelHelloMessages(
       {
+        v: 2,
         type: 'channel-hello',
         peerId: this.getNodeId(),
         authorName: this.getNodeId().slice(0, 4),
@@ -7033,7 +7034,9 @@ export class MostBoxEngine extends EventEmitter {
       for (const topics of chunkChannelScopeTopics(
         this.#getVerifiedChannelTopics(stream)
       )) {
-        stream.write(`${JSON.stringify({ type: 'channel-scope', topics })}\n`)
+        stream.write(
+          `${JSON.stringify({ v: 2, type: 'channel-scope', topics })}\n`
+        )
       }
       return true
     } catch {
@@ -7142,9 +7145,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #processChannelProofChallengeMessage(stream, msg) {
-    if (msg.type !== 'channel-proof-challenge') return false
+    if (msg.type !== 'channel-challenge') return false
     const record = this.#channelStreams.get(stream)
-    if (!record || msg.version !== CHANNEL_PROOF_VERSION) return true
+    if (!record) return true
 
     const challenge = normalizeChannelProofChallenge(msg.challenge)
     if (!challenge) return true
@@ -7161,7 +7164,6 @@ export class MostBoxEngine extends EventEmitter {
     const record = this.#channelStreams.get(stream)
     if (
       !record ||
-      msg.version !== CHANNEL_PROOF_VERSION ||
       normalizeChannelProofChallenge(msg.challenge) !== record.localChallenge ||
       !Array.isArray(msg.proofs) ||
       msg.proofs.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
@@ -7370,6 +7372,8 @@ export class MostBoxEngine extends EventEmitter {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          // envelope §4.1: frames that are not v2 are dropped, not fatal.
+          if (!isV2Frame(message)) continue
           if (isSessionFrame(message)) {
             this.#processSessionFrame(stream, message)
             continue

@@ -103,7 +103,7 @@ KDF(key, purpose)          = HMAC-SHA256(key, label(purpose))          // 32 字
 | `session`           | 新增                                                             |
 | `channel-challenge` | 原 `channel-proof-challenge`，去掉 `version` 字段（由 `v` 代替） |
 | `channel-scope`     | 不变（加 `v`）                                                   |
-| `channel-proof`     | 证明算法改为 channel-keys §5                                     |
+| `channel-proof`     | 证明算法改为 channel-keys §5，去掉 `version` 字段（由 `v` 代替） |
 | `channel-hello`     | 频道项去掉 `channelKey`、`type`，见 channel-keys §5              |
 | `channel-presence`  | 必须签名，见 signatures §4                                       |
 | `channel-voice`     | 必须签名，`signal` 定向转发，见 voice                            |

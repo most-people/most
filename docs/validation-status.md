@@ -219,6 +219,13 @@
 - `sig1` 不参与协商：对端不发会话帧或只列出其他能力时，未签名的在线状态与语音帧仍被拒收，同样的帧签名后被接受（桌面 `channelAuthorization.test.js`、移动 `mobile-core.test.mjs`；移动核心本就忽略语音帧）。0.8.0 没有依赖协商结果的帧，协商结果只记录在连接上供以后的能力使用。
 - 回归：根 `npm test` 776 项、`test:cross-core` 3 项、`test:protocol` 13 项、移动端 `npm test` 全部通过。
 
+## 2026-11-18：聊天帧 v2 格式（envelope §4.1、§4.3，本地回归）
+
+- 两端发出的聊天帧都带 `v: 2`；`channel-proof-challenge` 改名 `channel-challenge`，它与 `channel-proof` 去掉 `version`；`account-hello` 加 `v`。接收端丢弃非 v2 帧但不断开（`isV2Frame`，向量 `vectors/v2/frames.json` 两端一致）。人为去掉接收检查后，「v1 形态的 scope/proof 不能授权频道」用例失败。
+- 移动端 hello 补发 `memberAddresses`（channel-keys §5）：取本机 writer core 中验签通过的条目作者，打开频道时扫描、写入新条目时更新，0.7 已有频道无需迁移；重启后仍发送（去掉扫描后该断言失败）。
+- 回归：根 `npm test` 778 项、`test:cross-core` 3 项、`test:protocol` 13 项、移动端 `npm test` 全部通过。
+- `scripts/chat-chaos.js` 仍用 0.7.0 之前的未签名 `sendMessage` 接口，自 0.7.0 起无法运行；在 A4 中修复后再跑。
+
 ## 当前未完成
 
 - 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；桌面节点已接入语音签名与会话定向投递，移动核心继续忽略语音帧。统一迁移仍待完成。

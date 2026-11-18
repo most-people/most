@@ -7,7 +7,6 @@ import {
 } from 'node:crypto'
 
 export const MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME = 256
-export const CHANNEL_PROOF_VERSION = 1
 export const CHANNEL_PROOF_CHALLENGE_BYTES = 32
 
 const CHANNEL_TOPIC_HEX_REGEX = /^[0-9a-f]{64}$/

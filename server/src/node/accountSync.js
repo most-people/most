@@ -433,7 +433,7 @@ export class AccountSync extends EventEmitter {
     )
     try {
       stream.write(
-        `${JSON.stringify({ type: ACCOUNT_HELLO_TYPE, envelope })}\n`
+        `${JSON.stringify({ v: 2, type: ACCOUNT_HELLO_TYPE, envelope })}\n`
       )
     } catch {
       this.#streams.delete(stream)

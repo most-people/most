@@ -18,6 +18,19 @@ export function buildSessionFrame() {
   return { v: 2, type: 'session', features: [...LOCAL_FEATURES] }
 }
 
+/**
+ * envelope §4.1: a chat swarm frame is kept only when it is an object with
+ * v === 2; anything else is dropped without disconnecting.
+ */
+export function isV2Frame(frame) {
+  return (
+    frame !== null &&
+    typeof frame === 'object' &&
+    !Array.isArray(frame) &&
+    frame.v === 2
+  )
+}
+
 export function isSessionFrame(frame) {
   return frame?.type === 'session'
 }

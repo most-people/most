@@ -8,7 +8,6 @@ import { CID } from 'multiformats/cid'
 import { snapshotLocalChannelArchive } from '../../server/src/core/localChannelArchive.js'
 import {
   CHANNEL_MESSAGE_LIMIT,
-  CHANNEL_PROOF_VERSION,
   CHANNEL_PRESENCE_HEARTBEAT_MS,
   CHANNEL_PRESENCE_TIMEOUT_MS,
   CHANNELS_FILE,
@@ -56,9 +55,11 @@ import {
   signedPresenceError,
 } from './channel-signed-presence.mjs'
 import { canonicalJson } from '../shared/canonical-json.mjs'
+import { verifySignedEnvelope } from './chat-signatures-v2.mjs'
 import {
   buildSessionFrame,
   isSessionFrame,
+  isV2Frame,
   parseSessionFeatures,
   sharedFeatures,
 } from './channel-session.mjs'
@@ -534,6 +535,10 @@ export class MobileP2PCore {
   #channelCores = new Map()
   #channelCoresOpening = new Set()
   #channelLocalCoreKey = new Map()
+  // Accounts that signed entries in this node's writer core, per channel: the
+  // mobile counterpart of the desktop's local channel members (hello
+  // memberAddresses, channel-keys §5).
+  #channelLocalMembers = new Map()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
   #channelPeers = new Map()
@@ -759,6 +764,7 @@ export class MobileP2PCore {
     }
     this.#channelCores.clear()
     this.#channelLocalCoreKey.clear()
+    this.#channelLocalMembers.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
     this.#channelPeers.clear()
@@ -872,6 +878,7 @@ export class MobileP2PCore {
     this.#channelChatDiscoveries.delete(channelKey)
     this.#channelCores.delete(channelKey)
     this.#channelLocalCoreKey.delete(channelKey)
+    this.#channelLocalMembers.delete(channelKey)
     this.#channelPeers.delete(channelKey)
     this.#channelMessageCache.delete(channelKey)
     this.#clearChannelPresenceForChannel(channelKey)
@@ -1074,6 +1081,9 @@ export class MobileP2PCore {
       await this.#getNextChannelMessageTimestamp(channel.channelKey)
     )
     await core.append(entry)
+    if (this.#addChannelLocalMember(channel.channelKey, body.author)) {
+      this.#broadcastChannelHello()
+    }
     if (kind === 'profile') return
     const message = readSignedMessageEntry(entry, channel.channelKey)
     if (!this.#isChannelActive(channel.channelKey)) return message
@@ -1627,6 +1637,7 @@ export class MobileP2PCore {
       valueEncoding: 'json',
     })
     await localCore.ready()
+    await this.#loadChannelLocalMembers(channel.channelKey, localCore)
 
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
     channel.localWriterCoreKey = localWriterCoreKey
@@ -1652,6 +1663,27 @@ export class MobileP2PCore {
         await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
       }
     }
+  }
+
+  async #loadChannelLocalMembers(channelKey, core) {
+    const members = new Set()
+    this.#channelLocalMembers.set(channelKey, members)
+    for (let index = 0; index < core.length; index++) {
+      const entry = await core.get(index, { wait: false })
+      if (!entry) break
+      if (!isSignedEntry(entry)) continue
+      const verified = verifySignedEnvelope(entry, { channelId: channelKey })
+      if (verified.ok) members.add(String(verified.author).toLowerCase())
+    }
+  }
+
+  /** Returns true when the address is new for this channel. */
+  #addChannelLocalMember(channelKey, address) {
+    const members = this.#channelLocalMembers.get(channelKey)
+    const normalized = String(address || '').toLowerCase()
+    if (!members || !normalized || members.has(normalized)) return false
+    members.add(normalized)
+    return true
   }
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
@@ -1944,8 +1976,8 @@ export class MobileP2PCore {
       stream.write(
         b4a.from(
           `${JSON.stringify({
-            type: 'channel-proof-challenge',
-            version: CHANNEL_PROOF_VERSION,
+            v: 2,
+            type: 'channel-challenge',
             challenge: record.localChallenge,
           })}\n`
         )
@@ -2000,8 +2032,8 @@ export class MobileP2PCore {
         stream.write(
           b4a.from(
             `${JSON.stringify({
+              v: 2,
               type: 'channel-proof',
-              version: CHANNEL_PROOF_VERSION,
               challenge: record.remoteChallenge,
               proofs: proofs.slice(
                 index,
@@ -2039,6 +2071,9 @@ export class MobileP2PCore {
       channelId: channel.channelKey,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
+      memberAddresses: [
+        ...(this.#channelLocalMembers.get(channel.channelKey) || []),
+      ],
       writerCoreKeys: uniqueStrings([
         ...(channel.writerCoreKeys || []),
         this.#channelLocalCoreKey.get(channel.channelKey),
@@ -2047,6 +2082,7 @@ export class MobileP2PCore {
 
     return buildChannelHelloMessages(
       {
+        v: 2,
         type: 'channel-hello',
         peerId: this.#nodeId(),
         authorName: this.#nodeId().slice(0, 4),
@@ -2079,7 +2115,9 @@ export class MobileP2PCore {
         this.#getVerifiedChannelTopics(stream)
       )) {
         stream.write(
-          b4a.from(`${JSON.stringify({ type: 'channel-scope', topics })}\n`)
+          b4a.from(
+            `${JSON.stringify({ v: 2, type: 'channel-scope', topics })}\n`
+          )
         )
       }
       return true
@@ -2533,9 +2571,9 @@ export class MobileP2PCore {
   }
 
   #processChannelProofChallengeMessage(stream, msg) {
-    if (msg.type !== 'channel-proof-challenge') return false
+    if (msg.type !== 'channel-challenge') return false
     const record = this.#channelStreams.get(stream)
-    if (!record || msg.version !== CHANNEL_PROOF_VERSION) return true
+    if (!record) return true
 
     const challenge = normalizeChannelProofChallenge(msg.challenge)
     if (!challenge) return true
@@ -2552,7 +2590,6 @@ export class MobileP2PCore {
     const record = this.#channelStreams.get(stream)
     if (
       !record ||
-      msg.version !== CHANNEL_PROOF_VERSION ||
       normalizeChannelProofChallenge(msg.challenge) !== record.localChallenge ||
       !Array.isArray(msg.proofs) ||
       msg.proofs.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
@@ -2732,6 +2769,8 @@ export class MobileP2PCore {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          // envelope §4.1: frames that are not v2 are dropped, not fatal.
+          if (!isV2Frame(message)) continue
           if (isSessionFrame(message)) {
             this.#processSessionFrame(stream, message)
             continue

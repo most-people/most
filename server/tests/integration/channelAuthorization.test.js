@@ -9,7 +9,6 @@ import path from 'node:path'
 import { Duplex } from 'node:stream'
 import Hyperswarm from 'hyperswarm'
 import { MostBoxEngine } from '../../src/index.js'
-import { CHANNEL_PROOF_VERSION } from '../../src/core/channelHello.js'
 import {
   channelTopics,
   createChannelProof,
@@ -132,8 +131,8 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
     'data',
     Buffer.from(
       JSON.stringify({
-        type: 'channel-proof-challenge',
-        version: CHANNEL_PROOF_VERSION,
+        v: 2,
+        type: 'channel-challenge',
         challenge: crypto.randomBytes(32).toString('hex'),
       }) + '\n'
     )
@@ -141,7 +140,7 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
   return {
     frames,
     publicKey,
-    challenge: frames.find(frame => frame.type === 'channel-proof-challenge')
+    challenge: frames.find(frame => frame.type === 'channel-challenge')
       .challenge,
     send(frame) {
       stream.emit('data', Buffer.from(JSON.stringify(frame) + '\n'))
@@ -164,10 +163,10 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
       }
     },
     authorize(handle) {
-      this.send({ type: 'channel-scope', topics: [chatTopic(handle)] })
+      this.send({ v: 2, type: 'channel-scope', topics: [chatTopic(handle)] })
       this.send({
+        v: 2,
         type: 'channel-proof',
-        version: CHANNEL_PROOF_VERSION,
         challenge: this.challenge,
         proofs: [this.proof(handle)],
       })
@@ -403,13 +402,14 @@ describe('channel authorization cache', () => {
     test.track(second)
     for (const remote of [first, second]) {
       remote.send({
+        v: 2,
         type: 'channel-scope',
         topics: [chatTopic('allowed-channel'), chatTopic('private-channel')],
       })
     }
     first.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: first.challenge,
       proofs: [{ topic: chatTopic('allowed-channel'), proof: 'f'.repeat(64) }],
     })
@@ -433,15 +433,15 @@ describe('channel authorization cache', () => {
     assert.ok(first.frames.some(frame => frame.type === 'channel-presence'))
     for (const challenge of [first.challenge, second.challenge]) {
       second.send({
+        v: 2,
         type: 'channel-proof',
-        version: CHANNEL_PROOF_VERSION,
         challenge,
         proofs: [first.proof('allowed-channel')],
       })
     }
     second.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: second.challenge,
       proofs: [second.proof('allowed-channel', first.challenge)],
     })
@@ -458,6 +458,7 @@ describe('channel authorization cache', () => {
     const voices = []
     engine.on('channel:voice', event => voices.push(event))
     first.send({
+      v: 2,
       type: 'channel-voice',
       peerId: 'untrusted-peer',
       channelId: channelKey('private-channel'),
@@ -499,12 +500,13 @@ describe('channel authorization cache', () => {
     const replacement = remoteConnection(swarm, first.publicKey)
     test.track(replacement)
     replacement.send({
+      v: 2,
       type: 'channel-scope',
       topics: [chatTopic('allowed-channel')],
     })
     replacement.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: replacement.challenge,
       proofs: [first.proof('allowed-channel')],
     })
@@ -628,6 +630,40 @@ describe('channel authorization cache', () => {
     })
     await waitFor(() => presence(engine, handle, alice), 'signed presence')
     await waitFor(() => delivered.length === 1, 'signed voice')
+  })
+
+  it('sends only v2 frames and drops frames without v: 2 without disconnecting', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    const handle = 'v2-frames'
+    await join(engine, handle)
+    const remote = remoteConnection(discovery.swarms.at(-1))
+    test.track(remote)
+
+    // v1-shaped scope and proof: dropped, so the channel stays unauthorized.
+    const { topic, proof } = remote.proof(handle)
+    remote.send({ type: 'channel-scope', topics: [topic] })
+    remote.send({
+      type: 'channel-proof',
+      version: 1,
+      challenge: remote.challenge,
+      proofs: [{ topic, proof }],
+    })
+    remote.send({ v: 3, type: 'channel-scope', topics: [topic] })
+    remote.send({ v: 2, type: 'unknown-frame' })
+    await tick()
+    assert.ok(!remote.frames.some(frame => frame.type === 'channel-hello'))
+
+    // The same connection still works with v2 frames.
+    remote.authorize(handle)
+    await waitFor(
+      () => remote.frames.some(frame => frame.type === 'channel-hello'),
+      'hello after v2 authorization'
+    )
+    assert.ok(remote.frames.every(frame => frame.v === 2))
+    assert.ok(remote.frames.some(frame => frame.type === 'channel-challenge'))
+    assert.ok(remote.frames.every(frame => frame.version === undefined))
   })
 
   it('identifies channels on the wire only by their public channel ID', async context => {

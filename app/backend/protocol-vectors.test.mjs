@@ -15,6 +15,7 @@ import {
 } from './cid-drive-exchange.mjs'
 import {
   buildSessionFrame,
+  isV2Frame,
   parseSessionFeatures,
   sharedFeatures,
 } from './channel-session.mjs'
@@ -50,6 +51,17 @@ describe('protocol vectors (mobile core)', () => {
         buffer: sampleContent(sample.content),
       })
       assert.equal(cid, sample.cid, sample.name)
+    }
+  })
+
+  it('keeps only v2 chat swarm frames', () => {
+    const vectors = readVectors('v2/frames.json')
+    assert.deepEqual(vectors.frames.session, buildSessionFrame())
+    for (const frame of Object.values(vectors.frames)) {
+      assert.equal(isV2Frame(frame), true, frame.type)
+    }
+    for (const item of vectors.received) {
+      assert.equal(isV2Frame(item.frame), item.keep, item.name)
     }
   })
 

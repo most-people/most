@@ -11,7 +11,6 @@ import Hypercore from 'hypercore'
 import Hyperdrive from 'hyperdrive'
 import { CID } from 'multiformats/cid'
 import {
-  CHANNEL_PROOF_VERSION,
   CHANNELS_FILE,
   normalizeChannelMessage,
   sortChannelMessages,
@@ -138,14 +137,14 @@ async function proveChannelKnowledge({
   chatSwarm,
   channelIds,
 }) {
-  const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+  const challenge = parseStreamWrites(stream, 'channel-challenge').at(
     -1
   )?.challenge
   assert.match(challenge, /^[0-9a-f]{64}$/)
 
   const message = {
+    v: 2,
     type: 'channel-proof',
-    version: CHANNEL_PROOF_VERSION,
     challenge,
     proofs: channelIds.map(channelId => {
       const topic = b4a.toString(
@@ -1366,6 +1365,103 @@ describe('mobile channel presence', () => {
     await waitFor(() => presences() === 1, 'signed remote presence')
   })
 
+  it('sends v2 frames with local memberAddresses and drops frames without v: 2', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-v2-frames-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-v2-frames',
+      discover: false,
+    })
+    await core.updateChannelMemberProfile({
+      channelName: channel.channelId,
+      signed: await signProfile(channel.channelKey, { displayName: 'Me' }),
+    })
+    const me = defaultWallet.address.toLowerCase()
+    const helloChannels = stream =>
+      parseStreamWrites(stream, 'channel-hello').flatMap(
+        frame => frame.channels
+      )
+
+    // The chat swarm is the second one each start creates.
+    let chatSwarmIndex = 1
+    const connect = async publicKeyByte => {
+      const chatSwarm = swarms[chatSwarmIndex]
+      const stream = new RecordingStream()
+      const peerInfo = channelPeerInfo(channel.channelId, publicKeyByte)
+      chatSwarm.emit('connection', stream, peerInfo)
+      return { stream, peerInfo, chatSwarm }
+    }
+
+    const first = await connect(0x60)
+    // A v1-shaped proof (no v, old version field) is dropped.
+    const challenge = parseStreamWrites(first.stream, 'channel-challenge')[0]
+      .challenge
+    const topic = b4a.toString(
+      generateChannelChatDiscoveryKey(channel.channelId),
+      'hex'
+    )
+    const proof = b4a.toString(
+      createChannelProof({
+        key: resolveChannelHandle(channel.channelId).key,
+        topic,
+        challenge,
+        proverPublicKey: first.peerInfo.publicKey,
+        verifierPublicKey: first.chatSwarm.keyPair.publicKey,
+      }),
+      'hex'
+    )
+    first.stream.emit(
+      'data',
+      b4a.from(
+        JSON.stringify({
+          type: 'channel-proof',
+          version: 1,
+          challenge,
+          proofs: [{ topic, proof }],
+        }) + String.fromCharCode(10)
+      )
+    )
+    await waitForTick()
+    assert.equal(helloChannels(first.stream).length, 0)
+
+    await proveChannelKnowledge({ ...first, channelIds: [channel.channelId] })
+    const [entry] = await waitFor(
+      () => helloChannels(first.stream).length && helloChannels(first.stream),
+      'hello for the proven channel'
+    )
+    assert.deepEqual(entry.memberAddresses, [me])
+    const frames = first.stream.writes
+      .join('')
+      .split(String.fromCharCode(10))
+      .filter(Boolean)
+      .map(line => JSON.parse(line))
+    assert.ok(frames.every(frame => frame.v === 2 && !('version' in frame)))
+
+    // After a restart the members come from the local writer core.
+    await core.stop()
+    chatSwarmIndex = swarms.length + 1
+    await core.start()
+    const second = await connect(0x61)
+    await proveChannelKnowledge({ ...second, channelIds: [channel.channelId] })
+    const [restored] = await waitFor(
+      () => helloChannels(second.stream).length && helloChannels(second.stream),
+      'hello after restart'
+    )
+    assert.deepEqual(restored.memberAddresses, [me])
+  })
+
   it('tracks remote presence, clears it on disconnect, and expires stale sessions', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-presence-')
@@ -1499,20 +1595,21 @@ describe('mobile channel connection scoping', () => {
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-scope',
           topics: [privateTopic],
         })}\n`
       )
     )
-    const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+    const challenge = parseStreamWrites(stream, 'channel-challenge').at(
       -1
     ).challenge
     stream.emit(
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-proof',
-          version: CHANNEL_PROOF_VERSION,
           challenge,
           proofs: [{ topic: privateTopic, proof: '0'.repeat(64) }],
         })}\n`
@@ -1559,6 +1656,7 @@ describe('mobile channel connection scoping', () => {
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-hello',
           peerId: 'unrelated-peer',
           channels: [
