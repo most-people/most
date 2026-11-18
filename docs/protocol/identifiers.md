@@ -1,5 +1,7 @@
 # 标识符
 
+> **0.8.0 起被 v2 取代的部分**：§3 频道 ID 与 key → [v2/channel-keys.md](v2/channel-keys.md) §3–4、§7；§4.1 账号派生、§4.4 账号同步密钥 → [v2/signatures.md](v2/signatures.md) §7；§4.2 P2P 上的作者身份 → [v2/signatures.md](v2/signatures.md) §4–5。§1 CID、§2 `most://` 链接不变。
+
 本文定义 CID、`most://` 链接、频道 ID 和账号相关标识符。由它们派生的 DHT topic 见 `discovery.md`（待写）；文件传输见 [file-transfer.md](file-transfer.md)。
 
 ## 1. CID

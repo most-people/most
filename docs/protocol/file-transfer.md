@@ -1,5 +1,7 @@
 # 文件传输
 
+> **0.8.0 起被 v2 取代的部分**：§3 `most-cid-drive/2` → `most-cid-drive/3`（[v2/file-privacy.md](v2/file-privacy.md) §4：handshake challenge、`want` 携带证明）；§4 drive 名 → file-privacy §6；§6 下载流程中的 `want` 按 file-privacy §4.4 发送。§5 drive 内布局、§7 时间常量不变。
+
 设计动机见 [CID drive 协议 v2](../cid-drive-protocol.md)；本文只描述线上行为。CID 参数与 `most://` 语法见 `identifiers.md`（待写），topic 加入与 DHT 见 `discovery.md`（待写）。
 
 ## 1. 概览

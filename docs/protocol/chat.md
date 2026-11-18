@@ -1,5 +1,7 @@
 # 聊天
 
+> **0.8.0 起被 v2 取代的部分**：§2 帧（每帧带 `v: 2`、`session` 帧、非 v2 帧丢弃）→ [v2/envelope.md](v2/envelope.md) §4；§3 持有证明（`channel-challenge`、v2 派生）→ [v2/channel-keys.md](v2/channel-keys.md) §5 与 envelope §4.3；§4 `channel-hello` 频道项 → channel-keys §5；§5 writer core → channel-keys §6；§6 消息条目（客户端签名的 `signed` 条目）→ [v2/signatures.md](v2/signatures.md) §3–4；§6.6 节点写的系统事件已取消（signatures §6）；§7 在线状态必须签名 → signatures §4.3；§8 `account-hello` 加 `v: 2`、派生 → signatures §7。
+
 本文定义频道在线上如何握手、交换 writer core、存储和排序消息、同步在线状态，以及账号同步帧。topic 见 [discovery.md](discovery.md)，节点密钥与 peerId 见 [connection.md](connection.md)，语音信令见 [voice.md](voice.md)。
 
 ## 1. 模型

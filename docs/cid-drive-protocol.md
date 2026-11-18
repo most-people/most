@@ -13,9 +13,9 @@
 
 ## 不变的部分
 
-`most://` 链接、CID 身份、topic（`cid.multihash.digest`）、drive 内路径 `/<cid>`、下载后重算 CID、成功后默认做种、`published-files.json` / `node-holdings.json` 的职责、Corestore 主密钥（频道依赖它）。
+`most://` 链接、CID 身份、drive 内路径 `/<cid>`、下载后重算 CID、成功后默认做种、`published-files.json` / `node-holdings.json` 的职责、Corestore 主密钥（频道依赖它）。
 
-其中 topic 与 Corestore 主密钥将在[长期方案](decentralization-plan.md)阶段 2 修改。
+topic 自 0.8.0 起为 v2 文件 topic `H("topic/file", digest)`，通道升级为 `most-cid-drive/3`（`want` 需证明知道 CID 摘要），drive 名改用 v2 标签，见 [protocol/v2/file-privacy.md](protocol/v2/file-privacy.md)。本文其余部分（独立签名 drive、一问一答、下载与做种流程）仍然有效。Corestore 主密钥不变（channel-keys §6.1）。
 
 ## 设计
 

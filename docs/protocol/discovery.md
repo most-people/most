@@ -1,5 +1,7 @@
 # 发现
 
+> **0.8.0 起被 v2 取代的部分**：§3.1 文件 topic → [v2/file-privacy.md](v2/file-privacy.md) §3；§3.2 频道 topic → [v2/channel-keys.md](v2/channel-keys.md) §3；§3.3 账号同步 topic → [v2/signatures.md](v2/signatures.md) §7；§3.4 示例 → `vectors/v2/`；§3.5 P2P Ping topic → [v2/envelope.md](v2/envelope.md) §6。§1、§2、§4、§5 不变（代码中不内置中继）。
+
 本文定义节点如何在 HyperDHT 上找到彼此：用哪些 swarm、加入哪些 topic、topic 怎么算、何时重新查找。连接建立后的握手与帧格式见 [connection.md](connection.md)；标识符见 [identifiers.md](identifiers.md)。
 
 ## 1. DHT 与引导节点

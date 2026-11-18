@@ -48,20 +48,20 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 ## 当前 MVP 口径
 
-首版优先验证两个相互连接的闭环：
+首版优先验证两个相互连接的闭环，聊天第一、文件第二：
 
 ```
+频道
+  → 创建或加入 P2P 频道
+  → 客户端签名的消息在在线节点间同步
+  → 聊天附件使用 most:// 链接并按 CID 校验
+
 CID
   → most:// 分享链接
-  → 发布者按 CID topic 做种
+  → 发布者按 CID 的文件 topic 做种
   → 下载者凭链接下载并重算 CID 校验
   → 下载者默认持续做种
   → 发布者退出后，只要还有下载者在线即可继续传播
-
-频道
-  → 创建或加入 P2P 频道
-  → 消息在在线节点间同步
-  → 聊天附件使用 most:// 链接并按 CID 校验
 ```
 
 MVP 范围只包含上面两个闭环。深度要求：每条结论都要有失败模型、可检查的不变量、分布式统计、独立预言机和可复现的原始证据。执行步骤与工具现状见 `docs/acceptance.md` 的「MVP 深度验收」。
@@ -112,11 +112,20 @@ MVP 范围只包含上面两个闭环。深度要求：每条结论都要有失�
 - MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
 - 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
 - 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
-- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。长期方案阶段 2 将统一修改此规则（见 `docs/decentralization-plan.md`），在那之前不得零散改动。
+- 文件 topic 为 `H("topic/file", cid.multihash.digest)`（`docs/protocol/v2/file-privacy.md` §3），DHT 上看到 topic 无法还原 CID；不得改回摘要或另换规则。
 - Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
-- 每个节点只做种自己的 CID drive：drive 名由本节点私密种子派生（桌面为节点种子，移动为 `cid-drive-secret`），他人无法为其签名；下载者经 `most-cid-drive/2` 通道向 peer 询问 drive key，逐个读取并按 CID 校验。不要恢复共享密钥 drive，记录中的 `driveName` 不可作为依据。协议见 `docs/cid-drive-protocol.md`。
+- 每个节点只做种自己的 CID drive：drive 名为 `MAC(节点密钥, "cid-drive/name", topic)`（桌面为节点种子，移动为 `node-secret`），他人无法为其签名；下载者经 `most-cid-drive/3` 通道发送带证明的 `want`（证明知道 CID 摘要，绑定连接的 challenge 与双方公钥），只有证明有效才回 driveKey，下载后逐个读取并按 CID 校验。不要恢复共享密钥 drive，记录中的 `topic`、`driveName` 一律现算。协议见 `docs/protocol/v2/file-privacy.md` 与 `docs/cid-drive-protocol.md`。
 - 用户文件列表和目录结构由 `published-files.json` 维护；做种持有记录由 `node-holdings.json` 维护，避免污染用户文件管理视图。
 - 不实现上链存储协议、智能合约、USDT 支付、质押、订单、赏金猎人、fraud proof、Treasury 或云端下单。
+
+## 协议冻结（0.8.0 起）
+
+0.8.0 是最后一次不兼容升级。现行协议为 `docs/protocol/v2/`（与上级 v1 描述冲突时以 v2 为准），自 0.8.0 发布起：
+
+- `most://` 链接格式、所有 topic 与密钥派生（`most/v2/` 标签）、签名格式（规范化 JSON、设备证书、签名覆盖范围）、聊天帧与 writer core 条目格式、`most-cid-drive/3` 消息**只增不改**。
+- 新增能力 = 新 `features` 名（会话帧协商）+ 新帧类型或新可选字段，旧节点忽略即可工作；只有对方在会话帧中列出该能力时才发送依赖它的帧或字段。`sig1`（签名）为必选，不受协商影响。
+- 需要不兼容的改动时，新开标签与 topic，新旧并存，不修改原有的（`docs/protocol/v2/envelope.md` §7）。
+- 新增派生用途只能加新标签，并登记到 envelope §3.3 的标签表。
 
 ## 技术栈
 

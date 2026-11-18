@@ -48,18 +48,18 @@ MostBox 是开源的、完全去中心化的聊天与文件传输应用。**聊�
 
 ### 仍然开放
 
-| 问题                                                                                                 | 位置                                                 | 处理阶段 |
-| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------- |
-| 协议只存在于实现里，没有规范                                                                         | `server/src/index.js`、`app/backend/mobile-core.mjs` | 1        |
-| 文件 topic 等于 CID 摘要，DHT 节点可见；还原 CID 后发 `want` 即可取得 driveKey 并下载                | `server/src/core/cidTopic.js`                        | 2        |
-| P2P 层消息没有作者签名，`author` 字段自填                                                            | `server/src/index.js`、`server/src/core/channel*.js` | 2        |
-| 频道 core 仍由公开的共享主密钥派生；自定义短频道 ID 可枚举；聊天明文                                 | `server/src/config.js`、`server/src/index.js`        | 2        |
-| 没有内置中继，对称 NAT 之间无法连通；`blind-relay.js` 对任何节点开放、无会话上限；移动端不能配置中继 | `scripts/blind-relay.js`、`app/backend/backend.mjs`  | 3        |
-| DHT 引导节点只有 `hyperdht.org` 的三台                                                               | `server/src/config.js`                               | 3        |
-| 语音写死 Google STUN，打洞失败无提示                                                                 | `src/hooks/useVoiceRoom.ts`                          | 3        |
-| 聊天不变量 C1–C5 没有统计验收                                                                        | `AGENTS.md`                                          | 4        |
-| F2 截断/极慢/谎报大小的桩、移动端崩溃注入、逐连接路径记录、蜂窝与网络切换未覆盖                      | `docs/validation-status.md`                          | 4        |
-| 桌面与移动两套核心实现；`ipfs-unixfs-importer` 版本不同（17.1.1 / 17.0.1）                           | `package.json`、`app/package.json`                   | 5        |
+| 问题                                                                                                                                          | 位置                                                | 处理阶段 |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------- |
+| ~~协议只存在于实现里，没有规范~~ 已完成：`docs/protocol/`（`2fffaca` 起），0.8.0 起现行为 v2                                                  | `docs/protocol/`                                    | 1        |
+| ~~文件 topic 等于 CID 摘要~~ 已完成：topic 单向化、`want` 需证明知道摘要（`fa2ea45`）                                                         | `server/src/core/cidDriveExchange.js`               | 2        |
+| ~~P2P 层消息没有作者签名~~ 已完成：客户端签名（`3661f05`、`3fab9de`）                                                                         | `server/src/core/chatSignaturesV2.js`               | 2        |
+| ~~频道共享主密钥~~ 已完成：频道密钥与 writer core 节点密钥（`e149eb5`、`8680c0a`）；短名标为公开频道；聊天仍为明文（D2，以后经 `e2ee1` 协商） | `server/src/core/channelKeysV2.js`                  | 2        |
+| 没有内置中继，对称 NAT 之间无法连通；`blind-relay.js` 对任何节点开放、无会话上限；移动端不能配置中继                                          | `scripts/blind-relay.js`、`app/backend/backend.mjs` | 3        |
+| DHT 引导节点只有 `hyperdht.org` 的三台                                                                                                        | `server/src/config.js`                              | 3        |
+| 语音写死 Google STUN，打洞失败无提示                                                                                                          | `src/hooks/useVoiceRoom.ts`                         | 3        |
+| ~~聊天不变量 C1–C5 没有统计验收~~ 本地 300 轮达标（`0022889` 检查器，`79b640b` 去掉绕开等待）；真实网络与移动核心参与仍未覆盖                 | `scripts/chat-chaos.js`                             | 4        |
+| F2 截断/极慢/谎报大小的桩、移动端崩溃注入、逐连接路径记录、蜂窝与网络切换未覆盖                                                               | `docs/validation-status.md`                         | 4        |
+| 桌面与移动两套核心实现；`ipfs-unixfs-importer` 版本不同（17.1.1 / 17.0.1）                                                                    | `package.json`、`app/package.json`                  | 5        |
 
 ## 工作方式
 

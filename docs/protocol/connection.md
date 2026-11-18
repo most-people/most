@@ -1,5 +1,7 @@
 # 连接
 
+> **0.8.0 起被 v2 取代的部分**：§4 P2P Ping 的 topic、证明与帧版本 → [v2/envelope.md](v2/envelope.md) §6（帧 `version: 3`）。§1–3 不变。
+
 本文定义节点密钥、连接建立后每类 swarm 连接上跑什么协议，以及 MostBox 自定义的 P2P Ping 帧。swarm 与 topic 见 [discovery.md](discovery.md)。
 
 范围：Holepunch 上游协议（HyperDHT 握手、加密流、Protomux、Hypercore 复制）只写协议名、版本与上游链接，不在本仓库逐字节重述；MostBox 自己定义的格式逐字节写出。

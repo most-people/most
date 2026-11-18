@@ -1,5 +1,7 @@
 # 语音信令
 
+> **0.8.0 起被 v2 取代的部分**：全文 → [v2/voice.md](v2/voice.md)：`channel-voice` 帧签名、`signal` 按会话定向转发；移动核心不实现语音。
+
 本文记录 v1 格式与 WebRTC 客户端约定。`protocol-v2` 分支使用[已签名的 v2 语音信令](v2/voice.md)：加入等状态仍在频道广播，SDP 与 ICE 只发给目标会话。
 
 频道语音由客户端之间的 WebRTC 传输音频；MostBox 节点只转发信令，不中转媒体。本文定义 P2P 上的 `channel-voice` 帧和客户端的信令约定。聊天 swarm 帧与持有证明见 [chat.md](chat.md)。
