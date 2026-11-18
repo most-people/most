@@ -20,7 +20,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { Wallet } from 'ethers'
 import { MostBoxEngine } from '../server/src/index.js'
+import { signedMessage } from '../server/tests/helpers/signedMessage.js'
 
 const NODES = 4
 const CHANNEL = 'chaos-room'
@@ -48,7 +50,8 @@ function mulberry32(seed) {
   }
 }
 
-const address = node => `0x${String(node + 1).repeat(40)}`
+// One signing account per node; messages are client-signed (protocol v2).
+const signers = Array.from({ length: NODES }, () => Wallet.createRandom())
 // A valid v4 UUID that encodes the sender and its sequence number.
 const messageId = (node, seq) =>
   `${String(node).padStart(8, '0')}-0000-4000-8000-${String(seq).padStart(12, '0')}`
@@ -189,10 +192,6 @@ async function run(options) {
         links.delete(key)
       }
     }
-    // Let blocks already in flight finish: hypercore verifies them after the
-    // stream closes and throws uncaught if the store is closed meanwhile
-    // (seen once in 147 rounds; recorded in docs/validation-status.md).
-    await sleep(100)
     await engines[node].stop()
     engines[node] = null
   }
@@ -203,14 +202,14 @@ async function run(options) {
       // Repeated text must not merge distinct messages.
       content: rng() < 0.3 ? 'ok' : `m ${node}.${seq[node]}`,
     }
-    log({ type: 'send', round, node, id: message.id, retry: Boolean(retry) })
-    await engines[node].sendMessage(
-      CHANNEL,
+    // A retry resends the same signed envelope, as the UI does.
+    message.signed ||= await signedMessage(
+      engines[node].resolveChannelKey(CHANNEL),
       message.content,
-      address(node),
-      `node ${node}`,
-      { clientMessageId: message.id }
+      { signer: signers[node], id: message.id }
     )
+    log({ type: 'send', round, node, id: message.id, retry: Boolean(retry) })
+    await engines[node].sendMessage(CHANNEL, message.signed)
     log({ type: 'confirm', round, node, id: message.id })
     if (!retry) sent.push(message)
   }

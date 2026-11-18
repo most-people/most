@@ -226,9 +226,24 @@
 - 回归：根 `npm test` 778 项、`test:cross-core` 3 项、`test:protocol` 13 项、移动端 `npm test` 全部通过。
 - `scripts/chat-chaos.js` 仍用 0.7.0 之前的未签名 `sendMessage` 接口，自 0.7.0 起无法运行；在 A4 中修复后再跑。
 
+## 2026-11-18：停止引擎时的未捕获崩溃（A4）
+
+- 原因：hypercore 的 `Core.onappend` 不等待地调用 `Replicator._resolveBlocksLocally`，存储关闭后到达的块校验在其中读取已关闭的 RocksDB 会话，抛出未捕获的 `RocksDB session is closed`（栈与 2026-11-16 记录一致）。引擎自身的关闭顺序（先 swarm、再 core、最后存储）无误；上游在 `hypercore@11.39.3` 起于该函数开头加 `if (this.destroyed) return`。
+- 修复：根包与移动端都升级到 `hypercore@11.39.6`（随之 `hypercore-storage` 3.4.0、`rocksdb-native` 3.19.3 等；新解析的依赖都限定为 2026-11-04 之前发布）。根锁文件中 5 个指向镜像源的 `resolved` 改为 npmjs 官方源（完整性哈希不变）。
+- 复现与对比：`node scripts/engine-stop-race.js --rounds 400 --widen`（把 `onappend` 推迟 20ms 放大窗口）。升级前 1600 轮 4 次未捕获错误、全部为该异常；升级后 1600 轮 0 次（单侧 Fisher p≈0.06，属统计证据，未能写成确定性测试：窗口要求存储已关而复制器未销毁，需改动存储层内部才能稳定触发）。
+- 聊天混沌：`scripts/chat-chaos.js` 改用客户端签名消息（自 0.7.0 起旧接口无法运行），去掉停止前的 100ms 等待。`--rounds 300 --rng 20261118`：C1–C4 零违例，无崩溃，收敛 P50 123ms、P95 228ms，达标；C5 隔离节点可读全部 938 条既有消息。原始日志 `docs/evidence/2026-11-18-chat-chaos-20261118.jsonl.gz`。
+- 回归：根 `npm test` 778 项、`test:crash` 30 项、`test:protocol` 13 项、`test:cross-core` 3 项、移动端 `npm test` 全部通过；`bundle:android` 成功。
+- 风险：`rocksdb-native` 为原生模块，移动端经 APK 构建链接；本轮未构建 APK、未在真机运行新版本。升级后存储由新版 `hypercore-storage` 打开，回滚旧版程序前需按升级文档恢复备份。
+
+## 2026-11-18：0.7.0 遗留项（A5）
+
+- 「统一迁移」对应 `protocol/v2/README.md` 实现顺序第 6 步。逐项核对：未签名 `system` 条目的读取放行、节点代写的加入事件已不存在；WebSocket 不再广播频道事件，`node:log` 不含频道句柄；迁移、双向互通、攻击测试、`PRIVACY.md` 由 A1/A2 完成，冻结声明在 A7。
+- 补齐：移动 App 频道信息页显示公开频道提示（channel-keys §7 要求界面标注，Web 已有）。`voice.md` 写明移动核心丢弃语音帧、语音只在 Web 与桌面端提供。
+- 0.5.5 数据直接升级到 0.8.0 后的聊天身份、旧历史、公开频道与旧附件，在 A8 客户形态演练中逐项验证。
+
 ## 当前未完成
 
-- 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；桌面节点已接入语音签名与会话定向投递，移动核心继续忽略语音帧。统一迁移仍待完成。
+- 协议 v2 聊天签名：桌面与移动端均已接入客户端签名的消息、成员资料和在线状态；桌面节点已接入语音签名与会话定向投递，移动核心按决定忽略语音帧（见 `protocol/v2/voice.md`）。统一迁移的核对见上文 A5。
 - 2026-11-18 合入 `pre` 前的原地升级演练（Windows，`ba00af1` → `58b3d2a`，合成账号，禁用 P2P）：旧版写入一条已确认文本和一个文件，停机后用候选版打开同一数据目录。候选 Web 客户端的凭据派生和签名代码通过 HTTP 鉴权；`POST /api/user/migrate` 迁移了 1 个资料、1 个频道、1 个文件。按旧 CID 下载后字节一致，重算仍为 `bafkreihndvhn3h2q6b76lfrzjtl6g774o33zedwz4nq5fp5wmptrtrht2i`。**旧频道历史不可见**：升级前可读到测试文本，升级后历史接口返回 200、0 条；这不证明旧块已被删除。两个账号在同一候选引擎上可互读新签名文本。旧历史的发布决策见 `protocol/v2/channel-keys.md` §7。
 - 同日只读核对测试服务器在用节点（发行目录 `pre-2023b27`）：OpenAPI 未列账号迁移接口，消息路由要求旧的 `content` 字段，不接受候选客户端只传 `signed` 的请求体。未在该服务上写入测试数据。候选 Expo Web 已导出，浏览器端完整登录未验收。
 - 同一候选的 arm64 APK（0.6.0 / 600，SHA-256 `7312678f2607b314e464b41807e3835e7835d7998aad41794daf3185d827d638`）在 MIX 2S / Android 10 安装、冷启动成功。手机通过 ADB USB 转发连接隔离候选节点，用旧测试凭据登录后进入迁移频道；发送前历史为空。另一账号在同一节点读到手机新发的消息并回复，手机重新进入频道后读到回信。未据此认定实时推送、跨节点 P2P、音频或公网路径通过。
@@ -236,7 +251,7 @@
 - 2026-11-18 修复复测（代码提交 `48c6083`）：用 `pre@ba00af1` 写入独立的旧账号、消息和 24 B 文件，正常关闭后在同一临时目录升级。MIX 2S / Android 10 经 USB 转发、Expo Web 生产构建经本机回环分别使用不同样本登录，均在频道内看到带「旧消息 · 未签名 · 仅本节点可读」标识的旧文本，首次进入文件库即可看到 `fixture.txt`，无需重连。手机详情页 CID 与原值一致；打开后进入系统应用选择器，未验证外部阅读器。真机行为复测包 SHA-256：`9278094779118286f25463fc45dd746ba11fef3396c23763a5a4b2f50958dc79`（提交前构建；随后只调整了归档消息的位置标识，不将该包记为最终发行包）。
 - Windows 与测试服务器 Linux 独立目录的桌面集成回归验证了账号迁移、重启、原成员可读、新成员不可读和旧 writer 不进入公开列表；移动内置节点另有相同存储格式的迁移回归。重放：`node --test server/tests/integration/accountMigration.test.js server/tests/unit/channelMetadata.test.js`、`node --test --test-name-pattern "reads v1 text from local storage" app/backend/mobile-core.test.mjs`。本轮未验证公网语音、生产服务升级或生产备份恢复；切换顺序见 README 的「协议 v2 切换」。
 
-- 聊天剩余：真实网络分区、`kill -9`、移动核心参与；停止引擎时 hypercore 在途块校验导致的未捕获崩溃。
+- 聊天剩余：真实网络分区、`kill -9`、移动核心参与。
 - F5 剩余：蜂窝、网络切换、逐连接记录路径；real-wifi 首轮“有 peer 但 0 字节”的原因。
 - Android 后台：当前运行库的连续息屏、无充电、系统清理、移除任务、通知权限拒绝和 Android 15/16 超时回调。既有 MIUI 自动清理失败仍是有效边界。
 - iOS：按当前代码生成签名真机包，重新覆盖聊天、附件、本机/远程节点和生命周期；bundle 通过不能代替真机。
