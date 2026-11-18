@@ -806,6 +806,8 @@ function ChatPage() {
     const membersByAuthor = new Map<string, DisplayedChannelMemberProfile>()
 
     channelMessages.forEach((message, index) => {
+      // Old-history snapshots share the placeholder author 'legacy'.
+      if (message.type === 'legacy') return
       const address = String(message.author || '').trim()
       if (!address) return
       const key = address.toLowerCase()
