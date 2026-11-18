@@ -22,11 +22,42 @@ export function shouldShowMessageTime(
 }
 
 export type JoinedChannel = {
+  /** Public channel ID (64 hex); the key the app uses for a conversation. */
   name: string
+  /**
+   * What people type to join: a public name, a v1 ID or a private credential.
+   * Empty when unknown.
+   */
+  handle: string
   remark: string
   pinned: boolean
   /** Public channel (channel-keys §4): anyone who knows the name can read. */
   public: boolean
+}
+
+// Public names and v1 IDs are at most 30 characters; a 52-character private
+// credential is a secret and is never used as a label.
+const MAX_LABEL_HANDLE_LENGTH = 30
+
+/** Channel name to show: the handle people know, else the public ID. */
+export function channelLabel(channel: Pick<JoinedChannel, 'name' | 'handle'>) {
+  return channel.handle && channel.handle.length <= MAX_LABEL_HANDLE_LENGTH
+    ? channel.handle
+    : channel.name
+}
+
+/** Remark if set, else `#label`. */
+export function channelDisplayName(
+  channel: Pick<JoinedChannel, 'name' | 'handle' | 'remark'>
+) {
+  return channel.remark || `#${channelLabel(channel)}`
+}
+
+/** What to copy or share so a friend can join: the handle, never the ID. */
+export function channelShareText(
+  channel: Pick<JoinedChannel, 'name' | 'handle'>
+) {
+  return `#${channel.handle || channel.name}`
 }
 
 export function getJoinedChannels(
@@ -46,6 +77,7 @@ export function getJoinedChannels(
     if (!name || result.has(name)) continue
     result.set(name, {
       name,
+      handle: typeof channel.channelId === 'string' ? channel.channelId : '',
       remark: typeof channel.remark === 'string' ? channel.remark : '',
       pinned: channel.pinned === true,
       public: channel.public === true,

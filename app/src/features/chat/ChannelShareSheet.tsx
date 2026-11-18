@@ -14,7 +14,7 @@ import { Copy, Share2 } from 'lucide-react-native'
 import { useI18n } from '../../i18n'
 import { BottomSheetCard, MostButton, MostTextInput } from '../../ui/components'
 import { useMostBoxTheme } from '../../ui/theme'
-import type { JoinedChannel } from './conversationModel'
+import { channelShareText, type JoinedChannel } from './conversationModel'
 
 type ChannelShareSheetProps = {
   channel: JoinedChannel
@@ -38,7 +38,7 @@ export function ChannelShareSheet({
   const [working, setWorking] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
-  const name = `#${channel.name}`
+  const name = channelShareText(channel)
   const run = async (share: boolean) => {
     if (working) return
     setWorking(true)

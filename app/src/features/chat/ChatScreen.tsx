@@ -109,6 +109,8 @@ import {
   unblockAuthor,
   withoutBlockedMessages,
   withoutBlockedChannelMessages,
+  channelDisplayName,
+  channelLabel,
   type JoinedChannel,
 } from './conversationModel'
 import {
@@ -779,18 +781,23 @@ export function ChatScreen({
   }
 
   const showConversationMenu = (name: string) => {
-    alert(`#${name}`, t('chat.deleteConversationHint'), [
-      {
-        text: t('chat.channelInfo'),
-        onPress: () => setShareRequest({ scope: conversationScope, name }),
-      },
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: () => void deleteConversation(name),
-      },
-    ])
+    const current = channels.find(item => item.name === name)
+    alert(
+      current ? channelDisplayName(current) : `#${name}`,
+      t('chat.deleteConversationHint'),
+      [
+        {
+          text: t('chat.channelInfo'),
+          onPress: () => setShareRequest({ scope: conversationScope, name }),
+        },
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => void deleteConversation(name),
+        },
+      ]
+    )
   }
 
   useEffect(() => {
@@ -952,6 +959,7 @@ export function ChatScreen({
                 // Placeholder until the channel list refresh fills it in.
                 {
                   name: normalizedName,
+                  handle: '',
                   remark: '',
                   pinned: false,
                   public: false,
@@ -1677,7 +1685,7 @@ export function ChatScreen({
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.remark || `#${item.name}`}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
+                    accessibilityLabel={`${channelDisplayName(item)}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
                     disabled={!conversation.ready}
                     onPress={() => void openChannel(item.name)}
                     onLongPress={() => showConversationMenu(item.name)}
@@ -1698,7 +1706,7 @@ export function ChatScreen({
                     </View>
                     <View style={styles.channelRowText}>
                       <Text numberOfLines={1} style={styles.channelText}>
-                        {item.remark || `#${item.name}`}
+                        {channelDisplayName(item)}
                       </Text>
                       <Text numberOfLines={1} style={styles.channelPreview}>
                         {item.draft.trim() ? (
@@ -1739,7 +1747,7 @@ export function ChatScreen({
                   </Pressable>
                   <IconButton
                     accessibilityLabel={t('chat.conversationOptions', {
-                      channel: item.remark || item.name,
+                      channel: item.remark || channelLabel(item),
                     })}
                     onPress={() => showConversationMenu(item.name)}
                     variant="ghost"
@@ -1766,8 +1774,10 @@ export function ChatScreen({
               <ArrowLeft size={20} color={theme.colors.text} />
             </Pressable>
             <Text numberOfLines={1} style={styles.detailTitle}>
-              {channels.find(item => item.name === channel)?.remark ||
-                `#${channel}`}
+              {(() => {
+                const current = channels.find(item => item.name === channel)
+                return current ? channelDisplayName(current) : `#${channel}`
+              })()}
             </Text>
             {channel ? (
               <View style={styles.detailActions}>
