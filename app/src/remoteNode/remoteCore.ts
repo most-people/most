@@ -585,7 +585,10 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     oldAddress: string
     signature: string
   }) {
-    await this.#requestJson('POST', '/api/user/migrate', migration)
+    const result = asRecord(
+      await this.#requestJson('POST', '/api/user/migrate', migration)
+    )
+    if (result.migrated === true) await this.#refreshFiles()
   }
 
   async #requestJson(

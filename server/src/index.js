@@ -23,6 +23,7 @@ import path from 'node:path'
 import { Duplex, Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
+import { snapshotLocalChannelArchive } from './core/localChannelArchive.js'
 import {
   calculateCid,
   calculateDirectoryCid,
@@ -3018,6 +3019,13 @@ export class MostBoxEngine extends EventEmitter {
       return next
     }
     for (const channel of channels) {
+      if (channel.legacyOwners?.includes(oldAddress)) {
+        channel.legacyOwners = uniqueStrings(
+          channel.legacyOwners.map(owner =>
+            owner === oldAddress ? newAddress : owner
+          )
+        )
+      }
       const hasNew = this.#channelHasMember(channel, newAddress)
       channel.members = channel.members.flatMap(member => {
         if (normalizeOwnerAddress(member?.address) !== oldAddress) {
@@ -4181,7 +4189,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
-    const unique = await this.#readChannelHistory(channel)
+    const unique = await this.#visibleHistory(channel, options.ownerAddress)
     const total = unique.length
     const start = Math.max(0, total - offset - limit)
     const end = total - offset
@@ -4197,7 +4205,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const entries = await this.#readChannelHistory(channel)
+    const entries = await this.#visibleHistory(channel, options.ownerAddress)
     const page = paginateChannelHistory(entries, channel.channelKey, options)
     return {
       messages: page.messages.map(({ _coreKey, _index, ...message }) =>
@@ -4213,6 +4221,23 @@ export class MostBoxEngine extends EventEmitter {
    */
   #decodeChannelEntry(entry, channelKey) {
     return readSignedEntry(entry, channelKey)
+  }
+
+  async #visibleHistory(channel, ownerAddress) {
+    const signed = await this.#readChannelHistory(channel)
+    if (!channel.legacyOwners?.includes(normalizeOwnerAddress(ownerAddress)))
+      return signed
+    const archive = JSON.parse(
+      await fs.promises.readFile(this.#archivePath(channel), 'utf8')
+    )
+    return signed.concat(archive).sort(compareChannelHistoryEntries)
+  }
+
+  #archivePath(channel) {
+    return path.join(
+      this.#options.dataPath,
+      `legacy-history-${channel.channelKey}.json`
+    )
   }
 
   async #readChannelHistory(channel, { strict = false } = {}) {
@@ -4536,6 +4561,17 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #openChannelRuntime(channel) {
+    if (
+      channel.legacyWriterCoreKeys &&
+      !fs.existsSync(this.#archivePath(channel))
+    ) {
+      await snapshotLocalChannelArchive(
+        channel,
+        key =>
+          this.#store.get({ key: b4a.from(key, 'hex'), valueEncoding: 'json' }),
+        data => writeMetadataFile(this.#archivePath(channel), data)
+      )
+    }
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
     const previousLocalWriterCoreKey = channel.localWriterCoreKey || ''
     const generation = Number.isInteger(channel.writerGeneration)
@@ -4591,7 +4627,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
-    const nextKeys = uniqueStrings(writerCoreKeys)
+    const nextKeys = uniqueStrings(writerCoreKeys).filter(
+      key => !channel.legacyWriterCoreKeys?.includes(key)
+    )
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
@@ -5408,7 +5446,9 @@ export class MostBoxEngine extends EventEmitter {
     } else {
       const nextKeys = uniqueStrings([
         ...(channel.writerCoreKeys || []),
-        ...(record.writerCoreKeys || []),
+        ...(record.writerCoreKeys || []).filter(
+          key => !channel.legacyWriterCoreKeys?.includes(key)
+        ),
       ])
       if (nextKeys.length !== (channel.writerCoreKeys || []).length) {
         channel.writerCoreKeys = nextKeys

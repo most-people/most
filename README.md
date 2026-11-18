@@ -428,6 +428,14 @@ npx most-box@latest
 
 Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 应设置为 `app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。若 Pages 后台仍使用旧值 `mobile`，需先改为 `app`；仓库修改不会自动同步后台配置。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
 
+### 协议 v2 切换
+
+协议 v2 首次切换需将节点与 Expo Web 安排在同一维护窗口，顺序如下：
+
+1. 记录当前节点版本和 Pages 部署，暂停写入，正常停节点，在原路径可恢复地备份完整数据目录（含节点身份、Corestore、频道及账号元数据）。先在隔离实例验证能恢复；不要把打开中的数据库当作备份。
+2. 保留旧实例及备份，用候选节点启动数据副本，限定测试账号访问。确认旧凭据登录、带标识的旧频道文本、首次登录文件列表、按 CID 下载和新签名消息双向收发，再切换节点流量。新旧客户端不能混用消息接口。
+3. 节点通过后，将**同一已验收提交**快进到 `pre`，核对 Pages 成功部署和线上 Web 到目标节点的上述操作，再恢复正常写入。如果检查失败，停止新写入，将 Pages、节点程序和升级前的数据一起恢复；切换后的新增数据单独保留，不用旧程序直接打开已迁移目录。
+
 ### Code signing policy
 
 MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md) 管理。项目正在申请 SignPath Foundation 开源代码签名；只有带有有效 Authenticode 签名的产物才会标记为已签名。Free code signing provided by SignPath.io, certificate by SignPath Foundation.

@@ -1525,6 +1525,56 @@ describe('mobile channel connection scoping', () => {
 })
 
 describe('mobile channel metadata management', () => {
+  it('reads v1 text from local storage without advertising the old writer', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mobile-old-chat-')
+    )
+    const store = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
+    const name = 'old-chat-room'
+    const writer = store
+      .namespace('channel-' + name)
+      .get({ name: 'v1-writer', valueEncoding: 'json' })
+    await writer.append({
+      type: 'message',
+      timestamp: 123,
+      author: 'old-author',
+      content: 'offline history',
+    })
+    const key = writer.key.toString('hex')
+    await store.close()
+    await fs.writeFile(
+      path.join(storagePath, CHANNELS_FILE),
+      JSON.stringify([
+        {
+          channelId: name,
+          channelKey: name,
+          localWriterCoreKey: key,
+          writerCoreKeys: [key],
+        },
+      ])
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const [message] = await core.getChannelMessages(name)
+    assert.equal(message.type, 'legacy')
+    assert.equal(message.content, 'offline history')
+    await core.setChannelRemark({ channelName: name, remark: 'keep' })
+    const [persisted] = JSON.parse(
+      await fs.readFile(path.join(storagePath, CHANNELS_FILE), 'utf8')
+    )
+    assert.deepEqual(persisted.writerCoreKeys, [persisted.localWriterCoreKey])
+    assert.notEqual(persisted.localWriterCoreKey, key)
+  })
   it('loads earlier history without replacing the latest conversation preview', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-history-')

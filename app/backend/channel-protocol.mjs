@@ -540,6 +540,9 @@ export function normalizeChannelRecord(record = {}) {
         ? record.writerGeneration
         : 0,
       localWriterCoreKey: String(record.localWriterCoreKey || '').trim(),
+      ...(Array.isArray(record.legacyWriterCoreKeys)
+        ? { legacyWriterCoreKeys: record.legacyWriterCoreKeys }
+        : {}),
       writerCoreKeys: uniqueStrings([
         ...writerCoreKeys,
         record.localWriterCoreKey,
@@ -551,7 +554,7 @@ export function normalizeChannelRecord(record = {}) {
   if (!resolved) return null
   return {
     ...createChannelRecord(resolved, common.type, common),
-    writerCoreKeys: uniqueStrings([
+    legacyWriterCoreKeys: uniqueStrings([
       ...writerCoreKeys,
       record.localWriterCoreKey,
     ]),
@@ -642,7 +645,7 @@ export function sortChannelMessages(
   const unique = []
 
   for (const message of ordered) {
-    if (!message || message.type !== 'message') continue
+    if (!message || !['message', 'legacy'].includes(message.type)) continue
     const attachmentLink = message.attachment?.link || ''
     const author =
       normalizeChannelPresenceAddress(message.author) || message.author

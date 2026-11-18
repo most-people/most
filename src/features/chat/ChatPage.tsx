@@ -2487,6 +2487,14 @@ function ChatPage() {
               </div>
             ) : (
               channelMessages.map(msg => {
+                if (msg.type === 'legacy') {
+                  return (
+                    <ChatSystemMessageItem key={msg.id}>
+                      {t('chat.system.legacy')} · {msg.authorName}:{' '}
+                      {msg.content}
+                    </ChatSystemMessageItem>
+                  )
+                }
                 if (isChannelMemberJoinedSystemMessage(msg)) {
                   const displayAuthor = getMessageDisplayAuthor(msg)
                   return (

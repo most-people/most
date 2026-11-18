@@ -5,6 +5,7 @@ import Hyperdrive from 'hyperdrive'
 import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
+import { snapshotLocalChannelArchive } from '../../server/src/core/localChannelArchive.js'
 import {
   CHANNEL_MESSAGE_LIMIT,
   CHANNEL_PROOF_VERSION,
@@ -915,7 +916,9 @@ export class MobileP2PCore {
       throw new Error('Channel runtime is not initialized')
     }
 
-    const allMessages = []
+    const allMessages = channel.legacyWriterCoreKeys
+      ? JSON.parse(fs.readFileSync(this.#archivePath(channel), 'utf8'))
+      : []
     for (const [coreKeyHex, core] of coresMap) {
       for (let i = 0; i < core.length; i++) {
         try {
@@ -1553,7 +1556,25 @@ export class MobileP2PCore {
     }
   }
 
+  #archivePath(channel) {
+    return path.join(
+      this.#storagePath,
+      `legacy-history-${channel.channelKey}.json`
+    )
+  }
+
   async #openChannelRuntime(channel) {
+    if (
+      channel.legacyWriterCoreKeys &&
+      !fs.existsSync(this.#archivePath(channel))
+    ) {
+      await snapshotLocalChannelArchive(
+        channel,
+        key =>
+          this.#store.get({ key: b4a.from(key, 'hex'), valueEncoding: 'json' }),
+        data => atomicWrite(this.#archivePath(channel), data)
+      )
+    }
     const existingMap = this.#channelCores.get(channel.channelKey)
     if (
       channel.localWriterCoreKey &&
@@ -1622,7 +1643,10 @@ export class MobileP2PCore {
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
     const nextKeys = uniqueStrings(writerCoreKeys)
-      .filter(key => HEX_64_REGEX.test(key))
+      .filter(
+        key =>
+          HEX_64_REGEX.test(key) && !channel.legacyWriterCoreKeys?.includes(key)
+      )
       .slice(0, MAX_HELLO_WRITER_CORE_KEYS)
     if (nextKeys.length === 0) return false
 

@@ -1840,6 +1840,18 @@ export function ChatScreen({
               }
               contentContainerStyle={styles.messages}
               renderItem={({ item, index }) => {
+                if (item.type === 'legacy') {
+                  return (
+                    <View style={styles.messageBody}>
+                      <Text style={styles.timestamp}>
+                        {t('chat.legacyHistory')}
+                      </Text>
+                      <Text>
+                        {item.authorName}: {item.content}
+                      </Text>
+                    </View>
+                  )
+                }
                 const mine = isOwnChatMessage(
                   item,
                   identity?.address || snapshot.node.userAddress || ''

@@ -92,7 +92,9 @@ describe('channel metadata', () => {
           kind: 'public',
           writerGeneration: 0,
           localWriterCoreKey: '',
-          writerCoreKeys: ['remote-core', 'local-core'],
+          writerCoreKeys: [],
+          legacyOwners: [],
+          legacyWriterCoreKeys: ['remote-core', 'local-core'],
         },
         {
           channelId: legacyId,
@@ -102,7 +104,9 @@ describe('channel metadata', () => {
           kind: 'legacy',
           writerGeneration: 0,
           localWriterCoreKey: '',
-          writerCoreKeys: ['old-core'],
+          writerCoreKeys: [],
+          legacyOwners: [],
+          legacyWriterCoreKeys: ['old-core'],
         },
         {
           channelId: encodeChannelCredential(v2Key),
@@ -178,7 +182,12 @@ describe('channel metadata', () => {
           kind: 'public',
           writerGeneration: 0,
           localWriterCoreKey: '',
-          writerCoreKeys: ['core-a', 'core-b', 'core-c'],
+          writerCoreKeys: [],
+          legacyOwners: [
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          ],
+          legacyWriterCoreKeys: ['core-a', 'core-b', 'core-c'],
           createdAt: '2026-10-07T05:41:14.636Z',
           lastMessageAt: '2026-10-07T05:41:35.791Z',
           members: [

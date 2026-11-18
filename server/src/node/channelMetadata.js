@@ -86,7 +86,11 @@ function normalizeChannelRecord(channel) {
     kind: resolved.kind,
     writerGeneration: 0,
     localWriterCoreKey: '',
-    writerCoreKeys: uniqueStrings([
+    writerCoreKeys: [],
+    legacyOwners: uniqueStrings(
+      (channel.members || []).map(m => normalizeOwnerAddress(m?.address))
+    ),
+    legacyWriterCoreKeys: uniqueStrings([
       ...writerCoreKeys,
       channel.localWriterCoreKey,
     ]),
@@ -108,6 +112,16 @@ function mergeDuplicateChannel(channels, channel) {
     channel.localWriterCoreKey,
   ])
   existing.members = mergeMembers(existing.members, channel.members)
+  if (channel.legacyWriterCoreKeys) {
+    existing.legacyWriterCoreKeys = uniqueStrings([
+      ...(existing.legacyWriterCoreKeys || []),
+      ...channel.legacyWriterCoreKeys,
+    ])
+    existing.legacyOwners = uniqueStrings([
+      ...(existing.legacyOwners || []),
+      ...channel.legacyOwners,
+    ])
+  }
   existing.remarks = mergeAddressMap(existing.remarks, channel.remarks)
   existing.pinnedBy = mergeAddressMap(existing.pinnedBy, channel.pinnedBy)
   if (channel.createdAt && !(existing.createdAt <= channel.createdAt)) {
@@ -158,6 +172,8 @@ export function serializeChannelsMetadata(channels) {
       writerGeneration: channel.writerGeneration || 0,
       localWriterCoreKey: channel.localWriterCoreKey,
       writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+      legacyWriterCoreKeys: channel.legacyWriterCoreKeys,
+      legacyOwners: channel.legacyOwners,
       members: Array.isArray(channel.members) ? channel.members : [],
       remarks: channel.remarks,
       pinnedBy: channel.pinnedBy,
