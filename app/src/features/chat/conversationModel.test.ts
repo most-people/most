@@ -56,15 +56,15 @@ test('invalid persisted conversation entries do not introduce fake channels', ()
 
 test('channel remarks preserve identity and pinned channels sort before ordinary channels', () => {
   const channels = getJoinedChannels([
-    { channelKey: '8848', remark: 'Team', pinned: false },
+    { channelKey: '8848', remark: 'Team', pinned: false, public: true },
     { channelKey: 'other', remark: 'Pinned team', pinned: true },
   ])
   assert.deepEqual(channels, [
-    { name: 'other', remark: 'Pinned team', pinned: true },
-    { name: '8848', remark: 'Team', pinned: false },
+    { name: 'other', remark: 'Pinned team', pinned: true, public: false },
+    { name: '8848', remark: 'Team', pinned: false, public: true },
   ])
   assert.deepEqual(getJoinedChannels([{ ...channels[1], remark: '' }]), [
-    { name: '8848', remark: '', pinned: false },
+    { name: '8848', remark: '', pinned: false, public: true },
   ])
 })
 

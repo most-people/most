@@ -21,7 +21,13 @@ export function shouldShowMessageTime(
   )
 }
 
-export type JoinedChannel = { name: string; remark: string; pinned: boolean }
+export type JoinedChannel = {
+  name: string
+  remark: string
+  pinned: boolean
+  /** Public channel (channel-keys §4): anyone who knows the name can read. */
+  public: boolean
+}
 
 export function getJoinedChannels(
   channels: Array<{
@@ -30,6 +36,7 @@ export function getJoinedChannels(
     name?: unknown
     remark?: unknown
     pinned?: unknown
+    public?: unknown
   }>
 ): JoinedChannel[] {
   const result = new Map<string, JoinedChannel>()
@@ -41,6 +48,7 @@ export function getJoinedChannels(
       name,
       remark: typeof channel.remark === 'string' ? channel.remark : '',
       pinned: channel.pinned === true,
+      public: channel.public === true,
     })
   }
   return [...result.values()].sort(

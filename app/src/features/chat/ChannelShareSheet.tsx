@@ -84,6 +84,11 @@ export function ChannelShareSheet({
               {name}
             </Text>
             <Text style={styles.hint}>{t('chat.channelShareHint')}</Text>
+            {channel.public ? (
+              <Text style={styles.publicNotice}>
+                {t('chat.details.publicNotice')}
+              </Text>
+            ) : null}
             {copied ? (
               <Text accessibilityRole="alert" style={styles.success}>
                 {t('chat.copied')}
@@ -164,6 +169,12 @@ function createStyles(colors: ReturnType<typeof useMostBoxTheme>['colors']) {
       marginVertical: 16,
     },
     hint: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+    publicNotice: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 8,
+    },
     success: { color: colors.accent, marginTop: 12 },
     error: { color: colors.danger, marginTop: 12 },
     actions: { gap: 12, marginTop: 20 },

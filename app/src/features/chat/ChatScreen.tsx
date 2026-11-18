@@ -932,7 +932,16 @@ export function ChatScreen({
         setChannels(current =>
           current.some(item => item.name === normalizedName)
             ? current
-            : [...current, { name: normalizedName, remark: '', pinned: false }]
+            : [
+                ...current,
+                // Placeholder until the channel list refresh fills it in.
+                {
+                  name: normalizedName,
+                  remark: '',
+                  pinned: false,
+                  public: false,
+                },
+              ]
         )
         return true
       } catch (error) {

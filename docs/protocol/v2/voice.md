@@ -69,6 +69,8 @@ sig = Ed25519.sign(deviceSecretKey, label("chat/voice") ‖ canonical(body))
 
 客户端流程保证目标会话在收到 `signal` 前已发过 `join` 或 `state`（voice §4），因此丢弃未知目标不影响建立连接。
 
+语音只在 Web 与桌面端提供（负责人决定）。移动核心不实现转发：收到 `channel-voice` 帧直接丢弃，不记录来源、不回应，也不影响同一连接上的其他帧；移动 App 不发起或加入通话。桌面节点因此不会从移动核心收到语音帧，移动端用户也不会出现在通话成员中。
+
 ## 5. 客户端约定（冻结）
 
 voice §4 的会话 ID 形式、`join` → 对方回 `state`、15 秒心跳、45 秒超时、`sessionId` 较小者发 `offer`、ICE 候选缓存，作为 `webrtc1` 的约定写入规范并冻结。STUN/TURN 配置不属于协议（长期方案阶段 3 处理）。

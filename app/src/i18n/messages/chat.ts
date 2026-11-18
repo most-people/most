@@ -1,4 +1,11 @@
 export const chatMessages = {
+  'chat.details.publicNotice': {
+    'zh-CN':
+      '公开频道：任何知道这个名字的人都能加入和阅读。私密聊天请新建频道，它会使用随机凭证。',
+    'zh-TW':
+      '公開頻道：任何知道這個名稱的人都能加入和閱讀。私密聊天請新建頻道，它會使用隨機憑證。',
+    en: 'Public channel: anyone who knows this name can join and read it. For a private chat, create a new channel; it uses a random credential.',
+  },
   'chat.message.unsigned': {
     'zh-CN': '未签名',
     'zh-TW': '未簽署',

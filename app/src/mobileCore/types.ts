@@ -151,6 +151,8 @@ export type MobileChannel = {
   channelKey: string
   key: string
   type: string
+  /** Public channel (channel-keys §4). */
+  public?: boolean
   remark: string
   pinned: boolean
   createdAt: string
