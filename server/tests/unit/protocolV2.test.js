@@ -5,6 +5,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { H, KDF, MAC, label } from '../../src/core/protocolV2.js'
 import {
+  CanonicalJsonError,
+  canonicalJson,
+} from '../../src/core/canonicalJson.js'
+import {
   channelIdFromKey,
   channelTopics,
   channelWriterKeyPair,
@@ -142,5 +146,24 @@ describe('protocol v2 channel keys (desktop)', () => {
         assert.equal(pair.secretKey.length, 64)
       }
     }
+  })
+})
+
+describe('protocol v2 canonical JSON (desktop)', () => {
+  const vectors = readVectors('canonical-json.json')
+
+  it('serializes valid values and rejects the rest', () => {
+    for (const item of vectors.valid) {
+      assert.equal(canonicalJson(JSON.parse(item.input)), item.canonical)
+    }
+    for (const input of vectors.invalid) {
+      assert.throws(
+        () => canonicalJson(JSON.parse(input)),
+        CanonicalJsonError,
+        input
+      )
+    }
+    assert.throws(() => canonicalJson({ at: new Date() }), CanonicalJsonError)
+    assert.throws(() => canonicalJson({ fn: () => {} }), CanonicalJsonError)
   })
 })

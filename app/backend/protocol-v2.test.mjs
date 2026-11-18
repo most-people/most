@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import b4a from 'b4a'
 import { H, KDF, MAC, label } from './protocol-v2.mjs'
+import { CanonicalJsonError, canonicalJson } from '../shared/canonical-json.mjs'
 import {
   channelIdFromKey,
   channelTopics,
@@ -137,5 +138,23 @@ describe('protocol v2 channel keys (mobile core)', () => {
         assert.equal(pair.secretKey.length, 64)
       }
     }
+  })
+})
+
+describe('protocol v2 canonical JSON (mobile)', () => {
+  const vectors = readVectors('canonical-json.json')
+
+  it('serializes valid values and rejects the rest', () => {
+    for (const item of vectors.valid) {
+      assert.equal(canonicalJson(JSON.parse(item.input)), item.canonical)
+    }
+    for (const input of vectors.invalid) {
+      assert.throws(
+        () => canonicalJson(JSON.parse(input)),
+        CanonicalJsonError,
+        input
+      )
+    }
+    assert.throws(() => canonicalJson({ at: new Date() }), CanonicalJsonError)
   })
 })
