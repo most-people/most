@@ -1,6 +1,7 @@
 import type { FileSubtype } from '~/lib/filePreview'
 import type { LocalizedTag, MemberTag } from '~/lib/localizedTag'
 import { api, getApiUrl } from '~server/src/utils/api'
+import type { MessageBody, SignedEnvelope } from '~/lib/chatSigning'
 
 export interface ChannelAttachment {
   kind: FileSubtype
@@ -88,14 +89,7 @@ interface GetChannelsOptions {
 
 interface SendChannelMessageInput {
   channelName: string
-  content: string
-  clientMessageId?: string
-  author: string
-  authorName: string
-  avatar?: string
-  authorTag?: LocalizedTag
-  mentions?: ChannelMention[]
-  attachment?: ChannelAttachment
+  signed: SignedEnvelope<MessageBody>
 }
 
 interface ChannelProfileInput {
@@ -164,31 +158,11 @@ export const channelApi = {
       .json()
   },
 
-  sendChannelMessage({
-    channelName,
-    content,
-    clientMessageId,
-    author,
-    authorName,
-    avatar,
-    authorTag,
-    mentions,
-    attachment,
-  }: SendChannelMessageInput) {
-    const json = {
-      content,
-      clientMessageId,
-      author,
-      authorName,
-      avatar,
-      authorTag,
-      mentions,
-      attachment,
-    }
+  sendChannelMessage({ channelName, signed }: SendChannelMessageInput) {
     return api
       .post<SendMessageResult>(
         `/api/channels/${encodeURIComponent(channelName)}/messages`,
-        { json }
+        { json: { signed } }
       )
       .json()
   },

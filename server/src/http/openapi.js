@@ -826,16 +826,47 @@ const schemas = {
   },
   ChannelMessageRequest: {
     type: 'object',
-    required: ['content', 'author', 'authorName'],
+    required: ['signed'],
     properties: {
-      content: { type: 'string' },
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      authorName: { type: 'string', maxLength: 50 },
-      avatar: { type: 'string' },
-      authorTag: ref('LocalizedTagInput'),
-      clientMessageId: { type: 'string', format: 'uuid' },
-      mentions: { type: 'array', maxItems: 20, items: ref('ChannelMention') },
-      attachment: ref('ChannelAttachment'),
+      signed: {
+        type: 'object',
+        description:
+          'A message body signed by the client device key (docs/protocol/v2/signatures.md §4). The node verifies it and never edits the body.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: [
+              'kind',
+              'channelId',
+              'author',
+              'id',
+              'createdAt',
+              'content',
+            ],
+            properties: {
+              kind: { const: 'message' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              content: { type: 'string', maxLength: 10000 },
+              authorName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              authorTag: ref('LocalizedTagInput'),
+              mentions: {
+                type: 'array',
+                maxItems: 20,
+                items: ref('ChannelMention'),
+              },
+              attachment: ref('ChannelAttachment'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelMemberProfileRequest: {
@@ -2030,7 +2061,7 @@ export function createOpenApiSpec({
           operationId: 'sendChannelMessage',
           summary: 'Send a P2P channel message',
           description:
-            'A UUID v4 clientMessageId makes retries idempotent for one author in one channel on this node, including after restart. The same id with different content, attachment or mentions returns 409. Omit clientMessageId for legacy append behavior.',
+            'The client signs the body with its device key; the node checks the signature, the certificate and that body.author is the signed-in account. body.id (UUID v4) makes retries idempotent for one author in one channel, including after restart. The same id with a different body returns 409.',
           sideEffect: 'write',
           security: signedSecurity,
           parameters: [channelNameParameter],

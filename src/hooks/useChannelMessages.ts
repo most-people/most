@@ -16,6 +16,7 @@ import {
   getChannelMessageKey,
 } from '~/lib/channelMessages.js'
 import { getUserMessageIdentity } from '~/lib/userProfile'
+import { buildMessageBody, signChatBody } from '~/lib/chatSigning'
 import { useUserStore } from '~/stores/userStore'
 
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
@@ -45,6 +46,7 @@ interface UseChannelMessagesOptions {
 }
 
 interface SendChannelMessageOptions {
+  /** Public channel ID (64 hex); the signature binds the message to it. */
   channelName?: string
   content: string
   mentions?: ChannelMention[]
@@ -355,13 +357,17 @@ export function useChannelMessages({
       }
       setMessages(prev => sortMessagesForDisplay([...prev, optimistic]))
       try {
-        const result = await channelApi.sendChannelMessage({
-          channelName: targetChannel,
+        const body = buildMessageBody({
+          channelId: targetChannel,
+          id: clientMessageId,
           content: trimmed,
-          clientMessageId,
           ...messageIdentity,
           mentions,
           attachment,
+        })
+        const result = await channelApi.sendChannelMessage({
+          channelName: targetChannel,
+          signed: signChatBody(body, userIdentity.device),
         })
         setMessages(prev =>
           sortMessagesForDisplay(

@@ -11,6 +11,20 @@ import {
 import { verifyDeviceCert } from '../utils/auth.js'
 
 const HEX_64_REGEX = /^[0-9a-f]{64}$/
+const CERT_CACHE_LIMIT = 1000
+// Recovering the account address is the slow part; certificates repeat.
+const certCache = new Map()
+
+function verifyCertCached(cert) {
+  const key = String(cert || '')
+  let result = certCache.get(key)
+  if (!result) {
+    result = verifyDeviceCert(key, { checkTime: false })
+    if (certCache.size >= CERT_CACHE_LIMIT) certCache.clear()
+    certCache.set(key, result)
+  }
+  return result
+}
 
 /** Signs a body with a 64-byte ed25519 device secret key (hex or bytes). */
 export function signBody(body, deviceSecretKey) {
@@ -48,7 +62,7 @@ export function verifySignedEnvelope(envelope, { channelId } = {}) {
   if (!hypercoreCrypto.verify(payload, signature, b4a.from(device, 'hex'))) {
     return { ok: false, error: 'bad signature' }
   }
-  const certificate = verifyDeviceCert(cert, { checkTime: false })
+  const certificate = verifyCertCached(cert)
   if (!certificate.ok) return { ok: false, error: certificate.error }
   if (certificate.devicePublicKey !== device) {
     return { ok: false, error: 'certificate is for another device' }

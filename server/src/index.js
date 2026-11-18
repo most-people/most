@@ -72,11 +72,18 @@ import {
   CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS,
   CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
   getChannelHistoryDedupeKey,
-  isChannelHistoryEntry,
   isChannelMemberProfileEventEntry,
   normalizeChannelMentionList,
   normalizeClientMessageId,
 } from './core/channelMessage.js'
+import {
+  SIGNED_TS_FUTURE_LIMIT_MS,
+  buildSignedEntry,
+  isSignedEntry,
+  readSignedMessageEntry,
+  signedMessageError,
+} from './core/channelSignedEntry.js'
+import { canonicalJson } from './core/canonicalJson.js'
 import { ChannelPresenceManager } from './core/channelPresence.js'
 import {
   createChannelPresenceMessage,
@@ -4189,6 +4196,13 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  /** Message shape of a writer core block, or null when it is not shown. */
+  #decodeChannelEntry(entry, channelKey) {
+    if (isSignedEntry(entry)) return readSignedMessageEntry(entry, channelKey)
+    // Unsigned system events stay readable until they are signed too.
+    return entry?.type === 'system' ? entry : null
+  }
+
   async #readChannelHistory(channel, { strict = false } = {}) {
     const coresMap = this.#channelCores.get(channel.channelKey)
     if (!coresMap || coresMap.size === 0) {
@@ -4203,9 +4217,10 @@ export class MostBoxEngine extends EventEmitter {
           // Only blocks held locally: a writer whose block has not arrived
           // may be offline, and waiting would hang the read.
           if (entry === null) break
-          if (isChannelHistoryEntry(entry)) {
+          const message = this.#decodeChannelEntry(entry, channel.channelKey)
+          if (message) {
             allMessages.push({
-              ...entry,
+              ...message,
               _coreKey: coreKeyHex,
               _index: i,
             })
@@ -4217,15 +4232,19 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    // Sort first so a duplicate keeps its earliest copy (§4.5).
+    allMessages.sort(compareChannelHistoryEntries)
     const seen = new Set()
     const unique = allMessages.filter(m => {
-      const key = getChannelHistoryDedupeKey(m)
+      // Shown messages are all signed: (author, id) is unique (§4.5).
+      const key =
+        m.type === 'message'
+          ? `message:${m.author}:${m.clientMessageId}`
+          : getChannelHistoryDedupeKey(m)
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
-
-    unique.sort(compareChannelHistoryEntries)
 
     this.#applyChannelMemberProfileEntries(channel, unique, { save: true })
 
@@ -4233,29 +4252,96 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * 发送消息到频道
-   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
-   * @param {string} content - 消息内容
-   * @param {string} author - 作者 address
-   * @param {string} authorName - 作者显示名
-   * @param {object} [options.attachment] - 附件元数据
+   * Writes a message a client signed (docs/protocol/v2/signatures.md §4.6).
+   * @param {string} channelKeyInput - 公开频道 ID，或本地句柄
+   * @param {{ body: object, device: string, cert: string, sig: string }} signed
+   * @param {object} [options]
+   * @param {string} [options.ownerAddress] - 已认证账号；须等于 body.author
    * @returns {Promise<object>}
    */
-  async sendMessage(
-    channelKeyInput,
-    content,
-    author,
-    authorName,
-    options = {}
-  ) {
+  async sendMessage(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const key = channel.channelKey
-    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
-    const pending = previous.then(() =>
-      this.#sendChannelMessage(key, content, author, authorName, options)
+    return this.#enqueueChannelWrite(channel.channelKey, () =>
+      this.#writeSignedMessage(channel.channelKey, signed, options)
     )
+  }
+
+  async #writeSignedMessage(channelKey, signed, options) {
+    const channel = this.#resolveChannel(channelKey, options.ownerAddress)
+    const error = signedMessageError(signed, { channelId: channel.channelKey })
+    if (error) throw new ValidationError(`Invalid signed message: ${error}`)
+    const { body } = signed
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (ownerAddress && body.author !== ownerAddress) {
+      throw new PermissionError('message author must match logged-in user')
+    }
+
+    const index = await this.#refreshChannelHistoryIndex(channel, {
+      strict: true,
+    })
+    const existing = index.byClientId.get(`${body.author}:${body.id}`)
+    if (existing) {
+      if (existing._bodyJson !== canonicalJson(body)) {
+        throw new ConflictError(
+          'clientMessageId already identifies another message'
+        )
+      }
+      const message = { ...existing }
+      delete message._coreKey
+      delete message._index
+      delete message._bodyJson
+      return this.#normalizeChannelMessageForResponse(
+        channel.channelKey,
+        message
+      )
+    }
+
+    if (
+      this.#upsertChannelMember(channel, {
+        ownerAddress: body.author,
+        displayName: body.authorName,
+        ...(hasOwnProperty(body, 'avatar') ? { avatar: body.avatar } : {}),
+      })
+    ) {
+      this.#saveChannelsMetadata()
+    }
+
+    const entry = buildSignedEntry(
+      signed,
+      await this.#getNextChannelMessageTimestamp(channel)
+    )
+    await this.#appendLocalChannelEntry(channel, entry)
+    const message = readSignedMessageEntry(entry, channel.channelKey)
+    channel.lastMessageAt = new Date(message.timestamp).toISOString()
+    this.#saveChannelsMetadata()
+    return this.#normalizeChannelMessageForResponse(channel.channelKey, message)
+  }
+
+  async #appendLocalChannelEntry(channel, entry) {
+    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
+    const coresMap = this.#channelCores.get(channel.channelKey)
+    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
+    if (!core) {
+      throw new Error('频道未初始化或无可写 core')
+    }
+    try {
+      await core.append(entry)
+    } catch (err) {
+      if (!this.#isRecoverableChannelAppendError(err)) {
+        throw err
+      }
+      const reopenedCore = await this.#reopenChannelLocalWriter(channel, {
+        forceNamedWriter: this.#isReadOnlySessionError(err),
+      })
+      await reopenedCore.append(entry)
+    }
+  }
+
+  async #enqueueChannelWrite(key, write) {
+    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
+    const pending = previous.then(write)
     const completed = pending.then(
       () => {},
       () => {}
@@ -4268,6 +4354,24 @@ export class MostBoxEngine extends EventEmitter {
         this.#channelMessageQueues.delete(key)
       }
     }
+  }
+
+  // Unsigned system events (joined, profile) until they become signed
+  // entries (signatures.md §6).
+  async #sendLegacySystemMessage(
+    channelKeyInput,
+    content,
+    author,
+    authorName,
+    options = {}
+  ) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const key = channel.channelKey
+    return this.#enqueueChannelWrite(key, () =>
+      this.#sendChannelMessage(key, content, author, authorName, options)
+    )
   }
 
   async #sendChannelMessage(
@@ -4843,7 +4947,7 @@ export class MostBoxEngine extends EventEmitter {
     if (wasMember || !ownerAddress || !channel) {
       return false
     }
-    await this.sendMessage(
+    await this.#sendLegacySystemMessage(
       channel.channelKey,
       CHANNEL_MEMBER_JOINED_EVENT,
       ownerAddress,
@@ -4910,7 +5014,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#broadcastChannelHello()
     }
 
-    return this.sendMessage(
+    return this.#sendLegacySystemMessage(
       channel.channelKey,
       CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
       ownerAddress,
@@ -5141,7 +5245,12 @@ export class MostBoxEngine extends EventEmitter {
     const channelKey = channel.channelKey
     let index = this.#channelHistoryIndex.get(channelKey)
     if (!index) {
-      index = { scanned: new Map(), maxTimestamp: 0, byClientId: new Map() }
+      index = {
+        scanned: new Map(),
+        maxTimestamp: 0,
+        timestamps: [],
+        byClientId: new Map(),
+      }
       this.#channelHistoryIndex.set(channelKey, index)
     }
     const coresMap = this.#channelCores.get(channelKey)
@@ -5160,14 +5269,17 @@ export class MostBoxEngine extends EventEmitter {
         // Stop at the first block not held locally; it is scanned again
         // on the next call.
         if (entry === null) break
-        if (!isChannelHistoryEntry(entry)) continue
-        index.maxTimestamp = Math.max(
-          index.maxTimestamp,
-          Number(entry.timestamp) || 0
-        )
-        if (entry.clientMessageId) {
-          const key = `${normalizeOwnerAddress(entry.author)}:${entry.clientMessageId}`
-          const candidate = { ...entry, _coreKey: coreKeyHex, _index: i }
+        const message = this.#decodeChannelEntry(entry, channelKey)
+        if (!message) continue
+        index.timestamps.push(Number(message.timestamp) || 0)
+        if (isSignedEntry(entry)) {
+          const key = `${message.author}:${message.clientMessageId}`
+          const candidate = {
+            ...message,
+            _coreKey: coreKeyHex,
+            _index: i,
+            _bodyJson: canonicalJson(entry.body),
+          }
           const current = index.byClientId.get(key)
           if (
             !current ||
@@ -5182,9 +5294,21 @@ export class MostBoxEngine extends EventEmitter {
     return index
   }
 
+  /**
+   * ts = max(now, largest seen ts + 1), where only ts ≤ now + 5 min count:
+   * a remote clock far ahead must not drag ours (§4.5). Future ts wait in
+   * the index until they are no longer too far ahead.
+   */
   async #getNextChannelMessageTimestamp(channel) {
-    const { maxTimestamp } = await this.#refreshChannelHistoryIndex(channel)
-    return Math.max(Date.now(), maxTimestamp + 1)
+    const index = await this.#refreshChannelHistoryIndex(channel)
+    const now = Date.now()
+    const limit = now + SIGNED_TS_FUTURE_LIMIT_MS
+    index.timestamps = index.timestamps.filter(ts => {
+      if (ts > limit) return true
+      index.maxTimestamp = Math.max(index.maxTimestamp, ts)
+      return false
+    })
+    return Math.max(now, index.maxTimestamp + 1)
   }
 
   #normalizeChannelMessageForResponse(channelKey, message) {
@@ -6895,8 +7019,11 @@ export class MostBoxEngine extends EventEmitter {
       if (core.length > lastCoreLength) {
         for (let i = lastCoreLength; i < core.length; i++) {
           try {
-            const entry = await core.get(i)
-            if (isChannelHistoryEntry(entry)) {
+            const entry = this.#decodeChannelEntry(
+              await core.get(i),
+              channelKey
+            )
+            if (entry) {
               const channel = this.#channels.find(
                 c => c.channelKey === channelKey
               )

@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 import b4a from 'b4a'
 import { MostBoxEngine } from '../../src/index.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
+import { sendTestMessage } from '../helpers/signedMessage.js'
 
 const Corestore = createRequire(import.meta.url)('corestore')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -42,7 +43,7 @@ it('starts, reads and sends with a remote block missing, then refetches it', asy
   await reader.createChannel('partial-room', 'public')
   let link = writer.replicateWith(reader)
   for (const text of ['one', 'two', 'three']) {
-    await writer.sendMessage('partial-room', text)
+    await sendTestMessage(writer, 'partial-room', text)
   }
   while (!(await contents(reader)).includes('three')) await sleep(25)
   link.close()
@@ -73,7 +74,7 @@ it('starts, reads and sends with a remote block missing, then refetches it', asy
   const partial = await contents(reader)
   assert.ok(partial.length > 0)
   assert.ok(!partial.includes('three'))
-  await reader.sendMessage('partial-room', 'while the writer is away')
+  await sendTestMessage(reader, 'partial-room', 'while the writer is away')
 
   link = writer.replicateWith(reader)
   t.after(() => link.close())

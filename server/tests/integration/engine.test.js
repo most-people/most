@@ -17,6 +17,12 @@ import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 import { cidDriveName } from '../../src/core/cidDriveExchange.js'
 import { loadOrCreateNodeSeed } from '../../src/node/nodeIdentity.js'
 import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
+import { Wallet } from 'ethers'
+import {
+  addressOf,
+  sendTestMessage,
+  signedMessage,
+} from '../helpers/signedMessage.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -3441,7 +3447,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
-      const syncOwner = '0x3333333333333333333333333333333333333333'
+      const syncOwnerSigner = Wallet.createRandom()
+      const syncOwner = addressOf(syncOwnerSigner)
       let sourceEngine
       let targetEngine
       let replication
@@ -3502,7 +3509,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
-      const syncOwner = '0x3636363636363636363636363636363636363636'
+      const syncOwnerSigner = Wallet.createRandom()
+      const syncOwner = addressOf(syncOwnerSigner)
       let sourceEngine
       let targetEngine
 
@@ -3590,7 +3598,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
-      const syncOwner = '0x3434343434343434343434343434343434343434'
+      const syncOwnerSigner = Wallet.createRandom()
+      const syncOwner = addressOf(syncOwnerSigner)
       let sourceEngine
       let targetEngine
 
@@ -3688,7 +3697,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
-      const syncOwner = '0x4444444444444444444444444444444444444444'
+      const syncOwnerSigner = Wallet.createRandom()
+      const syncOwner = addressOf(syncOwnerSigner)
       const channelName = `sync-${uid}`
       let sourceEngine
       let targetEngine
@@ -3727,12 +3737,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           .find(channel => channel.channelKey === created.channelKey)
         assert.ok(syncedChannel)
         assert.strictEqual(syncedChannel.remark, '同步频道')
-        await targetEngine.sendMessage(
+        await sendTestMessage(
+          targetEngine,
           syncedChannel.channelKey,
           'from synced channel',
-          syncOwner,
-          'Sync Owner',
-          { ownerAddress: syncOwner }
+          {
+            signer: syncOwnerSigner,
+            authorName: 'Sync Owner',
+            ownerAddress: syncOwner,
+          }
         )
         const messages = await targetEngine.getChannelMessages(
           syncedChannel.channelKey,
@@ -3754,7 +3767,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
-      const syncOwner = '0x4545454545454545454545454545454545454545'
+      const syncOwnerSigner = Wallet.createRandom()
+      const syncOwner = addressOf(syncOwnerSigner)
       const channelName = `sync-writer-${uid}`
       let sourceEngine
       let targetEngine
@@ -3780,12 +3794,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           'personal',
           { ownerAddress: syncOwner }
         )
-        await sourceEngine.sendMessage(
+        await sendTestMessage(
+          sourceEngine,
           sourceChannel.channelKey,
           'from imported writer',
-          syncOwner,
-          'Backup Writer',
-          { ownerAddress: syncOwner }
+          {
+            signer: syncOwnerSigner,
+            authorName: 'Backup Writer',
+            ownerAddress: syncOwner,
+          }
         )
 
         const backup = sourceEngine.exportUserData(syncOwner)
@@ -4078,7 +4095,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     it('sends and retrieves messages', async () => {
       const ch = `msg-${uid}`
       await msgEngine.createChannel(ch)
-      const msg = await msgEngine.sendMessage(ch, 'Hello World')
+      const msg = await sendTestMessage(msgEngine, ch, 'Hello World')
       assert.strictEqual(msg.content, 'Hello World')
       assert.strictEqual(msg.type, 'message')
       assert.ok(msg.timestamp)
@@ -4091,22 +4108,19 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('persists message author profile snapshots', async () => {
       const ch = `avatar-msg-${uid}`
-      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       await msgEngine.createChannel(ch, 'personal', {
         ownerAddress: author,
         displayName: 'Avatar Sender',
         avatar: 'old.png',
       })
-      const msg = await msgEngine.sendMessage(
-        ch,
-        'Hello Avatar',
-        author,
-        'Avatar Sender',
-        {
-          ownerAddress: author,
-          avatar: 'data:image/png;base64,msg-avatar',
-        }
-      )
+      const msg = await sendTestMessage(msgEngine, ch, 'Hello Avatar', {
+        signer,
+        ownerAddress: author,
+        authorName: 'Avatar Sender',
+        avatar: 'data:image/png;base64,msg-avatar',
+      })
       assert.strictEqual(msg.avatar, 'data:image/png;base64,msg-avatar')
 
       const messages = await msgEngine.getChannelMessages(ch, {
@@ -4153,7 +4167,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('syncs member tags through profile events without showing control messages', async () => {
       const ch = `tag-msg-${uid}`
-      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       const profileEvent = 'channel.member.profile.updated'
       await msgEngine.createChannel(ch, 'personal', {
         ownerAddress: author,
@@ -4173,13 +4188,12 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       })
       assert.ok(profiles[0].profileUpdatedAt)
 
-      const msg = await msgEngine.sendMessage(
-        ch,
-        'hello with tag',
-        author,
-        'Tagged Sender',
-        { ownerAddress: author }
-      )
+      const msg = await sendTestMessage(msgEngine, ch, 'hello with tag', {
+        signer,
+        ownerAddress: author,
+        authorName: 'Tagged Sender',
+        authorTag: { 'zh-CN': '有人@我', en: 'Mentioned' },
+      })
       assert.deepStrictEqual(msg.authorTag, {
         'zh-CN': '有人@我',
         en: 'Mentioned',
@@ -4202,41 +4216,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       })
       assert.strictEqual(profiles[0].tag, null)
 
-      const currentUpdatedAt = profiles[0].profileUpdatedAt
-      await msgEngine.sendMessage(ch, profileEvent, author, 'Tagged Sender', {
-        ownerAddress: author,
-        type: 'system',
-        event: profileEvent,
-        memberProfile: {
-          address: author,
-          displayName: 'Stale Sender',
-          tag: { default: 'stale' },
-          profileUpdatedAt: currentUpdatedAt,
-        },
-      })
-      await msgEngine.getChannelMessages(ch, { ownerAddress: author })
-      profiles = msgEngine.getChannelMemberProfiles(ch, {
-        ownerAddress: author,
-      })
-      assert.strictEqual(profiles[0].tag, null)
-      assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
-
-      await msgEngine.sendMessage(ch, profileEvent, author, 'Tagged Sender', {
-        ownerAddress: author,
-        type: 'system',
-        event: profileEvent,
-        memberProfile: {
-          address: author,
-          displayName: 'Future Sender',
-          tag: { default: 'future' },
-          profileUpdatedAt: Date.now() + 10 * 60 * 1000,
-        },
-      })
-      await msgEngine.getChannelMessages(ch, { ownerAddress: author })
-      profiles = msgEngine.getChannelMemberProfiles(ch, {
-        ownerAddress: author,
-      })
-      assert.strictEqual(profiles[0].tag, null)
       assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
     })
 
@@ -4304,7 +4283,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('persists message client id and structured mentions', async () => {
       const ch = `mention-msg-${uid}`
-      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       const mentioned = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
       const clientMessageId = '11111111-1111-4111-8111-111111111111'
       const content = 'hello @Visitor'
@@ -4322,19 +4302,16 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         displayName: 'Service',
       })
 
-      const msg = await msgEngine.sendMessage(ch, content, author, 'Service', {
+      const msg = await sendTestMessage(msgEngine, ch, content, {
+        signer,
         ownerAddress: author,
-        clientMessageId,
+        authorName: 'Service',
+        id: clientMessageId,
         mentions,
       })
 
       assert.strictEqual(msg.clientMessageId, clientMessageId)
-      assert.deepStrictEqual(msg.mentions, [
-        {
-          ...mentions[0],
-          address: mentioned.toLowerCase(),
-        },
-      ])
+      assert.deepStrictEqual(msg.mentions, mentions)
 
       const messages = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
@@ -4346,7 +4323,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
     it('rejects invalid strict mention and client message fields', async () => {
       const ch = `bad-mention-${uid}`
-      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = `chat-file/${ch}/photo.png`
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
@@ -4354,59 +4332,104 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         ownerAddress: author,
         displayName: 'Service',
       })
+      const send = (content, fields) =>
+        sendTestMessage(msgEngine, ch, content, {
+          signer,
+          ownerAddress: author,
+          ...fields,
+        })
+      const visitor = {
+        address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+        label: 'Visitor',
+        start: 0,
+        end: 8,
+      }
 
+      await assert.rejects(send('hello', { id: 'not-a-uuid' }), /invalid id/)
       await assert.rejects(
-        msgEngine.sendMessage(ch, 'hello', author, 'Service', {
-          ownerAddress: author,
-          clientMessageId: 'not-a-uuid',
-        }),
-        /Invalid clientMessageId/
+        send('hello @Visitor', { mentions: 'bad' }),
+        /invalid mentions/
       )
       await assert.rejects(
-        msgEngine.sendMessage(ch, 'hello @Visitor', author, 'Service', {
-          ownerAddress: author,
-          mentions: 'bad',
-        }),
-        /mentions must be an array/
+        send('hello @Visitor', { mentions: [visitor] }),
+        /invalid mentions/
       )
       await assert.rejects(
-        msgEngine.sendMessage(ch, 'hello @Visitor', author, 'Service', {
-          ownerAddress: author,
-          mentions: [
-            {
-              address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-              label: 'Visitor',
-              start: 0,
-              end: 8,
-            },
-          ],
+        send(link, {
+          attachment: { kind: 'image', cid, fileName, link },
+          mentions: [visitor],
         }),
-        /Invalid mention/
+        /invalid mentions/
       )
+      await assert.rejects(send(' padded '), /content/)
+    })
+
+    it('only writes messages the signed-in account signed for this channel', async () => {
+      const ch = `signed-only-${uid}`
+      const other = `signed-other-${uid}`
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
+      await msgEngine.createChannel(ch, 'personal', { ownerAddress: author })
+      const otherChannel = await msgEngine.createChannel(other, 'personal', {
+        ownerAddress: author,
+      })
+      const channelId = msgEngine.resolveChannelKey(ch, {
+        ownerAddress: author,
+      })
+
+      const forged = await signedMessage(channelId, 'hello', { signer })
+      forged.body.content = 'changed'
       await assert.rejects(
-        msgEngine.sendMessage(ch, link, author, 'Service', {
-          ownerAddress: author,
-          attachment: {
-            kind: 'image',
-            cid,
-            fileName,
-            link,
-          },
-          mentions: [
-            {
-              address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-              label: 'Visitor',
-              start: 0,
-              end: 8,
-            },
-          ],
-        }),
-        /attachment messages cannot include mentions/
+        msgEngine.sendMessage(ch, forged, { ownerAddress: author }),
+        /bad signature/
+      )
+
+      const elsewhere = await signedMessage(otherChannel.channelKey, 'hi', {
+        signer,
+      })
+      await assert.rejects(
+        msgEngine.sendMessage(ch, elsewhere, { ownerAddress: author }),
+        /channel mismatch/
+      )
+
+      const stranger = Wallet.createRandom()
+      const impostor = await signedMessage(channelId, 'hi', {
+        signer: stranger,
+      })
+      await assert.rejects(
+        msgEngine.sendMessage(ch, impostor, { ownerAddress: author }),
+        /author must match/
+      )
+
+      const signed = await signedMessage(channelId, 'once', { signer })
+      const first = await msgEngine.sendMessage(ch, signed, {
+        ownerAddress: author,
+      })
+      const retry = await msgEngine.sendMessage(ch, signed, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(retry.timestamp, first.timestamp)
+      const conflicting = await signedMessage(channelId, 'twice', {
+        signer,
+        id: signed.body.id,
+      })
+      await assert.rejects(
+        msgEngine.sendMessage(ch, conflicting, { ownerAddress: author }),
+        /already identifies another message/
+      )
+
+      const messages = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.deepStrictEqual(
+        messages.filter(item => item.type === 'message').map(m => m.content),
+        ['once']
       )
     })
 
     it('profile sync does not rewrite saved chat message snapshots', async () => {
-      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const signer = Wallet.createRandom()
+      const author = addressOf(signer)
       const chatChannel = `profile-chat-${uid}`
       const oldProfile = {
         ownerAddress: author,
@@ -4421,13 +4444,12 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
 
       await msgEngine.createChannel(chatChannel, 'public', oldProfile)
-      await msgEngine.sendMessage(
-        chatChannel,
-        'hello profile',
-        author,
-        oldProfile.displayName,
-        oldProfile
-      )
+      await sendTestMessage(msgEngine, chatChannel, 'hello profile', {
+        signer,
+        ownerAddress: author,
+        authorName: oldProfile.displayName,
+        avatar: oldProfile.avatar,
+      })
 
       msgEngine.saveUserProfile(author, freshProfile)
 
@@ -4448,7 +4470,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
 
-      const msg = await msgEngine.sendMessage(ch, link, undefined, undefined, {
+      const msg = await sendTestMessage(msgEngine, ch, link, {
         attachment: {
           kind: 'image',
           cid,
@@ -4474,7 +4496,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
 
-      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+      await sendTestMessage(msgEngine, ch, link, {
         attachment: {
           kind: 'text',
           cid,
@@ -4497,7 +4519,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
 
-      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+      await sendTestMessage(msgEngine, ch, link, {
         attachment: {
           kind: 'text',
           cid,
@@ -4518,7 +4540,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       await msgEngine.createChannel(ch)
 
       await assert.rejects(
-        msgEngine.sendMessage(ch, 'bad attachment', undefined, undefined, {
+        sendTestMessage(msgEngine, ch, 'bad attachment', {
           attachment: {
             kind: 'image',
             cid: 'not-a-cid',
@@ -4526,7 +4548,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
             link: 'most://not-a-cid?filename=chat-file%2Fbad%2Fphoto.png',
           },
         }),
-        /invalid_cid_format/
+        /invalid attachment/
       )
     })
 
@@ -4542,7 +4564,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       try {
         const created = await msgEngine.createChannel(ch)
         channelKey = created.channelKey
-        await msgEngine.sendMessage(ch, 'single event')
+        await sendTestMessage(msgEngine, ch, 'single event')
         await sleep(100)
 
         assert.strictEqual(events.length, 1)
@@ -4566,7 +4588,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const entries = Array.isArray(blocks) ? blocks : [blocks]
         if (
           !injected &&
-          entries.some(entry => entry && entry.content === content)
+          entries.some(entry => entry?.body?.content === content)
         ) {
           injected = true
           throw HypercoreError.SESSION_CLOSED(
@@ -4578,7 +4600,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
 
       try {
-        const message = await msgEngine.sendMessage(ch, content)
+        const message = await sendTestMessage(msgEngine, ch, content)
         const messages = await msgEngine.getChannelMessages(ch)
 
         assert.strictEqual(injected, true)
@@ -4603,7 +4625,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const entries = Array.isArray(blocks) ? blocks : [blocks]
         if (
           !injected &&
-          entries.some(entry => entry && entry.content === content)
+          entries.some(entry => entry?.body?.content === content)
         ) {
           injected = true
           const err = new Error(
@@ -4616,7 +4638,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
 
       try {
-        const message = await msgEngine.sendMessage(ch, content)
+        const message = await sendTestMessage(msgEngine, ch, content)
         const messages = await msgEngine.getChannelMessages(ch)
         const channel = msgEngine.listChannels().find(item => item.name === ch)
 
@@ -4637,9 +4659,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     it('retrieves messages in order', async () => {
       const ch = `order-${uid}`
       await msgEngine.createChannel(ch)
-      await msgEngine.sendMessage(ch, 'first')
-      await msgEngine.sendMessage(ch, 'second')
-      await msgEngine.sendMessage(ch, 'third')
+      await sendTestMessage(msgEngine, ch, 'first')
+      await sendTestMessage(msgEngine, ch, 'second')
+      await sendTestMessage(msgEngine, ch, 'third')
 
       const messages = await msgEngine.getChannelMessages(ch)
       assert.strictEqual(messages.length, 3)
@@ -4674,13 +4696,19 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         await secondEngine.createChannel(ch, 'public')
         replication = firstEngine.replicateWith(secondEngine)
 
-        await withMockedDateNow(1000, () => firstEngine.sendMessage(ch, 'A1'))
+        await withMockedDateNow(1000, () =>
+          sendTestMessage(firstEngine, ch, 'A1')
+        )
         await waitForChannelMessage(secondEngine, ch, 'A1')
 
-        await withMockedDateNow(10000, () => secondEngine.sendMessage(ch, 'B1'))
+        await withMockedDateNow(10000, () =>
+          sendTestMessage(secondEngine, ch, 'B1')
+        )
         await waitForChannelMessage(firstEngine, ch, 'B1')
 
-        await withMockedDateNow(2000, () => firstEngine.sendMessage(ch, 'A2'))
+        await withMockedDateNow(2000, () =>
+          sendTestMessage(firstEngine, ch, 'A2')
+        )
         await waitForChannelMessage(secondEngine, ch, 'A2')
 
         const firstMessages = await firstEngine.getChannelMessages(ch)
@@ -4705,11 +4733,58 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
     })
 
+    it('does not let a peer clock far ahead drag local timestamps', async () => {
+      const clockTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-future-test-')
+      )
+      const ch = `future-${uid}`
+      const hour = 60 * 60 * 1000
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: path.join(clockTmpDir, 'first'),
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: path.join(clockTmpDir, 'second'),
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+        await firstEngine.createChannel(ch, 'public')
+        await secondEngine.createChannel(ch, 'public')
+        replication = firstEngine.replicateWith(secondEngine)
+
+        await withMockedDateNow(hour, () =>
+          sendTestMessage(secondEngine, ch, 'from the future')
+        )
+        await waitForChannelMessage(firstEngine, ch, 'from the future')
+        const local = await withMockedDateNow(2000, () =>
+          sendTestMessage(firstEngine, ch, 'local')
+        )
+
+        assert.strictEqual(local.timestamp, 2000)
+        const messages = await firstEngine.getChannelMessages(ch)
+        assert.deepStrictEqual(
+          messages.map(message => message.content),
+          ['local', 'from the future']
+        )
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(clockTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('supports pagination with limit', async () => {
       const ch = `limit-${uid}`
       await msgEngine.createChannel(ch)
       for (let i = 0; i < 5; i++) {
-        await msgEngine.sendMessage(ch, `msg${i}`)
+        await sendTestMessage(msgEngine, ch, `msg${i}`)
       }
 
       const messages = await msgEngine.getChannelMessages(ch, {
@@ -4724,7 +4799,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const ch = `offset-${uid}`
       await msgEngine.createChannel(ch)
       for (let i = 0; i < 5; i++) {
-        await msgEngine.sendMessage(ch, `msg${i}`)
+        await sendTestMessage(msgEngine, ch, `msg${i}`)
       }
 
       const messages = await msgEngine.getChannelMessages(ch, {
@@ -4739,12 +4814,12 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     it('throws for empty message content', async () => {
       const ch = `empty-${uid}`
       await msgEngine.createChannel(ch)
-      await assert.rejects(msgEngine.sendMessage(ch, ''), /消息内容不能为空/)
+      await assert.rejects(sendTestMessage(msgEngine, ch, ''), /content/)
     })
 
     it('throws for non-existent channel', async () => {
       await assert.rejects(
-        msgEngine.sendMessage('nonexistent', 'test'),
+        sendTestMessage(msgEngine, 'nonexistent', 'test'),
         /频道不存在/
       )
     })
@@ -5308,7 +5383,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         await emptyEngine.start()
 
         const sourceChannel = await sourceEngine.createChannel(channelName)
-        await sourceEngine.sendMessage(sourceChannel.channelKey, 'before sync')
+        await sendTestMessage(
+          sourceEngine,
+          sourceChannel.channelKey,
+          'before sync'
+        )
         const emptyChannel = await emptyEngine.joinChannel(channelName)
         const initialMessages =
           await emptyEngine.getChannelMessages(channelName)
@@ -5366,11 +5445,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           created.localWriterCoreKey
         )
 
-        const message = await joinEngine.sendMessage(
+        const message = await sendTestMessage(
+          joinEngine,
           channelName,
           'hello from joiner',
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'Joiner'
+          { authorName: 'Joiner' }
         )
         assert.strictEqual(message.content, 'hello from joiner')
 
@@ -5425,8 +5504,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         )
         assert.strictEqual(first.channelKey, second.channelKey)
 
-        await firstEngine.sendMessage(first.channelKey, 'from first')
-        await secondEngine.sendMessage(second.channelKey, 'from second')
+        await sendTestMessage(firstEngine, first.channelKey, 'from first')
+        await sendTestMessage(secondEngine, second.channelKey, 'from second')
         await firstEngine.joinChannel(channelName, toChannelCandidate(second))
         await secondEngine.joinChannel(channelName, toChannelCandidate(first))
 
@@ -5576,8 +5655,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
           const firstMessage = `from first ${channelName}`
           const secondMessage = `from second ${channelName}`
-          await firstEngine.sendMessage(first.channelKey, firstMessage)
-          await secondEngine.sendMessage(second.channelKey, secondMessage)
+          await sendTestMessage(firstEngine, first.channelKey, firstMessage)
+          await sendTestMessage(secondEngine, second.channelKey, secondMessage)
 
           await waitForChannelMessage(
             secondEngine,
@@ -5628,10 +5707,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         links.push(nodeA.replicateWith(nodeC))
         links.push(nodeC.replicateWith(nodeB))
 
-        await nodeA.sendMessage(channelName, 'A to B through C')
+        await sendTestMessage(nodeA, channelName, 'A to B through C')
         await waitForChannelMessage(nodeB, channelName, 'A to B through C')
 
-        await nodeB.sendMessage(channelName, 'B to A through C')
+        await sendTestMessage(nodeB, channelName, 'B to A through C')
         await waitForChannelMessage(nodeA, channelName, 'B to A through C')
       } finally {
         for (const link of links) link.close()
@@ -5672,7 +5751,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         await secondEngine.createChannel(sharedChannelName, 'public')
         replication = firstEngine.replicateWith(secondEngine)
 
-        await firstEngine.sendMessage(sharedChannelName, 'shared message')
+        await sendTestMessage(firstEngine, sharedChannelName, 'shared message')
         await waitForChannelMessage(
           secondEngine,
           sharedChannelName,
@@ -5725,13 +5804,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         await joinEngine.start()
 
         const created = await sourceEngine.createChannel(channelName)
-        await sourceEngine.sendMessage(created.channelKey, 'from source')
+        await sendTestMessage(sourceEngine, created.channelKey, 'from source')
 
         const joined = await joinEngine.joinChannel(
           channelName,
           toChannelCandidate(created)
         )
-        await joinEngine.sendMessage(joined.channelKey, 'from joiner')
+        await sendTestMessage(joinEngine, joined.channelKey, 'from joiner')
         await sourceEngine.joinChannel(channelName, toChannelCandidate(joined))
 
         replication = sourceEngine.replicateWith(joinEngine)
@@ -5785,11 +5864,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         await joinEngine.start()
 
         const created = await sourceEngine.createChannel(channelName)
-        await sourceEngine.sendMessage(
+        await sendTestMessage(
+          sourceEngine,
           channelName,
           'before joiner restart',
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'Source'
+          { authorName: 'Source' }
         )
         await joinEngine.joinChannel(channelName, toChannelCandidate(created))
         replication = sourceEngine.replicateWith(joinEngine)
@@ -5843,12 +5922,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         )
         joinedKey = joined.key
         joinedWriterKey = joined.localWriterCoreKey
-        await joinEngine.sendMessage(
-          channelName,
-          'before restart',
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'Joiner'
-        )
+        await sendTestMessage(joinEngine, channelName, 'before restart', {
+          authorName: 'Joiner',
+        })
         await joinEngine.stop()
 
         joinEngine = new MostBoxEngine({
@@ -5863,12 +5939,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.strictEqual(channel.channelKey, joinedKey)
         assert.strictEqual(channel.localWriterCoreKey, joinedWriterKey)
 
-        await joinEngine.sendMessage(
-          channelName,
-          'after restart',
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'Joiner'
-        )
+        await sendTestMessage(joinEngine, channelName, 'after restart', {
+          authorName: 'Joiner',
+        })
 
         const messages = await joinEngine.getChannelMessages(channelName)
         assert.deepStrictEqual(
@@ -5916,11 +5989,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         })
         await joinEngine.start()
 
-        const message = await joinEngine.sendMessage(
+        const message = await sendTestMessage(
+          joinEngine,
           channelName,
           'after readonly metadata',
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'Joiner'
+          { authorName: 'Joiner' }
         )
         assert.strictEqual(message.content, 'after readonly metadata')
 
