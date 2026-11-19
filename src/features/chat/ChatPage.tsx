@@ -260,11 +260,23 @@ function ChatPage() {
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isSendingChannelMessageRef = useRef(false)
   const refreshChannelsRef = useRef<() => Promise<void>>(async () => {})
-  // Account sync can apply hundreds of channel records in a row; refresh once
-  // per burst instead of once per event, or the node's rate limit kicks in.
-  const [metadataRefresh] = useState(() =>
+  // Socket events that change the channel list arrive in bursts: account sync
+  // applies hundreds of records, and the node broadcasts channel:sync:available
+  // to every open window for each remote writer core it opens (791 in 10s on
+  // a restart). Refresh once per burst, or the node's rate limit kicks in.
+  const [channelListRefresh] = useState(() =>
     createBurstDebounce(
       () => void refreshChannelsRef.current(),
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
+  )
+  // The same peer:online / sync:available bursts also reload the active
+  // channel's presence and member profiles.
+  const refreshActivePeersRef = useRef<() => void>(() => {})
+  const [activePeersRefresh] = useState(() =>
+    createBurstDebounce(
+      () => refreshActivePeersRef.current(),
       METADATA_REFRESH_WAIT_MS,
       METADATA_REFRESH_MAX_WAIT_MS
     )
@@ -513,13 +525,10 @@ function ChatPage() {
       case 'channel:sync:available': {
         const channelKeys = getSocketEventChannelKeys(data)
         const activeChannelKey = activeChannelNameRef.current
-        void refreshChannels()
+        channelListRefresh()
         if (channelKeys.includes(activeChannelKey)) {
           scheduleChannelHistorySync(activeChannelKey)
-          if (activeChannel) {
-            void refreshChannelPresence(activeChannel)
-            void refreshChannelMemberProfiles(activeChannel)
-          }
+          activePeersRefresh()
         }
         break
       }
@@ -548,12 +557,12 @@ function ChatPage() {
 
       case 'channel:joined':
       case 'channel:left':
-        void refreshChannels()
+        channelListRefresh()
         break
 
       case 'user:metadata:updated':
         if (data?.scope === 'channels') {
-          metadataRefresh()
+          channelListRefresh()
         }
         break
 
@@ -669,9 +678,15 @@ function ChatPage() {
 
   useEffect(() => {
     refreshChannelsRef.current = refreshChannels
+    refreshActivePeersRef.current = () => {
+      if (!activeChannel) return
+      void refreshChannelPresence(activeChannel)
+      void refreshChannelMemberProfiles(activeChannel)
+    }
   })
 
-  useEffect(() => () => metadataRefresh.cancel(), [metadataRefresh])
+  useEffect(() => () => channelListRefresh.cancel(), [channelListRefresh])
+  useEffect(() => () => activePeersRefresh.cancel(), [activePeersRefresh])
 
   useEffect(() => {
     if (!isBackendReady || !channelReadStorageKey || !userIdentity?.address) {
