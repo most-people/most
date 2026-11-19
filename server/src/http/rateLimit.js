@@ -1,3 +1,5 @@
+import { isLoopbackRemoteAddress } from './access.js'
+
 const DEFAULT_MAX_ENTRIES = 10_000
 
 const DEFAULT_POLICIES = {
@@ -36,8 +38,31 @@ function normalizeClientAddress(value) {
   return address.startsWith('::ffff:') ? address.slice(7) : address || 'unknown'
 }
 
+/**
+ * Rate limits count per client. Behind a reverse proxy on the same host
+ * (Caddy, nginx → 127.0.0.1) every request arrives from loopback, so all
+ * clients would share one budget and one noisy client could lock everyone
+ * out. For loopback peers only, use the right-most X-Forwarded-For entry:
+ * the address the nearest proxy saw, which a client cannot forge. Direct
+ * remote peers are keyed by their socket address and their header ignored.
+ */
 export function getRateLimitClientKey(c) {
-  return normalizeClientAddress(c.env?.incoming?.socket?.remoteAddress)
+  const socketAddress = c.env?.incoming?.socket?.remoteAddress
+  if (isLoopbackRemoteAddress(socketAddress)) {
+    const forwarded = getNearestForwardedAddress(
+      c.req?.header?.('x-forwarded-for')
+    )
+    if (forwarded) return normalizeClientAddress(forwarded)
+  }
+  return normalizeClientAddress(socketAddress)
+}
+
+function getNearestForwardedAddress(header) {
+  const entries = String(header || '')
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+  return entries.at(-1) || ''
 }
 
 export function getRequestRateLimitPolicies(methodInput, path) {

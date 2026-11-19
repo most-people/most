@@ -72,6 +72,51 @@ describe('HTTP rate limit guard', () => {
     assert.strictEqual(second.status, 429)
   })
 
+  it('gives each client its own bucket behind a same-host reverse proxy', async () => {
+    const guard = createRateLimitGuard({
+      policies: { global: { windowMs: 60_000, maxRequests: 1 } },
+    })
+    const app = createGuardedApp(guard)
+    const proxy = requestContext('127.0.0.1')
+    const from = address => ({ headers: { 'x-forwarded-for': address } })
+
+    assert.strictEqual(
+      (await app.request('/api/test', from('198.51.100.1'), proxy)).status,
+      200
+    )
+    assert.strictEqual(
+      (await app.request('/api/test', from('198.51.100.2'), proxy)).status,
+      200
+    )
+    assert.strictEqual(
+      (await app.request('/api/test', from('198.51.100.1'), proxy)).status,
+      429
+    )
+  })
+
+  it('keys proxied requests by the address the nearest proxy saw', async () => {
+    const guard = createRateLimitGuard({
+      policies: { global: { windowMs: 60_000, maxRequests: 1 } },
+    })
+    const app = createGuardedApp(guard)
+    const proxy = requestContext('::ffff:127.0.0.1')
+
+    // A client prepends fake entries; the proxy appends the real address.
+    const first = await app.request(
+      '/api/test',
+      { headers: { 'x-forwarded-for': '10.0.0.1, 198.51.100.7' } },
+      proxy
+    )
+    const second = await app.request(
+      '/api/test',
+      { headers: { 'x-forwarded-for': '10.0.0.2, 198.51.100.7' } },
+      proxy
+    )
+
+    assert.strictEqual(first.status, 200)
+    assert.strictEqual(second.status, 429)
+  })
+
   it('applies a separate low-volume bucket to admin claims', async () => {
     const guard = createRateLimitGuard({
       policies: {
