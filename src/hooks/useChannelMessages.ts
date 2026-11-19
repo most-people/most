@@ -16,6 +16,11 @@ import {
   getChannelMessageKey,
 } from '~/lib/channelMessages.js'
 import { getUserMessageIdentity } from '~/lib/userProfile'
+import {
+  createBurstDebounce,
+  METADATA_REFRESH_MAX_WAIT_MS,
+  METADATA_REFRESH_WAIT_MS,
+} from '~/lib/burstDebounce'
 import { buildMessageBody, signChatBody } from '~/lib/chatSigning'
 import { useUserStore } from '~/stores/userStore'
 
@@ -516,6 +521,16 @@ export function useChannelMessages({
     }
     let closed = false
     reconnectAttemptRef.current = 0
+    // One history reload per burst of account-sync updates, not one per event.
+    const metadataResync = createBurstDebounce(
+      () => {
+        if (channelNameRef.current) {
+          void syncMessages(channelNameRef.current, { replace: true })
+        }
+      },
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
 
     async function connectWs() {
       const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
@@ -559,7 +574,7 @@ export function useChannelMessages({
             payload.data?.scope === 'channels' &&
             channelNameRef.current
           ) {
-            void syncMessages(channelNameRef.current, { replace: true })
+            metadataResync()
           }
         } catch {}
       }
@@ -581,6 +596,7 @@ export function useChannelMessages({
 
     return () => {
       closed = true
+      metadataResync.cancel()
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       leavePresenceChannel()
       setConnected(false)

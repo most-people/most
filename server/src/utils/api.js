@@ -556,7 +556,9 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
 }
 
 /**
- * @typedef {{ ok: false, reason: 'http' | 'ws', retryable: boolean, status?: number }} BackendConnectionFailure
+ * `code` is the node's error code (e.g. `INVALID_INVITE`) or `TIMEOUT` when the
+ * probe gave up waiting, so the UI can say what actually went wrong.
+ * @typedef {{ ok: false, reason: 'http' | 'ws', retryable: boolean, status?: number, code?: string }} BackendConnectionFailure
  * @typedef {{ ok: true } | BackendConnectionFailure} BackendProbeResult
  */
 
@@ -564,14 +566,25 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
  * @param {'http' | 'ws'} reason
  * @param {boolean} retryable
  * @param {number} [status]
+ * @param {string} [code]
  * @returns {BackendConnectionFailure}
  */
-function backendProbeFailure(reason, retryable, status) {
+function backendProbeFailure(reason, retryable, status, code) {
   return {
     ok: false,
     reason,
     retryable,
     ...(status === undefined ? {} : { status }),
+    ...(code ? { code } : {}),
+  }
+}
+
+async function readErrorCode(res) {
+  try {
+    const data = await res.json()
+    return typeof data?.code === 'string' ? data.code : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -604,10 +617,13 @@ async function probeHttp(cleanedUrl, invite, identity, signal) {
     signal?.throwIfAborted()
     status = res.status
     if (!res.ok) {
+      const code = await readErrorCode(res)
+      signal?.throwIfAborted()
       return backendProbeFailure(
         'http',
         isRetryableBackendStatus(status),
-        status
+        status,
+        code
       )
     }
     const data = await res.json()
@@ -618,7 +634,14 @@ async function probeHttp(cleanedUrl, invite, identity, signal) {
     return { ok: true }
   } catch (error) {
     signal?.throwIfAborted()
-    return backendProbeFailure('http', !(error instanceof SyntaxError), status)
+    return backendProbeFailure(
+      'http',
+      !(error instanceof SyntaxError),
+      status,
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'TIMEOUT'
+        : undefined
+    )
   }
 }
 
@@ -668,7 +691,14 @@ async function probeMostBoxEndpoint(cleanedUrl, signal) {
     return backendProbeFailure('http', isRetryableBackendStatus(status), status)
   } catch (error) {
     signal?.throwIfAborted()
-    return backendProbeFailure('http', !(error instanceof SyntaxError), status)
+    return backendProbeFailure(
+      'http',
+      !(error instanceof SyntaxError),
+      status,
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'TIMEOUT'
+        : undefined
+    )
   }
 }
 
@@ -749,7 +779,7 @@ async function probeWebSocket(cleanedUrl, invite, identity, signal) {
 
 /**
  * @param {{ url: string, invite?: string, signal?: AbortSignal }} options
- * @returns {Promise<{ ok: true, url: string, reason?: never, retryable?: never, status?: never } | BackendConnectionFailure>}
+ * @returns {Promise<{ ok: true, url: string, reason?: never, retryable?: never, status?: never, code?: never } | BackendConnectionFailure>}
  */
 export async function checkBackendConnectionTarget({
   url,

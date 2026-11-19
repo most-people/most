@@ -86,6 +86,11 @@ import {
 } from '~/lib/chatUnread.js'
 import { isChannelFolded, splitFoldedChannels } from '~/lib/chatFold.js'
 import {
+  createBurstDebounce,
+  METADATA_REFRESH_MAX_WAIT_MS,
+  METADATA_REFRESH_WAIT_MS,
+} from '~/lib/burstDebounce'
+import {
   completeMentionDraftFromTargets,
   finalizeMentionDraftForSend,
   getMentionTrigger,
@@ -254,6 +259,16 @@ function ChatPage() {
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isSendingChannelMessageRef = useRef(false)
+  const refreshChannelsRef = useRef<() => Promise<void>>(async () => {})
+  // Account sync can apply hundreds of channel records in a row; refresh once
+  // per burst instead of once per event, or the node's rate limit kicks in.
+  const [metadataRefresh] = useState(() =>
+    createBurstDebounce(
+      () => void refreshChannelsRef.current(),
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
+  )
   const isBackendReady = hasBackend === true
   const { t, compareStrings, formatDate, formatMessageTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
@@ -538,7 +553,7 @@ function ChatPage() {
 
       case 'user:metadata:updated':
         if (data?.scope === 'channels') {
-          void refreshChannels()
+          metadataRefresh()
         }
         break
 
@@ -651,6 +666,12 @@ function ChatPage() {
   useEffect(() => {
     syncMessagesRef.current = syncMessages
   }, [syncMessages])
+
+  useEffect(() => {
+    refreshChannelsRef.current = refreshChannels
+  })
+
+  useEffect(() => () => metadataRefresh.cancel(), [metadataRefresh])
 
   useEffect(() => {
     if (!isBackendReady || !channelReadStorageKey || !userIdentity?.address) {

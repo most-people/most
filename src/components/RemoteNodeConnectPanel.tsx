@@ -80,7 +80,13 @@ export default function RemoteNodeConnectPanel({
         invite: nextInvite,
       })
       if (!result.ok) {
-        if (result.reason === 'http') {
+        if (result.code === 'INVALID_INVITE') {
+          addToast(t('remote.error.invite'), 'error')
+        } else if (result.status === 429) {
+          addToast(t('remote.error.busy'), 'error')
+        } else if (result.code === 'TIMEOUT') {
+          addToast(t('remote.error.timeout'), 'error')
+        } else if (result.reason === 'http') {
           addToast(t('remote.error.http'), 'error')
         } else if (result.reason === 'ws') {
           addToast(t('remote.error.ws'), 'error')
