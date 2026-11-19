@@ -79,6 +79,72 @@ describe('v1 to v2 account migration', () => {
         .writerCoreKeys.includes(key)
     )
   })
+  it('clears lastMessageAt of upgraded channels with no readable messages', async t => {
+    const dataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'most-old-empty-'))
+    const store = new Corestore(dataPath, {
+      primaryKey: Buffer.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
+    const owner = '0x' + '1'.repeat(40)
+    const core = store
+      .namespace('channel-kept-room')
+      .get({ name: 'v1-writer', valueEncoding: 'json' })
+    await core.append({
+      type: 'message',
+      author: owner,
+      timestamp: 123,
+      content: 'old text',
+    })
+    const key = core.key.toString('hex')
+    await store.close()
+    const lastMessageAt = '2026-07-07T11:30:47.374Z'
+    fs.writeFileSync(
+      path.join(dataPath, 'channels.json'),
+      JSON.stringify([
+        {
+          channelId: 'kept-room',
+          channelKey: 'kept-room',
+          localWriterCoreKey: key,
+          writerCoreKeys: [key],
+          lastMessageAt,
+          members: [{ address: owner }],
+        },
+        {
+          channelId: 'empty-room',
+          channelKey: 'empty-room',
+          // A v1 writer whose blocks never reached this node.
+          localWriterCoreKey: 'a'.repeat(64),
+          writerCoreKeys: ['a'.repeat(64)],
+          lastMessageAt,
+          members: [{ address: owner }],
+        },
+      ])
+    )
+    let engine = new MostBoxEngine({ dataPath, disableNetwork: true })
+    t.after(async () => {
+      await engine.stop()
+      fs.rmSync(dataPath, { recursive: true, force: true })
+    })
+    const lastMessageAtById = () =>
+      Object.fromEntries(
+        engine
+          .listChannels({ ownerAddress: owner })
+          .map(channel => [channel.channelId, channel.lastMessageAt])
+      )
+    await engine.start()
+    assert.deepEqual(lastMessageAtById(), {
+      'kept-room': lastMessageAt,
+      'empty-room': '',
+    })
+    await engine.stop()
+    engine = new MostBoxEngine({ dataPath, disableNetwork: true })
+    await engine.start()
+    assert.deepEqual(lastMessageAtById(), {
+      'kept-room': lastMessageAt,
+      'empty-room': '',
+    })
+  })
+
   it('accepts only the v1 account approving its own v2 address', async () => {
     const v1 = mostWallet('alice', 'correct horse battery staple')
     const other = mostWallet('mallory', 'correct horse battery staple')

@@ -4663,6 +4663,21 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveChannelsMetadata()
       this.#broadcastChannelHello()
     }
+    await this.#clearUnreadableLastMessageAt(channel)
+  }
+
+  // An upgraded channel keeps its v1 lastMessageAt even when none of its v1
+  // blocks were on this node. With nothing readable it is an empty chat, so it
+  // auto-folds; a message that arrives later sets lastMessageAt again.
+  async #clearUnreadableLastMessageAt(channel) {
+    if (!channel.legacyWriterCoreKeys || !channel.lastMessageAt) return
+    const archive = JSON.parse(
+      await fs.promises.readFile(this.#archivePath(channel), 'utf8')
+    )
+    if (archive.length > 0) return
+    if ((await this.#readChannelHistory(channel)).length > 0) return
+    channel.lastMessageAt = ''
+    this.#saveChannelsMetadata()
   }
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
