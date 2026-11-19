@@ -133,6 +133,25 @@ export async function createMobileIdentity(
   const keyPair = nacl.sign.keyPair.fromSeed(deviceSeed)
   const publicKey = bytesToHex(keyPair.publicKey)
 
+  return {
+    version: MOBILE_IDENTITY_VERSION,
+    username,
+    address: wallet.address,
+    // 账号同步子密钥：与 server/src/utils/chatIdentity.js 一致，单向派生，不含种子。
+    syncKey: hexlify(computeHmac('sha256', seed, toUtf8Bytes(SYNC_KEY_LABEL))),
+    device: {
+      publicKey,
+      secretKey: bytesToHex(keyPair.secretKey),
+      cert: await signDeviceCert(wallet, publicKey, options),
+    },
+  }
+}
+
+async function signDeviceCert(
+  wallet: HDNodeWallet,
+  publicKey: string,
+  options: { now?: number; ttlMs?: number }
+) {
   const issuedAt = Math.floor(options.now ?? Date.now())
   const expiresAt = issuedAt + (options.ttlMs ?? DEVICE_CERT_TTL_MS)
   const signature = await wallet.signMessage(
@@ -150,19 +169,34 @@ export async function createMobileIdentity(
       })
     )
   )
+  return `${DEVICE_CERT_PREFIX}.${payload}.${signature}`
+}
 
-  return {
-    version: MOBILE_IDENTITY_VERSION,
-    username,
-    address: wallet.address,
-    // 账号同步子密钥：与 server/src/utils/chatIdentity.js 一致，单向派生，不含种子。
-    syncKey: hexlify(computeHmac('sha256', seed, toUtf8Bytes(SYNC_KEY_LABEL))),
-    device: {
-      publicKey,
-      secretKey: bytesToHex(keyPair.secretKey),
-      cert: `${DEVICE_CERT_PREFIX}.${payload}.${signature}`,
-    },
+/**
+ * Reissues the device certificate with a new validity period for the same
+ * device key. The password is checked by re-deriving the chat address.
+ */
+export async function reissueMobileDeviceCert(
+  identity: MobileIdentity,
+  password: string,
+  options: {
+    deriveChatSeed: (username: string, password: string) => Promise<string>
+    ttlMs: number
+    now?: number
   }
+): Promise<MobileIdentity> {
+  if (!password) throw new Error('Password is required')
+  const seed = getBytes(
+    await options.deriveChatSeed(identity.username, password)
+  )
+  const wallet = HDNodeWallet.fromPhrase(Mnemonic.entropyToPhrase(seed))
+  if (wallet.address.toLowerCase() !== identity.address.toLowerCase()) {
+    const error = new Error('Incorrect password') as Error & { code?: string }
+    error.code = 'WRONG_PASSWORD'
+    throw error
+  }
+  const cert = await signDeviceCert(wallet, identity.device.publicKey, options)
+  return { ...identity, device: { ...identity.device, cert } }
 }
 
 export const RECOMMENDED_PASSWORD_LENGTH = 18

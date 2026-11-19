@@ -8,12 +8,12 @@ import {
 } from '../../remoteNode/identity'
 
 type DeviceCertTtlPickerProps = {
-  value: DeviceCertTtl
+  value: DeviceCertTtl | null
   onChange: (value: DeviceCertTtl) => void
   disabled?: boolean
 }
 
-/** Device certificate validity chosen at sign-in (4 hours, 1 day, 30 days). */
+/** Device certificate validity (4 hours, 1 day, 30 days). */
 export function DeviceCertTtlPicker({
   value,
   onChange,

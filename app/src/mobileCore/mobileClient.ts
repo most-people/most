@@ -36,6 +36,7 @@ import {
 import {
   createMobileIdentity,
   deviceCertRenewAt,
+  reissueMobileDeviceCert,
   readDeviceCertExpiry,
   signLegacyAccountMigration,
 } from '../remoteNode/identity'
@@ -172,7 +173,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
     this.#emit()
   }
 
-  async signIn(input: { username: string; password: string; ttlMs?: number }) {
+  async signIn(input: { username: string; password: string }) {
     this.#assertSwitchAllowed()
     const identity = await createMobileIdentity(
       input.username,
@@ -180,7 +181,6 @@ export class MobileNodeClient implements MostBoxMobileClient {
       {
         deriveChatSeed: (username, password) =>
           this.#local.deriveChatSeed(username, password),
-        ttlMs: input.ttlMs,
       }
     )
     // The approval needs the password, so it is made at sign-in: after an
@@ -219,6 +219,34 @@ export class MobileNodeClient implements MostBoxMobileClient {
       this.#emit()
     }
     return identity
+  }
+
+  async changeDeviceCertTtl(input: { password: string; ttlMs: number }) {
+    const current = this.#identity
+    if (!current) throw new Error('Not signed in')
+    this.#assertSwitchAllowed()
+    const identity = await reissueMobileDeviceCert(current, input.password, {
+      deriveChatSeed: (username, password) =>
+        this.#local.deriveChatSeed(username, password),
+      ttlMs: input.ttlMs,
+    })
+    if (this.#mode === 'remote' && this.#remoteConfig) {
+      const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
+      try {
+        await remote.start()
+      } catch (error) {
+        await remote.stop()
+        throw error
+      }
+      await saveMobileIdentity(identity)
+      this.#identity = identity
+      await this.#activate(remote, 'remote', this.#remoteConfig)
+    } else {
+      await saveMobileIdentity(identity)
+      this.#identity = identity
+      this.#snapshot = this.#decorateSnapshot(this.#active.getSnapshot())
+      this.#emit()
+    }
   }
 
   async signOut() {

@@ -16,7 +16,7 @@ From 0.8.0 on, links, topics, key derivations, signature and frame formats only 
 - **Breaking:** Every chat swarm frame carries `v: 2`; `channel-proof-challenge` is now `channel-challenge`, and it and `channel-proof` drop the `version` field. Non-v2 frames are dropped. Each connection starts with a `session` frame that lists features (`sig1`); signatures stay mandatory whatever a peer lists.
 - **Breaking:** P2P Ping uses the v2 labels and frame version 3.
 - Pre-upgrade chat history shows a small "Unsigned" note next to each message; signed messages carry no mark.
-- Sign-in offers a device authorization period of 4 hours, 1 day or 30 days (default). Renewal starts when a tenth of the period is left; the mobile app reminds the user to sign in again.
+- Device authorization lasts 30 days after sign-in and can be changed to 4 hours or 1 day in the profile, which asks for the password again when needed. Renewal starts when a tenth of the period is left; the mobile app reminds the user to sign in again.
 - The mobile node secret file is renamed from `cid-drive-secret` to `node-secret` on start.
 - `hypercore` is upgraded to 11.39.6.
 

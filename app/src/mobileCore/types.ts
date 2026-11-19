@@ -356,9 +356,12 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
   signIn: (input: {
     username: string
     password: string
-    /** Device certificate validity; defaults to 30 days. */
-    ttlMs?: number
   }) => Promise<MobileIdentity>
+  /** Reissues the device certificate with a new validity period. */
+  changeDeviceCertTtl: (input: {
+    password: string
+    ttlMs: number
+  }) => Promise<void>
   signOut: () => Promise<void>
   getNodeHistory: () => NodeHistoryItem[]
   getAccountSync: () => Promise<AccountSyncInfo>

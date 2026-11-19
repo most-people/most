@@ -71,8 +71,6 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
-  /** Device certificate validity chosen at sign-in. */
-  loginCertTtl: DeviceCertTtl
   /** v1 wallet seed, in memory only, to open account backups made before v2. */
   legacySeed: string | null
   seed: string | null
@@ -87,7 +85,6 @@ interface UserState {
   setLoginUsername: (username: string) => void
   setLoginPassword: (password: string) => void
   togglePassword: () => void
-  setLoginCertTtl: (ttl: DeviceCertTtl) => void
   previewLoginIdentity: () => Promise<Pick<
     UserIdentity,
     'username' | 'address'
@@ -99,6 +96,8 @@ interface UserState {
   submitUnlock: (password: string) => Promise<void>
   cancelUnlock: () => void
   renewDeviceCertIfNeeded: () => Promise<void>
+  /** Reissues the certificate with a new period; asks for the password if needed. */
+  changeDeviceCertTtl: (ttl: DeviceCertTtl) => Promise<boolean>
 }
 
 let unlockWaiters: Array<(seed: string | null) => void> = []
@@ -222,7 +221,6 @@ function resetLoginForm() {
     hasPreviewedAvatar: false,
     loginLoading: false,
     loginError: '' as const,
-    loginCertTtl: DEFAULT_DEVICE_CERT_TTL as DeviceCertTtl,
   }
 }
 
@@ -243,7 +241,6 @@ export const useUserStore = create<UserState>((set, get) => ({
   unlockOpen: false,
   unlockError: '',
   unlockReason: '',
-  loginCertTtl: DEFAULT_DEVICE_CERT_TTL as DeviceCertTtl,
 
   setFirstPath: path => {
     set({ firstPath: path || '/' })
@@ -293,10 +290,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     set(state => ({ showPassword: !state.showPassword }))
   },
 
-  setLoginCertTtl: ttl => {
-    if (ttl in DEVICE_CERT_TTL_OPTIONS) set({ loginCertTtl: ttl })
-  },
-
   previewLoginIdentity: async () => {
     const { loginUsername, loginPassword } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
@@ -318,8 +311,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   loginUser: async () => {
-    const { loginUsername, loginPassword, hasPreviewedAvatar, loginCertTtl } =
-      get()
+    const { loginUsername, loginPassword, hasPreviewedAvatar } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
       set({ loginError: 'login.error.credentialsRequired' })
       return null
@@ -332,9 +324,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ loginLoading: true, loginError: '' })
     try {
       const { identity, danger, legacySeed, migration } =
-        await createLoginSession(loginUsername.trim(), loginPassword, {
-          ttlMs: DEVICE_CERT_TTL_OPTIONS[loginCertTtl],
-        })
+        await createLoginSession(loginUsername.trim(), loginPassword)
       saveIdentity(identity)
       set({
         identity,
@@ -460,5 +450,20 @@ export const useUserStore = create<UserState>((set, get) => ({
     const renewed = { ...current, device: { ...current.device, cert } }
     saveIdentity(renewed)
     set({ identity: renewed, wallet: renewed })
+  },
+
+  changeDeviceCertTtl: async ttl => {
+    const { identity } = get()
+    if (!identity || !(ttl in DEVICE_CERT_TTL_OPTIONS)) return false
+    const seed = await get().unlockSeed()
+    const current = get().identity
+    if (!seed || !current || current.address !== identity.address) return false
+    const cert = await issueDeviceCert(seed, current.device.publicKey, {
+      ttlMs: DEVICE_CERT_TTL_OPTIONS[ttl],
+    })
+    const updated = { ...current, device: { ...current.device, cert } }
+    saveIdentity(updated)
+    set({ identity: updated, wallet: updated })
+    return true
   },
 }))

@@ -1,10 +1,4 @@
 import { AccountSyncRow } from './AccountSyncRow'
-import { DeviceCertTtlPicker } from './DeviceCertTtlPicker'
-import {
-  DEFAULT_DEVICE_CERT_TTL,
-  DEVICE_CERT_TTL_OPTIONS,
-  type DeviceCertTtl,
-} from '../../remoteNode/identity'
 import { isPasswordShort } from '../../remoteNode/identity'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -90,7 +84,6 @@ export function NodeConnectionPanel({
   const [invite, setInvite] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [certTtl, setCertTtl] = useState<DeviceCertTtl>(DEFAULT_DEVICE_CERT_TTL)
   const [operation, setOperation] = useState<NodeOperation | null>(null)
   const workingRef = useRef(false)
   const working = operation !== null
@@ -162,11 +155,7 @@ export function NodeConnectionPanel({
 
   const signIn = async () => {
     await run('signIn', async () => {
-      await client.signIn({
-        username,
-        password,
-        ttlMs: DEVICE_CERT_TTL_OPTIONS[certTtl],
-      })
+      await client.signIn({ username, password })
       setUsername('')
       setPassword('')
     })
@@ -486,11 +475,6 @@ export function NodeConnectionPanel({
                         placeholder={t('node.account.password')}
                         secureTextEntry
                         value={password}
-                      />
-                      <DeviceCertTtlPicker
-                        disabled={working}
-                        onChange={setCertTtl}
-                        value={certTtl}
                       />
                       {isPasswordShort(password) && (
                         <Text style={styles.passwordHint}>

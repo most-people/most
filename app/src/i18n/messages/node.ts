@@ -507,10 +507,35 @@ export const nodeMessages = {
   },
   'node.account.certTtlHint': {
     'zh-CN':
-      '限制这台设备访问节点的时长，到期前会提醒重新登录。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
+      '限制这台设备访问节点的时长，修改时需要输入密码，到期前会提醒重新登录。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
     'zh-TW':
-      '限制這台裝置存取節點的時長，到期前會提醒重新登入。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
-    en: 'Limits how long this device can access the node; you are reminded to sign in again before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+      '限制這台裝置存取節點的時長，修改時需要輸入密碼，到期前會提醒重新登入。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
+    en: 'Limits how long this device can access the node (changing it asks for your password); you are reminded to sign in again before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+  },
+  'node.account.certTtlExpires': {
+    'zh-CN': '当前授权到期时间：{time}',
+    'zh-TW': '目前授權到期時間：{time}',
+    en: 'Current authorization ends at {time}',
+  },
+  'node.account.certTtlPasswordHint': {
+    'zh-CN': '输入密码确认修改设备授权有效期。',
+    'zh-TW': '輸入密碼確認修改裝置授權有效期。',
+    en: 'Enter your password to change the device authorization period.',
+  },
+  'node.account.certTtlConfirm': {
+    'zh-CN': '确认修改',
+    'zh-TW': '確認修改',
+    en: 'Change',
+  },
+  'node.account.certTtlWrongPassword': {
+    'zh-CN': '密码不正确',
+    'zh-TW': '密碼不正確',
+    en: 'Incorrect password',
+  },
+  'node.account.certTtlFailed': {
+    'zh-CN': '未能修改设备授权有效期',
+    'zh-TW': '未能修改裝置授權有效期',
+    en: 'Could not change the device authorization period',
   },
   'node.account.certExpiring': {
     'zh-CN': '这台设备访问节点的授权将于 {time} 到期，点此重新登录续期。',

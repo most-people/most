@@ -9,12 +9,17 @@ import { useI18n } from '../../i18n'
 import { AvatarSvg } from '../../ui/AvatarSvg'
 import { IconButton, MostButton } from '../../ui/components'
 import { useMostBoxTheme } from '../../ui/theme'
+import type { MostBoxMobileClient } from '../../mobileCore/types'
+import { DeviceCertTtlSection } from './DeviceCertTtlSection'
 
 type ProfileScreenProps = {
   visible: boolean
   onClose: () => void
   username?: string
   address: string
+  client?: MostBoxMobileClient | null
+  /** Device certificate of the signed-in identity; empty when signed out. */
+  deviceCert?: string
 }
 
 export function ProfileScreen({
@@ -22,6 +27,8 @@ export function ProfileScreen({
   onClose,
   username,
   address,
+  client,
+  deviceCert,
 }: ProfileScreenProps) {
   const { t } = useI18n()
   const theme = useMostBoxTheme()
@@ -67,6 +74,11 @@ export function ProfileScreen({
               {t('common.copy')}
             </MostButton>
           </View>
+          {client && deviceCert ? (
+            <View style={styles.card}>
+              <DeviceCertTtlSection client={client} cert={deviceCert} />
+            </View>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -83,7 +95,7 @@ function createStyles(colors: ReturnType<typeof useMostBoxTheme>['colors']) {
       padding: 12,
     },
     title: { color: colors.text, fontSize: 18, fontWeight: '700' },
-    content: { padding: 16 },
+    content: { padding: 16, gap: 16 },
     card: {
       width: '100%',
       maxWidth: 560,

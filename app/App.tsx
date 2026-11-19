@@ -1573,6 +1573,8 @@ function MostBoxApp() {
           onClose={() => setProfileOpen(false)}
           username={currentSnapshot.node.username}
           address={currentSnapshot.node.userAddress || ''}
+          client={core}
+          deviceCert={core?.getIdentity?.()?.device.cert || ''}
         />
         <AboutMostBox
           visible={aboutOpen}

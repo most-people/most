@@ -13,6 +13,7 @@ import {
   createMobileIdentity,
   isUsableDevice,
   readDeviceCertExpiry,
+  reissueMobileDeviceCert,
   signLegacyAccountMigration,
 } from './identity'
 import { deriveChatSeedJs } from './chatIdentity'
@@ -173,5 +174,57 @@ describe('mobile remote identity', () => {
       )
     }
     assert.equal(deviceCertRenewAt('dc1.bad.sig'), 0)
+  })
+
+  it('reissues the certificate with a new period for the same device key', async () => {
+    const identity = await createMobileIdentity(
+      alice.username,
+      alice.password,
+      GOLDEN_OPTIONS
+    )
+    const now = GOLDEN_OPTIONS.now + 1000
+    const ttlMs = DEVICE_CERT_TTL_OPTIONS['4h']
+    const reissued = await reissueMobileDeviceCert(identity, alice.password, {
+      deriveChatSeed: fixedSeed,
+      ttlMs,
+      now,
+    })
+    assert.equal(reissued.address, identity.address)
+    assert.equal(reissued.device.publicKey, identity.device.publicKey)
+    assert.equal(reissued.device.secretKey, identity.device.secretKey)
+    assert.deepEqual(readDeviceCertWindow(reissued.device.cert), {
+      issuedAt: now,
+      expiresAt: now + ttlMs,
+      ttlMs,
+    })
+    const signature = reissued.device.cert.split('.')[2]
+    assert.equal(
+      verifyMessage(
+        [
+          'most-box-device-cert-v1',
+          identity.address,
+          identity.device.publicKey,
+          now,
+          now + ttlMs,
+        ].join('\n'),
+        signature
+      ),
+      identity.address
+    )
+  })
+
+  it('refuses to reissue the certificate with the wrong password', async () => {
+    const identity = await createMobileIdentity(
+      alice.username,
+      alice.password,
+      GOLDEN_OPTIONS
+    )
+    await assert.rejects(
+      reissueMobileDeviceCert(identity, 'wrong', {
+        deriveChatSeed: async () => vectors.cases[1].chatSeed,
+        ttlMs: DEVICE_CERT_TTL_OPTIONS['1d'],
+      }),
+      { code: 'WRONG_PASSWORD' }
+    )
   })
 })
