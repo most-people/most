@@ -166,8 +166,13 @@ export function createApp(engine, options = {}) {
         if (blocked) return blocked
         const auth = verifyAuthHeader(authHeader, c.req.method, path)
         if (!auth.ok) {
-          const limited = rateLimitGuard.enforce(c, ['authFailure'])
-          if (limited) return limited
+          // Only failed signatures count: an expired certificate or a wrong
+          // clock is rejected without verifying anything, and counting it
+          // would lock out every user behind the same IP (reverse proxy).
+          if (!auth.stale) {
+            const limited = rateLimitGuard.enforce(c, ['authFailure'])
+            if (limited) return limited
+          }
           return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
         }
         c.set('userAddress', auth.address)
@@ -258,9 +263,9 @@ export function createApp(engine, options = {}) {
         }
       }
 
+      // Not counted: a missing login costs nothing to reject and guesses
+      // nothing; signed-out pages that poll must not lock out their IP.
       if (requiresUserAuth(path) && !c.get('userAddress')) {
-        const limited = rateLimitGuard.enforce(c, ['authFailure'])
-        if (limited) return limited
         return c.json({ error: 'Login required', code: 'LOGIN_REQUIRED' }, 401)
       }
 

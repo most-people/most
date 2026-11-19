@@ -10,7 +10,7 @@ import { calculateCid } from '../../src/core/cid.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
-import { buildAuthHeaders } from '../../src/utils/auth.js'
+import { buildAuthHeaders, issueDeviceCert } from '../../src/utils/auth.js'
 import { createLoginSession } from '../../src/utils/userIdentity.js'
 import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 import { signedMessage, signedProfile } from '../helpers/signedMessage.js'
@@ -2692,7 +2692,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'INVALID_INVITE')
     })
 
-    it('rate limits repeated missing authentication without charging valid signatures', async () => {
+    it('rate limits repeated forged signatures without charging valid ones', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 21,
         configStore,
@@ -2704,28 +2704,34 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           },
         },
       })
-      const requestInit = { headers: { host: 'localhost:1976' } }
+      const forged = async () => {
+        const { Authorization } = await buildAuthHeaders(
+          TEST_IDENTITY,
+          'GET',
+          '/api/files'
+        )
+        const [cert, timestamp] = Authorization.split(',')
+        const signature = Buffer.alloc(64, 1).toString('base64url')
+        return app.request(
+          '/api/files',
+          {
+            headers: {
+              host: 'localhost:1976',
+              authorization: `${cert},${timestamp},${signature}`,
+            },
+          },
+          LOCAL_REQUEST_CONTEXT
+        )
+      }
 
       const authenticated = await requestAsWithContext(
         TEST_IDENTITY,
         app,
         '/api/files'
       )
-      const first = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
-      const second = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
-      const blocked = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
+      const first = await forged()
+      const second = await forged()
+      const blocked = await forged()
       const blockedData = await blocked.json()
 
       assert.strictEqual(authenticated.status, 200)
@@ -2735,6 +2741,76 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(blockedData.code, 'RATE_LIMITED')
       assert.strictEqual(blockedData.policy, 'authFailure')
       assert.ok(Number(blocked.headers.get('retry-after')) >= 1)
+    })
+
+    // Behind a reverse proxy every user shares one IP: an expired
+    // certificate, a wrong clock or a signed-out page must not lock them out.
+    it('does not count expired certificates, stale clocks or missing logins', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 23,
+        configStore,
+        nodeLogger,
+        rateLimit: {
+          policies: {
+            global: { windowMs: 60_000, maxRequests: 100 },
+            authFailure: { windowMs: 60_000, maxRequests: 2 },
+          },
+        },
+      })
+      const expiredIdentity = {
+        ...TEST_IDENTITY,
+        device: {
+          ...TEST_IDENTITY.device,
+          cert: await issueDeviceCert(
+            TEST_SESSION.danger,
+            TEST_IDENTITY.device.publicKey,
+            { now: Date.now() - 31 * 24 * 60 * 60 * 1000 }
+          ),
+        },
+      }
+      const staleClock = async () => {
+        const { Authorization } = await buildAuthHeaders(
+          TEST_IDENTITY,
+          'GET',
+          '/api/files'
+        )
+        const [cert, , signature] = Authorization.split(',')
+        const timestamp = Date.now() - 10 * 60 * 1000
+        return app.request(
+          '/api/files',
+          {
+            headers: {
+              host: 'localhost:1976',
+              authorization: `${cert},${timestamp},${signature}`,
+            },
+          },
+          LOCAL_REQUEST_CONTEXT
+        )
+      }
+
+      const statuses = []
+      for (let i = 0; i < 3; i += 1) {
+        const expired = await requestAsWithContext(
+          expiredIdentity,
+          app,
+          '/api/files'
+        )
+        statuses.push(expired.status, (await staleClock()).status)
+        const signedOut = await app.request(
+          '/api/files',
+          { headers: { host: 'localhost:1976' } },
+          LOCAL_REQUEST_CONTEXT
+        )
+        statuses.push(signedOut.status)
+      }
+      const authenticated = await requestAsWithContext(
+        TEST_IDENTITY,
+        app,
+        '/api/files'
+      )
+
+      assert.deepStrictEqual(statuses, Array(9).fill(401))
+      assert.strictEqual(authenticated.status, 200)
     })
 
     it('rate limits repeated invalid remote invites', async () => {

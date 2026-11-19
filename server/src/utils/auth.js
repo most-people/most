@@ -201,11 +201,13 @@ export function verifyDeviceCert(
     ) {
       return { ok: false, error: 'Invalid device certificate' }
     }
+    // `stale`: rejected on time alone, before any signature check (see
+    // verifyAuthHeader).
     if (checkTime && issuedAt > now + AUTH_MAX_AGE_MS) {
-      return { ok: false, error: 'Invalid device certificate' }
+      return { ok: false, error: 'Invalid device certificate', stale: true }
     }
     if (checkTime && now >= expiresAt) {
-      return { ok: false, error: 'Device certificate expired' }
+      return { ok: false, error: 'Device certificate expired', stale: true }
     }
     const recovered = normalizeAddress(
       verifyMessage(
@@ -267,8 +269,11 @@ export function verifyAuthHeader(header, method, path, options = {}) {
   if (!cert || !Number.isFinite(timestamp) || !signature) {
     return { ok: false, error: 'Missing or invalid authorization' }
   }
+  // A stale timestamp or certificate is an honest client with an expired
+  // certificate or a wrong clock, rejected before any signature check; callers
+  // should not count it as a failed (guessed) authorization.
   if (Math.abs(now - timestamp) > (options.maxAgeMs || AUTH_MAX_AGE_MS)) {
-    return { ok: false, error: 'Authorization expired' }
+    return { ok: false, error: 'Authorization expired', stale: true }
   }
 
   const certResult = verifyDeviceCert(cert, { now })
