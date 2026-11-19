@@ -46,11 +46,7 @@ import {
   saveMobileIdentity,
   saveRemoteNodes,
 } from '../remoteNode/storage'
-import {
-  hasActiveTransfers,
-  startLocalOrPreferred,
-  startPreferredOrLocal,
-} from './nodeSelection'
+import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 
 const LOCAL_DAEMON_CONFIG: RemoteNodeConfig = {
   url: 'http://localhost:1976',
@@ -102,11 +98,8 @@ export class MobileNodeClient implements MostBoxMobileClient {
     const preferred = this.#remoteEnabled
       ? this.#nodes.find(node => node.preferred) || null
       : null
-    // Web 只能连接 daemon：优先最后一次选择的节点，没有再用本机 daemon。
-    const startNode = this.#remoteOnly
-      ? startPreferredOrLocal<MostBoxMobileCore>
-      : startLocalOrPreferred<MostBoxMobileCore>
-    const selection = await startNode({
+    // 优先最后一次连接的远程节点，没有或连不上再用本机节点（Web 为本机 daemon）。
+    const selection = await startPreferredOrLocal<MostBoxMobileCore>({
       preferred,
       localConfig: this.#remoteOnly ? LOCAL_DAEMON_CONFIG : null,
       startRemote: async config => {
@@ -191,8 +184,8 @@ export class MobileNodeClient implements MostBoxMobileClient {
       }
     )
     // The approval needs the password, so it is made at sign-in: after an
-    // upgrade the app starts on the local node and the user signs in before
-    // reconnecting to a remote node (#activate sends it then). Deriving the
+    // upgrade the user may sign in on the local node (e.g. the remote node was
+    // unreachable) before reconnecting to it (#activate sends it then). Deriving the
     // v1 key is slow on older phones, so local-only users skip it.
     const mayHaveRemoteData = this.#mode === 'remote' || this.#nodes.length > 0
     if (mayHaveRemoteData) {
