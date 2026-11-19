@@ -4,6 +4,28 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-19
+
+0.8.0 was not published on its own; 0.8.1 is the first published 0.8 release and includes everything listed under 0.8.0. The protocol is unchanged from 0.8.0, and the upgrade path stays 0.5.x to 0.8.1 directly (`docs/upgrade-0.8.0.md`).
+
+### Changed
+
+- Sign-in no longer asks for a device authorization period; certificates last 30 days, and the web and mobile profiles offer 4 hours, 1 day or 30 days and reissue the certificate for the same device key.
+- The web profile page shows the account at the top and groups profile, account, theme and advanced settings into collapsible sections. Account sync is on by default for remote nodes.
+- The connect panel names the real connection error (wrong invite code, rate limited, timeout) instead of "HTTP unreachable".
+- The native and web apps start on the last connected remote node and fall back to the local node.
+- When an invite supplies a customer logo, the chat sidebar shows only the logo, with no back link.
+
+### Fixed
+
+- Behind a same-host reverse proxy, each client is rate limited by its forwarded address instead of all clients sharing one budget.
+- Expired or future device certificates, stale timestamps and missing logins return 401 without counting toward the auth failure limit, so one stale page no longer locks out everyone behind a shared IP.
+- Account sync imports changes in batches and emits at most one update event per scope, and channel socket events and sync updates refresh the views once per burst, which stops request storms and "request timed out" toasts.
+- Channels upgraded from v1 with no readable messages fold automatically instead of filling the chat list with empty channels.
+- After upgrading from 0.5.x, signing in on the app's local node carries the v1 to v2 migration approval to remote nodes, so files and channel membership move to the new address.
+- The mobile app shows and shares channel names instead of the 64-hex public channel ID.
+- The custom avatar option stays available after picking a built-in avatar.
+
 ## [0.8.0] - 2026-11-18
 
 This release completes and freezes protocol v2. It is not compatible with 0.7.0, 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files. The supported upgrade path for nodes is 0.5.x to 0.8.0 directly; 0.6.0 and 0.7.0 data directories are not migrated. Back up the stopped data directory first: the first start moves every file into the node's own drive (rehearsed at about 8 s per GB, with the data directory peaking at 2.1 times its size and ending at about 1.7 times). Customer-facing steps are in `docs/upgrade-0.8.0.md`.
