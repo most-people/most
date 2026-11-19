@@ -61,20 +61,16 @@ export class ChannelPresenceManager {
     }
   }
 
-  listLocal() {
-    const entries = []
-    const seen = new Set()
+  localFrames() {
+    const frames = []
+    const profiles = []
     for (const sessions of this.#sessions.values()) {
       for (const session of sessions.values()) {
-        if (!session.local) continue
-        const key = `${session.channelKey}:${session.address}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        const entry = this.format(session.channelKey, session.address, 'online')
-        if (entry) entries.push(entry)
+        if (session.frame) frames.push(session.frame)
+        if (session.profileFrame) profiles.push(session.profileFrame)
       }
     }
-    return entries
+    return [...frames, ...profiles]
   }
 
   join(channel, options = {}) {
@@ -89,6 +85,7 @@ export class ChannelPresenceManager {
       address,
       channelKey,
       lastSeen: now,
+      frame: options.frame,
       local: options.local === true,
       sourcePeerId: String(options.sourcePeerId || '').trim(),
     }
@@ -112,6 +109,7 @@ export class ChannelPresenceManager {
     const sessions = this.#getSessionMap(channelKey)
     const existing = sessions.get(sessionKey)
     if (!existing) return this.join(channel, { ...options, address })
+    existing.frame = options.frame
     existing.lastSeen = Number(options.lastSeen) || Date.now()
     sessions.set(sessionKey, existing)
     return null
@@ -127,6 +125,12 @@ export class ChannelPresenceManager {
       options,
       now
     )
+    if (changed && options.frame) {
+      const session = this.#sessions
+        .get(channel.channelKey)
+        ?.get(this.#getSessionKey(options))
+      if (session) session.profileFrame = options.frame
+    }
     if (changed && this.#isAddressOnline(channel.channelKey, address)) {
       return this.#emit(channel.channelKey, address, 'profile')
     }

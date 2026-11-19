@@ -3,6 +3,7 @@
 import './text-encoding-shim.mjs'
 import { COMMANDS, EVENTS } from '../rpc-commands.mjs'
 import sodium from 'sodium-native'
+import b4a from 'b4a'
 import {
   createEvent,
   createJsonLineParser,
@@ -10,6 +11,7 @@ import {
   encodeEvent,
 } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
+import { benchmarkNativeScrypt, deriveChatSeed } from './scrypt-native.mjs'
 
 const { IPC } = BareKit
 
@@ -53,6 +55,25 @@ async function handleCommand(command) {
     if (command.type === COMMANDS.NODE_STOP) {
       await getCore().stop()
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
+      return
+    }
+
+    // v2 chat identity seed with native scrypt (signatures.md §7); the
+    // password only passes through and is not stored.
+    if (command.type === COMMANDS.IDENTITY_DERIVE) {
+      const seed = await deriveChatSeed(payload.username, payload.password)
+      send(
+        EVENTS.IDENTITY_DERIVED,
+        { chatSeed: `0x${b4a.toString(seed, 'hex')}` },
+        requestId
+      )
+      return
+    }
+
+    // Dev only: native scrypt timing for docs/protocol/v2/signatures.md §7.2.
+    if (command.type === COMMANDS.DEV_SCRYPT_BENCHMARK) {
+      const runs = await benchmarkNativeScrypt()
+      send(EVENTS.DEV_SCRYPT_BENCHMARK_RESULT, { runs }, requestId)
       return
     }
 
@@ -172,6 +193,17 @@ async function handleCommand(command) {
         },
         requestId
       )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_MEMBER_PROFILES) {
+      const members = await getCore().getChannelMemberProfiles(payload)
+      send(EVENTS.CHANNEL_STATUS, { members }, requestId)
+      return
+    }
+    if (command.type === COMMANDS.CHANNEL_MEMBER_PROFILE_SET) {
+      await getCore().updateChannelMemberProfile(payload)
+      send(EVENTS.CHANNEL_UPDATED, {}, requestId)
       return
     }
 

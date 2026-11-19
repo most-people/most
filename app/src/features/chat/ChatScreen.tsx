@@ -5,6 +5,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -51,12 +52,19 @@ import {
   createClientMessageId,
   getChatErrorMessage,
   getChatMessageKey,
+  getChatMessageTimestamp,
   isOwnChatMessage,
   mergeChatMessages,
   normalizeChatChannel,
   type ChatAttachment,
   type ChatMessage,
 } from '../../chat/chatProtocol'
+import {
+  buildMessageBody,
+  isChannelId,
+  signChatBody,
+  type SignedEnvelope,
+} from '../../chat/chatSigning'
 import { ChatWebSocketSession } from '../../chat/chatWebSocket'
 import {
   createVoiceRoomState,
@@ -87,6 +95,7 @@ import {
 } from '../../ui/components'
 import { useFeedback } from '../../ui/feedback'
 import { useMostBoxTheme } from '../../ui/theme'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 
 import {
   getJoinedChannels,
@@ -96,6 +105,12 @@ import {
   getRemainingHiddenConversations,
   markConversationRead,
   setConversationDraft,
+  blockAuthor,
+  unblockAuthor,
+  withoutBlockedMessages,
+  withoutBlockedChannelMessages,
+  channelDisplayName,
+  channelLabel,
   type JoinedChannel,
 } from './conversationModel'
 import {
@@ -104,12 +119,14 @@ import {
 } from './conversationStorage'
 import { useConversationState } from './useConversationState'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
+import { REPORT_EMAIL } from '../../privacy/legalUrls'
 import { ChatImagePreview } from './ChatImagePreview'
 import { VoiceMessageRecorder } from './VoiceMessageRecorder'
 import { VoiceAudioPlayer } from './VoiceAudioPlayer'
 import type { VoiceRecording } from './voiceRecordingSession'
 import { useChatNotifications } from './useChatNotifications'
 import { ChannelShareSheet } from './ChannelShareSheet'
+import { DeviceCertNotice } from '../../ui/DeviceCertNotice'
 import { ChatAvatar } from './ChatAvatar'
 
 const CHAT_EMOJIS = [
@@ -232,7 +249,12 @@ type ChatBridge = MostBoxMobileCore & {
     current?: boolean
   }>
   listChannels?: () => Promise<
-    Array<{ channelKey?: string; channelId?: string; name?: string }>
+    Array<{
+      channelKey?: string
+      channelId?: string
+      name?: string
+      peerCount?: number
+    }>
   >
   createChannel?: (input: { name: string; type?: string }) => Promise<unknown>
   sendChannelMessage?: (
@@ -245,6 +267,7 @@ export type ChatScreenProps = {
   snapshot: MobileCoreSnapshot
   openChannelRequest?: { channel: string; token: number } | null
   onDetailChange?: (open: boolean) => void
+  onOpenNode?: () => void
   active?: boolean
   joinRequest?: number
   onUnreadChange?: (count: number) => void
@@ -266,6 +289,7 @@ export function ChatScreen({
   snapshot,
   openChannelRequest,
   onDetailChange,
+  onOpenNode,
   active = true,
   joinRequest = 0,
   onUnreadChange,
@@ -279,7 +303,7 @@ export function ChatScreen({
   onOpenAttachment,
   onSaveAttachment,
 }: ChatScreenProps) {
-  const { t, formatDateTime, locale } = useI18n()
+  const { t, formatMessageTime, locale } = useI18n()
   const insets = useSafeAreaInsets()
   const theme = useMostBoxTheme()
   const [draftHeight, setDraftHeight] = useState(42)
@@ -312,7 +336,10 @@ export function ChatScreen({
   const historyCursorRef = useRef<string | null>(null)
   const historyRequestRef = useRef(false)
   const textAttemptsRef = useRef(
-    new Map<string, { content: string; clientMessageId: string }>()
+    new Map<
+      string,
+      { content: string; clientMessageId: string; signed?: SignedEnvelope }
+    >()
   )
   const voiceAttemptRef = useRef<{
     scope: string
@@ -320,7 +347,9 @@ export function ChatScreen({
     uri: string
     clientMessageId: string
     attachment?: ChatAttachment
+    signed?: SignedEnvelope
   } | null>(null)
+  const channelIdsRef = useRef(new Map<string, string>())
   const [channelInput, setChannelInput] = useState('')
   const [joinSheetOpen, setJoinSheetOpen] = useState(false)
   const [shareRequest, setShareRequest] = useState<{
@@ -339,8 +368,13 @@ export function ChatScreen({
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [hasOlderMessages, setHasOlderMessages] = useState(false)
   const [nearLatest, setNearLatest] = useState(true)
-  const [chatConnected, setChatConnected] = useState(false)
+  const [connectedSocket, setConnectedSocket] =
+    useState<ChatWebSocketSession | null>(null)
+  const chatConnected = Boolean(connectedSocket)
+  const leaveSocketPresenceRef = useRef<(() => void) | undefined>(undefined)
   const [sending, setSending] = useState(false)
+  const [channelPeers, setChannelPeers] = useState<number | null>(null)
+  const [peerMap, setPeerMap] = useState<Record<string, number>>({})
   const [voiceState, setVoiceState] = useState<VoiceRoomState | null>(null)
   const [voiceJoined, setVoiceJoined] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
@@ -376,9 +410,13 @@ export function ChatScreen({
     .sort()
     .join('\n')
   const inboxMessages = inbox?.scope === conversationScope ? inbox.messages : {}
-  const channelMessages = localMode
-    ? { ...inboxMessages, ...snapshot.channelMessages }
-    : inboxMessages
+  const blockedAuthors = conversation.state.blocked
+  const channelMessages = withoutBlockedChannelMessages(
+    localMode
+      ? { ...inboxMessages, ...snapshot.channelMessages }
+      : inboxMessages,
+    blockedAuthors
+  )
   const [hiddenState, setHiddenState] = useState<{
     scope: string
     channels: string[]
@@ -404,8 +442,17 @@ export function ChatScreen({
         )
       : []
   const visibleMessages = useMemo(
-    () => messages.filter(message => message.type !== 'system').reverse(),
-    [messages]
+    () =>
+      withoutBlockedMessages(messages, blockedAuthors)
+        .filter(message => message.type !== 'system')
+        .reverse(),
+    [messages, blockedAuthors]
+  )
+  const ownAddress = identity?.address || snapshot.node.userAddress || ''
+  const latestOwnMessage = useMemo(
+    () =>
+      visibleMessages.find(message => isOwnChatMessage(message, ownAddress)),
+    [visibleMessages, ownAddress]
   )
   useChatNotifications({
     scope: conversationScope,
@@ -509,7 +556,7 @@ export function ChatScreen({
       identity,
       onConnectionChange: connected => {
         if (running && scopeRef.current === conversationScope)
-          setChatConnected(connected)
+          setConnectedSocket(connected ? session : null)
       },
       onEvent: event => {
         if (!running) return
@@ -526,7 +573,9 @@ export function ChatScreen({
     for (const name of names) void session.subscribe(name).catch(() => {})
     return () => {
       running = false
+      leaveSocketPresenceRef.current?.()
       session.close()
+      setConnectedSocket(null)
       if (socketRef.current === session) socketRef.current = null
     }
   }, [
@@ -541,16 +590,100 @@ export function ChatScreen({
     snapshot.node.status,
   ])
 
-  const connectionNotice =
-    snapshot.node.status !== 'ready' ||
-    (!localMode && channelNames && !chatConnected) ? (
-      <View style={styles.connectionNotice} accessibilityLiveRegion="polite">
-        <ActivityIndicator size="small" color={theme.colors.accent} />
-        <Text style={styles.connectionNoticeText}>
-          {t('chat.restoringConnection')}
-        </Text>
-      </View>
-    ) : null
+  const certNotice = (
+    <DeviceCertNotice
+      expiresAt={snapshot.node.deviceCertExpiresAt}
+      renewAt={snapshot.node.deviceCertRenewAt}
+      onPress={onOpenNode}
+    />
+  )
+
+  const connectionNotice = (
+    <>
+      <ConnectionStatusBar
+        flush
+        node={snapshot.node}
+        chatConnected={localMode || chatConnected}
+        hasChannels={Boolean(channelNames)}
+        onPress={onOpenNode}
+      />
+      {certNotice}
+    </>
+  )
+
+  const detailNotice = (
+    <>
+      <ConnectionStatusBar
+        node={snapshot.node}
+        chatConnected={localMode || chatConnected}
+        hasChannels={Boolean(channelNames)}
+        onPress={onOpenNode}
+        compact
+        channelPeers={channelPeers}
+      />
+      {certNotice}
+    </>
+  )
+
+  useEffect(() => {
+    if (!active || chatOpen || snapshot.node.status !== 'ready') return
+    if (!api && !localMode) return
+    let alive = true
+    const refresh = () => {
+      const request = localMode
+        ? bridge.listChannels?.() || Promise.resolve([])
+        : api?.listChannels() || Promise.resolve([])
+      void request
+        .then(items => {
+          if (!alive) return
+          const next: Record<string, number> = {}
+          for (const item of items as Array<Record<string, unknown>>) {
+            if (typeof item.peerCount === 'number')
+              next[normalizeChatChannel(String(item.name || ''))] =
+                item.peerCount
+          }
+          setPeerMap(next)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 10000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [active, api, bridge, chatOpen, localMode, snapshot.node.status])
+
+  useEffect(() => {
+    setChannelPeers(null)
+    if (!chatOpen || !channel || snapshot.node.status !== 'ready') return
+    if (!api && !localMode) return
+    let active = true
+    const refresh = () => {
+      const request = localMode
+        ? bridge.listChannels?.() || Promise.resolve([])
+        : api?.listChannels() || Promise.resolve([])
+      void request
+        .then(items => {
+          if (!active) return
+          const wanted = normalizeChatChannel(channel)
+          const item = (items as Array<Record<string, unknown>>).find(
+            value =>
+              normalizeChatChannel(String(value.name || '')) === wanted ||
+              value.channelKey === channel
+          )
+          if (item && typeof item.peerCount === 'number')
+            setChannelPeers(item.peerCount)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 8000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [api, bridge, channel, chatOpen, localMode, snapshot.node.status])
 
   useEffect(() => {
     if (
@@ -648,18 +781,23 @@ export function ChatScreen({
   }
 
   const showConversationMenu = (name: string) => {
-    alert(`#${name}`, t('chat.deleteConversationHint'), [
-      {
-        text: t('chat.channelInfo'),
-        onPress: () => setShareRequest({ scope: conversationScope, name }),
-      },
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: () => void deleteConversation(name),
-      },
-    ])
+    const current = channels.find(item => item.name === name)
+    alert(
+      current ? channelDisplayName(current) : `#${name}`,
+      t('chat.deleteConversationHint'),
+      [
+        {
+          text: t('chat.channelInfo'),
+          onPress: () => setShareRequest({ scope: conversationScope, name }),
+        },
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => void deleteConversation(name),
+        },
+      ]
+    )
   }
 
   useEffect(() => {
@@ -689,7 +827,6 @@ export function ChatScreen({
 
   useEffect(
     () => () => {
-      socketRef.current?.close()
       voiceSessionRef.current?.close()
     },
     []
@@ -817,7 +954,17 @@ export function ChatScreen({
         setChannels(current =>
           current.some(item => item.name === normalizedName)
             ? current
-            : [...current, { name: normalizedName, remark: '', pinned: false }]
+            : [
+                ...current,
+                // Placeholder until the channel list refresh fills it in.
+                {
+                  name: normalizedName,
+                  handle: '',
+                  remark: '',
+                  pinned: false,
+                  public: false,
+                },
+              ]
         )
         return true
       } catch (error) {
@@ -857,8 +1004,52 @@ export function ChatScreen({
     setLoading(true)
     const scope = conversationScope
     try {
-      if (localMode) await bridge.createChannel?.({ name, type: 'public' })
-      else await api?.createOrJoinChannel({ name, displayName: name })
+      const joined = localMode
+        ? await bridge.createChannel?.({ name, type: 'public' })
+        : await api?.createOrJoinChannel({ name })
+      if (scopeRef.current !== scope) return
+      if (identity) {
+        try {
+          const channelId = String(
+            joined && typeof joined === 'object' && 'channelKey' in joined
+              ? joined.channelKey
+              : ''
+          )
+          if (!isChannelId(channelId)) throw new Error(t('chat.joinFailed'))
+          const members = localMode
+            ? await bridge.getChannelMemberProfiles?.(channelId)
+            : await api?.getChannelMemberProfiles(channelId)
+          if (scopeRef.current !== scope) return
+          const author = identity.address.toLowerCase()
+          if (
+            members &&
+            !members.some(
+              member => member.address === author && member.profileUpdatedAt
+            )
+          ) {
+            const signed = signChatBody(
+              {
+                kind: 'profile',
+                channelId,
+                author,
+                createdAt: Date.now(),
+                id: createClientMessageId(),
+                displayName: identity.username.trim().slice(0, 50),
+              },
+              identity
+            )
+            if (localMode)
+              await bridge.updateChannelMemberProfile?.({
+                channelName: channelId,
+                signed,
+              })
+            else await api?.updateChannelMemberProfile(channelId, signed)
+          }
+        } catch {
+          if (scopeRef.current === scope)
+            toast(t('chat.initialProfileFailed'), 'error')
+        }
+      }
       if (scopeRef.current !== scope) return
       setChannelInput('')
       setJoinSheetOpen(false)
@@ -976,8 +1167,46 @@ export function ChatScreen({
     messageListRef.current?.scrollToOffset({ offset: 0, animated: false })
   }
 
+  const reportMessage = (message: ChatMessage) => {
+    const attachment = getMessageAttachment(message)
+    const timestamp = getChatMessageTimestamp(message)
+    const body = [
+      `Channel: #${channel}`,
+      `Sender: ${message.authorName || ''} (${message.author})`,
+      timestamp ? `Time: ${new Date(timestamp).toISOString()}` : '',
+      `Message: ${message.content}`,
+      attachment ? `Attachment: ${attachment.link}` : '',
+    ]
+      .filter(Boolean)
+      .concat('', 'Reason:')
+      .join('\n')
+    const url = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(`MostBox report: #${channel}`)}&body=${encodeURIComponent(body)}`
+    void Linking.openURL(url).catch(() =>
+      toast(t('chat.reportUnavailable', { email: REPORT_EMAIL }), 'error')
+    )
+  }
+
+  const confirmBlockAuthor = (message: ChatMessage) => {
+    const name = message.authorName || message.author
+    alert(t('chat.blockUserTitle', { name }), t('chat.blockUserHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('chat.blockUser'),
+        style: 'destructive',
+        onPress: () => {
+          conversation.update(state =>
+            blockAuthor(state, message.author, message.authorName || '')
+          )
+          toast(t('chat.blocked', { name }), 'success')
+        },
+      },
+    ])
+  }
+
   const showMessageMenu = (message: ChatMessage) => {
     const attachment = getMessageAttachment(message)
+    const fromOthers =
+      message.type !== 'system' && !isOwnChatMessage(message, ownAddress)
     alert(t('chat.messageOptions'), attachment?.link, [
       {
         text: t(attachment ? 'chat.copyAttachmentLink' : 'chat.copyMessage'),
@@ -987,6 +1216,19 @@ export function ChatScreen({
             .catch(() => toast(t('app.clipboard.failed'), 'error'))
         },
       },
+      ...(fromOthers
+        ? [
+            {
+              text: t('chat.reportMessage'),
+              onPress: () => reportMessage(message),
+            },
+            {
+              text: t('chat.blockUser'),
+              style: 'destructive' as const,
+              onPress: () => confirmBlockAuthor(message),
+            },
+          ]
+        : []),
       { text: t('common.cancel'), style: 'cancel' },
     ])
   }
@@ -1004,6 +1246,12 @@ export function ChatScreen({
     return () => subscription.remove()
   }, [active, chatOpen, emojiOpen, conversation.flush])
 
+  const blockWhenOffline = () => {
+    if (snapshot.node.status === 'ready') return false
+    toast(t('chat.sendOffline'), 'error')
+    return true
+  }
+
   const send = async () => {
     const content = draft.trim()
     if (
@@ -1012,9 +1260,10 @@ export function ChatScreen({
       !content ||
       sending ||
       loading ||
-      (!identity && !localMode)
+      requireSignIn()
     )
       return
+    if (blockWhenOffline()) return
     setSending(true)
     const targetChannel = channel
     const scope = conversationScope
@@ -1025,20 +1274,7 @@ export function ChatScreen({
         : { content, clientMessageId: createClientMessageId() }
     textAttemptsRef.current.set(targetChannel, attempt)
     try {
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content,
-            clientMessageId: attempt.clientMessageId,
-            author: identity?.address,
-            authorName: identity?.username,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content,
-            clientMessageId: attempt.clientMessageId,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-          })
+      const message = await sendSigned(targetChannel, attempt, { content })
       if (!message) throw new Error(t('chat.sendFailed'))
       if (scopeRef.current !== scope) return
       if (textAttemptsRef.current.get(targetChannel) === attempt)
@@ -1075,9 +1311,10 @@ export function ChatScreen({
       !channel ||
       sending ||
       loading ||
-      (!identity && !localMode)
+      requireSignIn()
     )
       return
+    if (blockWhenOffline()) return
     const targetChannel = channel
     const scope = conversationScope
     setSending(true)
@@ -1085,20 +1322,11 @@ export function ChatScreen({
       const attachment = await onPublishAttachment(source)
       if (!attachment) return
       if (scopeRef.current !== scope) return
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content: attachment.link,
-            author: identity?.address,
-            authorName: identity?.username,
-            attachment,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content: attachment.link,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-            attachment,
-          })
+      const message = await sendSigned(
+        targetChannel,
+        { clientMessageId: createClientMessageId() },
+        { content: attachment.link, attachment }
+      )
       if (!message) throw new Error(t('chat.attachmentFailed'))
       if (scopeRef.current !== scope) return
       rememberMessages(targetChannel, [message])
@@ -1197,9 +1425,139 @@ export function ChatScreen({
     setDraft(`${draft}${emoji}`)
   }
 
+  // Every message is signed with this device's key (signatures.md §4); the
+  // signature binds it to the channel's public ID.
+  const requireSignIn = () => {
+    if (identity) return false
+    toast(t('chat.signInRequired'), 'error')
+    return true
+  }
+
+  const resolveChannelId = useCallback(
+    async (name: string) => {
+      if (isChannelId(name)) return name
+      const cached = channelIdsRef.current.get(name)
+      if (cached) return cached
+      const items = (await (localMode
+        ? bridge.listChannels?.()
+        : api?.listChannels())) as Array<Record<string, unknown>> | undefined
+      const wanted = normalizeChatChannel(name)
+      const item = (items || []).find(
+        value =>
+          normalizeChatChannel(String(value.name || value.channelId || '')) ===
+          wanted
+      )
+      const channelKey = String(item?.channelKey || '')
+      if (!isChannelId(channelKey)) throw new Error(t('chat.sendFailed'))
+      channelIdsRef.current.set(name, channelKey)
+      return channelKey
+    },
+    [localMode, bridge, api, t]
+  )
+
+  useEffect(() => {
+    if (
+      !identity ||
+      !active ||
+      !foreground ||
+      !chatOpen ||
+      !channel ||
+      snapshot.node.status !== 'ready'
+    )
+      return
+    if (!localMode && !connectedSocket?.connected) return
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | undefined
+    let leave: (() => void) | undefined
+    void resolveChannelId(channel)
+      .then(channelId => {
+        if (cancelled) return
+        const sessionId = createClientMessageId()
+        const send = (action: 'join' | 'heartbeat' | 'leave') => {
+          const body = {
+            kind: 'presence',
+            channelId,
+            author: identity.address.toLowerCase(),
+            id: createClientMessageId(),
+            createdAt: Date.now(),
+            sessionId,
+            status:
+              action === 'join'
+                ? 'online'
+                : action === 'leave'
+                  ? 'offline'
+                  : 'heartbeat',
+            displayName: identity.username,
+          }
+          const input = {
+            action,
+            channelName: channelId,
+            signed: signChatBody(body, identity),
+          }
+          if (localMode)
+            void bridge.sendChannelPresence?.(input).catch(() => {})
+          else connectedSocket?.sendPresence(input)
+        }
+        send('join')
+        leave = () => {
+          send('leave')
+          if (leaveSocketPresenceRef.current === leave)
+            leaveSocketPresenceRef.current = undefined
+          leave = undefined
+        }
+        if (!localMode) leaveSocketPresenceRef.current = leave
+        timer = setInterval(() => send('heartbeat'), 15000)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      leave?.()
+    }
+  }, [
+    identity,
+    active,
+    foreground,
+    chatOpen,
+    channel,
+    snapshot.node.status,
+    localMode,
+    connectedSocket,
+    resolveChannelId,
+    bridge,
+  ])
+
+  // A retry resends the attempt's envelope unchanged, so the node treats it
+  // as the same message.
+  const sendSigned = async (
+    targetChannel: string,
+    attempt: { clientMessageId: string; signed?: SignedEnvelope },
+    fields: { content: string; attachment?: ChatAttachment }
+  ) => {
+    if (!identity) throw new Error(t('chat.signInRequired'))
+    if (!attempt.signed) {
+      const body = buildMessageBody({
+        channelId: await resolveChannelId(targetChannel),
+        author: identity.address,
+        id: attempt.clientMessageId,
+        content: fields.content,
+        authorName: identity.username,
+        attachment: fields.attachment,
+      })
+      attempt.signed = signChatBody(body, identity)
+    }
+    return localMode
+      ? bridge.sendChannelMessage?.({
+          channelName: targetChannel,
+          signed: attempt.signed,
+        })
+      : api?.sendMessage(targetChannel, attempt.signed)
+  }
+
   const sendVoiceMessage = async (recording: VoiceRecording) => {
     if (!channel || sending || loading || (!localMode && !api))
       throw new Error(t('chat.sendFailed'))
+    if (!identity) throw new Error(t('chat.signInRequired'))
     const targetChannel = channel
     const scope = conversationScope
     const previousAttempt = voiceAttemptRef.current
@@ -1226,22 +1584,10 @@ export function ChatScreen({
         selectedChannelRef.current !== targetChannel
       )
         throw new Error(t('chat.sendFailed'))
-      const message = localMode
-        ? await bridge.sendChannelMessage?.({
-            channelName: targetChannel,
-            content: attachment.link,
-            author: identity?.address,
-            authorName: identity?.username,
-            attachment,
-            clientMessageId: attempt.clientMessageId,
-          })
-        : await api?.sendMessage(targetChannel, {
-            content: attachment.link,
-            author: identity?.address || '',
-            authorName: identity?.username || '',
-            attachment,
-            clientMessageId: attempt.clientMessageId,
-          })
+      const message = await sendSigned(targetChannel, attempt, {
+        content: attachment.link,
+        attachment,
+      })
       if (!message) throw new Error(t('chat.sendFailed'))
       if (voiceAttemptRef.current === attempt) voiceAttemptRef.current = null
       if (scopeRef.current !== scope) return
@@ -1339,7 +1685,7 @@ export function ChatScreen({
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.remark || `#${item.name}`}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
+                    accessibilityLabel={`${channelDisplayName(item)}${item.unread ? `, ${t('chat.unreadCount', { count: item.unread > 99 ? '99+' : item.unread })}` : ''}`}
                     disabled={!conversation.ready}
                     onPress={() => void openChannel(item.name)}
                     onLongPress={() => showConversationMenu(item.name)}
@@ -1360,7 +1706,7 @@ export function ChatScreen({
                     </View>
                     <View style={styles.channelRowText}>
                       <Text numberOfLines={1} style={styles.channelText}>
-                        {item.remark || `#${item.name}`}
+                        {channelDisplayName(item)}
                       </Text>
                       <Text numberOfLines={1} style={styles.channelPreview}>
                         {item.draft.trim() ? (
@@ -1377,6 +1723,17 @@ export function ChatScreen({
                         )}
                       </Text>
                     </View>
+                    {(peerMap[normalizeChatChannel(item.name)] || 0) > 0 ? (
+                      <View
+                        accessibilityLabel={t(
+                          peerMap[normalizeChatChannel(item.name)] === 1
+                            ? 'status.channelConnected.title.one'
+                            : 'status.channelConnected.title',
+                          { count: peerMap[normalizeChatChannel(item.name)] }
+                        )}
+                        style={styles.presenceDot}
+                      />
+                    ) : null}
                     {item.lastMessageAt ? (
                       <Text style={styles.channelTime}>
                         {new Intl.DateTimeFormat(locale, {
@@ -1390,7 +1747,7 @@ export function ChatScreen({
                   </Pressable>
                   <IconButton
                     accessibilityLabel={t('chat.conversationOptions', {
-                      channel: item.remark || item.name,
+                      channel: item.remark || channelLabel(item),
                     })}
                     onPress={() => showConversationMenu(item.name)}
                     variant="ghost"
@@ -1417,8 +1774,10 @@ export function ChatScreen({
               <ArrowLeft size={20} color={theme.colors.text} />
             </Pressable>
             <Text numberOfLines={1} style={styles.detailTitle}>
-              {channels.find(item => item.name === channel)?.remark ||
-                `#${channel}`}
+              {(() => {
+                const current = channels.find(item => item.name === channel)
+                return current ? channelDisplayName(current) : `#${channel}`
+              })()}
             </Text>
             {channel ? (
               <View style={styles.detailActions}>
@@ -1438,7 +1797,7 @@ export function ChatScreen({
               <View style={styles.detailHeaderSpacer} />
             )}
           </View>
-          {connectionNotice}
+          {detailNotice}
           {voiceJoined ? (
             <Pressable
               accessibilityRole="button"
@@ -1515,6 +1874,42 @@ export function ChatScreen({
               }
               contentContainerStyle={styles.messages}
               renderItem={({ item, index }) => {
+                if (item.type === 'legacy') {
+                  // Old v1 snapshot text: plain bubble, never parsed as an attachment.
+                  return (
+                    <View>
+                      {shouldShowMessageTime(
+                        item,
+                        visibleMessages[index + 1]
+                      ) ? (
+                        <Text style={styles.timestamp}>
+                          {formatMessageTime(item.timestamp!)}
+                        </Text>
+                      ) : null}
+                      <View style={styles.messageRow}>
+                        <ChatAvatar address={item.authorName} />
+                        <View style={styles.messageBody}>
+                          <Text numberOfLines={1} style={styles.author}>
+                            {item.authorName}
+                            <Text style={styles.unsignedNote}>
+                              {' · '}
+                              {t('chat.message.unsigned')}
+                            </Text>
+                          </Text>
+                          <View style={styles.message}>
+                            <View
+                              style={[
+                                styles.bubbleTail,
+                                styles.bubbleTailOther,
+                              ]}
+                            />
+                            <Text style={styles.content}>{item.content}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  )
+                }
                 const mine = isOwnChatMessage(
                   item,
                   identity?.address || snapshot.node.userAddress || ''
@@ -1548,7 +1943,7 @@ export function ChatScreen({
                   <View>
                     {shouldShowMessageTime(item, visibleMessages[index + 1]) ? (
                       <Text style={styles.timestamp}>
-                        {formatDateTime(item.timestamp!)}
+                        {formatMessageTime(item.timestamp!)}
                       </Text>
                     ) : null}
                     <View
@@ -1715,6 +2110,20 @@ export function ChatScreen({
                             </Text>
                           )}
                         </Pressable>
+                        {mine &&
+                        item === latestOwnMessage &&
+                        channelPeers !== null ? (
+                          <Text style={styles.deliveryNote}>
+                            {t(
+                              channelPeers === 1
+                                ? 'status.delivery.peers.one'
+                                : channelPeers > 0
+                                  ? 'status.delivery.peers'
+                                  : 'status.delivery.localOnly',
+                              { count: channelPeers }
+                            )}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
                   </View>
@@ -1771,6 +2180,24 @@ export function ChatScreen({
                   onFocus={() => {
                     setEmojiOpen(false)
                     jumpToLatest()
+                  }}
+                  onKeyPress={event => {
+                    // 桌面浏览器：Enter 发送，Shift+Enter 换行；输入法组字和触屏保持原行为。
+                    if (Platform.OS !== 'web') return
+                    const key = event.nativeEvent as unknown as {
+                      key: string
+                      shiftKey?: boolean
+                      isComposing?: boolean
+                    }
+                    if (
+                      key.key !== 'Enter' ||
+                      key.shiftKey ||
+                      key.isComposing ||
+                      !window.matchMedia('(pointer: fine)').matches
+                    )
+                      return
+                    event.preventDefault()
+                    void send()
                   }}
                   placeholder={t('chat.messagePlaceholder')}
                   multiline
@@ -2118,6 +2545,12 @@ export function ChatScreen({
         <ChannelShareSheet
           key={`${conversationScope}:${sharingChannel.name}`}
           channel={sharingChannel}
+          blockedUsers={Object.entries(blockedAuthors).map(
+            ([author, name]) => ({ author, name })
+          )}
+          onUnblock={author =>
+            conversation.update(state => unblockAuthor(state, author))
+          }
           onSaveRemark={async remark => {
             const name = sharingChannel.name
             if (localMode) {
@@ -2309,6 +2742,13 @@ function chatStyles(
       fontSize: 12,
       color: colors.textSecondary,
     },
+    presenceDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.success,
+    },
+    deliveryNote: { fontSize: 11, color: colors.textMuted },
     messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     messageRowMine: { flexDirection: 'row-reverse' },
     messageBody: {
@@ -2350,6 +2790,8 @@ function chatStyles(
     fileTailOther: { borderRightColor: colors.surfaceSolid },
     fileTailMine: { borderLeftColor: colors.surfaceSolid },
     author: { color: colors.textMuted, fontSize: 12, marginBottom: 1 },
+    // Unsigned v1 history: small and low contrast, bubble unchanged.
+    unsignedNote: { fontSize: 10, opacity: 0.7 },
     fileMessage: { backgroundColor: colors.surfaceSolid, width: 240 },
     imageMessage: {
       backgroundColor: 'transparent',

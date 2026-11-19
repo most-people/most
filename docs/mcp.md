@@ -18,7 +18,7 @@ MCP 不引入新的内容身份、P2P 协议或存储格式。
 ## 边界和不变量
 
 - 原生分享链接保持 `most://<cid>?filename=...`。
-- Hyperswarm topic 继续使用 `cid.multihash.digest`，Hyperdrive key 继续使用 `/<cid>`。
+- Hyperdrive key 继续使用 `/<cid>`。
 - 文件名、路径和 MCP metadata 只用于展示或定位，不能替代 CID 完整性判断。
 - MCP 不启动第二个 `MostBoxEngine`，所有调用最终进入已运行 daemon 的现有 API 和引擎。
 - 首版不暴露删除文件、移动文件、目录分享、节点配置、日志清理、关机、账户导入、

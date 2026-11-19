@@ -1,0 +1,560 @@
+{
+  "description": "V2 presence validation (signatures.md 4.3). Test-only device seed and certificates come from device-cert.json. Apply channelId and now to every case, then any case options. Boundary is inclusive +/-120000ms; body is never rewritten. These vectors do not change the current presence wire path.",
+  "now": 1795000000000,
+  "channelId": "abababababababababababababababababababababababababababababababab",
+  "valid": [
+    {
+      "name": "online",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d"
+    },
+    {
+      "name": "heartbeat",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "heartbeat",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "th63XT-yGhU2JhADE8cYedP7gzUUyCm9kKzOi0vrS8bEkcSls4MEDHiyMadLletbsBCXQ3xZvirpWRieuo-6BA"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a22686561727462656174227d"
+    },
+    {
+      "name": "profile",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "profile",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "p3rku5Zu_iHx3UPcVb8Mp0G3-_1BRQAyrbGfYVsIY58GjwIsXTOjLeCK-Xq4mSvSoyXcgzkrEnMQ2b3OFvpkCA"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a2270726f66696c65227d"
+    },
+    {
+      "name": "offline",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "offline",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "8yTQT_0OWg-pAYyBJyi1i_NHREvh28kxDlvlRtt4cJQgNLHsdRfBoXFyUYwE51wAoRnUFqk6wn9V542DzSgDCA"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f66666c696e65227d"
+    },
+    {
+      "name": "unknown signed fields are preserved",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web",
+          "future": {
+            "locale": "中文",
+            "flags": [1, true]
+          }
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "v0ARZx5_43SauPetz3kcRzrs96qBIREWFNtMPGuOnntxGOpflGDYUsL5B1gvBWTbxck_qwqYbMv8PBuybFKaDQ"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c22667574757265223a7b22666c616773223a5b312c747275655d2c226c6f63616c65223a22e4b8ade69687227d2c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d"
+    },
+    {
+      "name": "expired certificate remains valid in P2P",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxMDAwMDAwMDAwMDAwLCJleHBpcmVzQXQiOjEwMDI1OTIwMDAwMDB9.0x973a167cc9d57281c8a96d37d3cd51ed523fb9025919d61497dec47ef80afc4e396ae65efe73117779f9d1be6a0688a6f8bcf4514cecabc06fead03d8d0bbafc1c",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d"
+    },
+    {
+      "name": "clock offset -120000",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1794999880000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "kxKf_geQzurgN73AOREfvWRX7BEQfCfELpGZjnsSvaV__astuaHwQZdhnUFGWrPu2ODbpvSYzJXnT1NZUp7JCw"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739343939393838303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d"
+    },
+    {
+      "name": "clock offset 120000",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000120000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "joV7lI3UymGDqvoRSMa2jghfIFUCnag9mrWmY1nolfwvDUTjABMBYaOAl3PAr1DjEkzLtatFGlPhOnEWsPZiAw"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303132303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d"
+    },
+    {
+      "name": "maximum session length",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "WLFtfxiXLcAt-MzKqprR8SXyfF_j5jpQjNoKbbo87AcTBrocrp-l-7IHC7I6Hd8dIbYvrNUtHzC74OrQxKVxDQ"
+      },
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373222c22737461747573223a226f6e6c696e65227d"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "clock offset -120001",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1794999879999,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "VvXQHCuXCIMQSAi5JTAqzuuyhm2BtEw2jkd8419LjI3MXOyzn2_juxLeoc7O4vDv7szljwYg6KyTpGbYma5xDQ"
+      },
+      "error": "stale presence"
+    },
+    {
+      "name": "clock offset 120001",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000120001,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "-4KPIPxgxlAkMDEu6BZzWnNWDiK-S6W5sS1mbtxNcPot1N0at1Xbeh2A_y5sA5H_3jA4DORDoRZTygwNLK5ICA"
+      },
+      "error": "stale presence"
+    },
+    {
+      "name": "invalid session \"\"",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": ""
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "rQpViczMlnx3TPAwjWXJZxtXPWak4krAfJs-zEfEBWSjWBlI6MNmHZBW9SmCq_6enhM7JEiNbgnodL_q5tYuCQ"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "invalid session \" web\"",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": " web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "EwfKFUwCXHlEZBF6zacj438F0VigHN1hr3nFc4bEZjvJFkYy0OD77vJTdd3MgsTFVe0AzkXvrMoJTAX-E9RKDQ"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "invalid session \"web \"",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web "
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "uqmPXc5qZLAJKJ6WKcatYQ9G1b1XMgjnih1gmD6CMMAn1ziDZSto0eWlWWB8AkUqMpUb_Z6wVTmaNqKJFSe1AQ"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "invalid session \"sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\"",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "IbdFQqp7AlpA42ERlohu70enh4meMTXOI9ccT5usN_bGZ_kizrM1hFKOgDVb_8HjKSh6pvyNZlX6nFS_r997Dg"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "invalid session 12",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": 12
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "tfBCvclScd7vplf83qvJ_TugC-Pb2q79vCIP5vR-anAUynIhGp5wXkTcAyqrqS_dFdHO03OlfhUcKaE88j5iDw"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "invalid session null",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": null
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "BTB8iTvpQ8JmczOADrDBJNn1uhMd9xbjfrDIf7RaZMevPDBoOVqFlWdDdUQCGg0n7f8tCOwKngfGpfufFP4UDg"
+      },
+      "error": "invalid presence sessionId"
+    },
+    {
+      "name": "unknown status",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "away",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "NYjOE5Rmtfba2EbJ_fWU21BRKmejtPVZQNYCNgoCcLXKp2n2To6oW5yDiVU8i24H_pZtb9CwYB6yjeleSFLEBQ"
+      },
+      "error": "invalid presence status"
+    },
+    {
+      "name": "wrong body kind",
+      "envelope": {
+        "body": {
+          "kind": "profile",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "VSHDsIUf_eZenZtKVyOYkY0cUdyKZEyX5en8aW6OdlLChxfDkwI92gx1Iuk6Py54q7W2xlA2e7pLhJpBU8HIBw"
+      },
+      "error": "expected presence"
+    },
+    {
+      "name": "wrong channel",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "gAy5yd4-qd7j3UNodq10x7a0-JJQuI_5RtnVPj0dW0ya1pwBvnoY1-yttJNsQdNFCdI1wTraIiEP5FpRI6PYDQ"
+      },
+      "error": "channel mismatch"
+    },
+    {
+      "name": "another account certificate",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHg5YjlBM0FBZjVCZDI5NEI1QWJBNGQ1NTdjM2RjNTBDZGU2MEUwMTEzIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0x756aa493c9406e51a634f417433535b31e97504b4c87bb5d0a129cb8694692b81be9f944445da5a1f60f03aee82e2b02661e249469a7dc365060e8397f0770ef1c",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "certificate is for another account"
+    },
+    {
+      "name": "another device certificate",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiN2JlMjliOThiYTA5MzdlYWRmYTFmYzFiNDc5MzFmMDVkZmNlNDlmYWVlZTg5NmMwZjQwYzI0YTc4ZDY0OWZlNiIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0x613aab883040aa7ccc8481b6103a0ec4b232713509e4de5d876fd0f5f0f0663c3fdfd4d1719471ff36d1bbe4c208ff646d4479f2671fccead84671d6c613947b1c",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "certificate is for another device"
+    },
+    {
+      "name": "tampered status",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "offline",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "bad signature"
+    },
+    {
+      "name": "tampered sessionId",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "another"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "bad signature"
+    },
+    {
+      "name": "tampered createdAt",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000001,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "bad signature"
+    },
+    {
+      "name": "tampered author",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x9b9a3aaf5bd294b5aba4d557c3dc50cde60e0113",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "bad signature"
+    },
+    {
+      "name": "tampered channelId",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "channel mismatch"
+    },
+    {
+      "name": "tampered future",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web",
+          "future": true
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "error": "bad signature"
+    },
+    {
+      "name": "authenticated account mismatch",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "options": {
+        "author": "0x9b9a3aaf5bd294b5aba4d557c3dc50cde60e0113"
+      },
+      "error": "author mismatch"
+    },
+    {
+      "name": "API action differs from signed status",
+      "envelope": {
+        "body": {
+          "kind": "presence",
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "createdAt": 1795000000000,
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      },
+      "options": {
+        "status": "offline"
+      },
+      "error": "status mismatch"
+    }
+  ]
+}

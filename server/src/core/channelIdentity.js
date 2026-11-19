@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { CHANNEL_NAME_PREFIX } from '../config.js'
 import { normalizeAvatar, normalizeDisplayName } from './shared.js'
 
 export const CHAT_FILE_ROOT = 'chat-file'
@@ -34,6 +35,33 @@ export function buildChannelKey(channelId) {
 
 export function normalizeChannelKey(input) {
   return normalizeChannelId(input)
+}
+
+// Topics: file swarm channel replication, chat swarm channel chat, and chat
+// swarm candidate discovery. See docs/protocol/discovery.md §3.
+export function generateChannelDiscoveryKey(channelKey) {
+  return crypto
+    .createHash('sha256')
+    .update(`${CHANNEL_NAME_PREFIX}channel:${normalizeChannelKey(channelKey)}`)
+    .digest()
+}
+
+export function generateChannelChatDiscoveryKey(channelKey) {
+  return crypto
+    .createHash('sha256')
+    .update(
+      `${CHANNEL_NAME_PREFIX}channel:${normalizeChannelKey(channelKey)}:chat`
+    )
+    .digest()
+}
+
+export function generateChannelIdDiscoveryKey(channelId) {
+  return crypto
+    .createHash('sha256')
+    .update(
+      `${CHANNEL_NAME_PREFIX}id:${normalizeChannelId(channelId)}:candidates`
+    )
+    .digest()
 }
 
 export function isSpecialChannel(channel = {}) {

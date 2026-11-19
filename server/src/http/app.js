@@ -166,8 +166,13 @@ export function createApp(engine, options = {}) {
         if (blocked) return blocked
         const auth = verifyAuthHeader(authHeader, c.req.method, path)
         if (!auth.ok) {
-          const limited = rateLimitGuard.enforce(c, ['authFailure'])
-          if (limited) return limited
+          // Only failed signatures count: an expired certificate or a wrong
+          // clock is rejected without verifying anything, and counting it
+          // would lock out every user behind the same IP (reverse proxy).
+          if (!auth.stale) {
+            const limited = rateLimitGuard.enforce(c, ['authFailure'])
+            if (limited) return limited
+          }
           return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
         }
         c.set('userAddress', auth.address)
@@ -258,9 +263,9 @@ export function createApp(engine, options = {}) {
         }
       }
 
+      // Not counted: a missing login costs nothing to reject and guesses
+      // nothing; signed-out pages that poll must not lock out their IP.
       if (requiresUserAuth(path) && !c.get('userAddress')) {
-        const limited = rateLimitGuard.enforce(c, ['authFailure'])
-        if (limited) return limited
         return c.json({ error: 'Login required', code: 'LOGIN_REQUIRED' }, 401)
       }
 
@@ -314,11 +319,25 @@ export function createApp(engine, options = {}) {
     return entry
   }
 
-  function wsSendToChannel(channelName, event, data) {
+  function wsSendToChannel(channelName, event, data, target) {
     const payload = JSON.stringify({ event, data })
     const subscribers = channelSubscriptions.get(channelName)
     if (subscribers) {
       subscribers.forEach(ws => {
+        if (target !== undefined && ws.presenceSourceId !== target) return
+        if (event === 'channel:voice') {
+          try {
+            if (
+              !ws.userAddress ||
+              engine.resolveChannelKey(channelName, {
+                ownerAddress: ws.userAddress,
+              }) !== channelName
+            )
+              return
+          } catch {
+            return
+          }
+        }
         if (ws.readyState === 1) {
           try {
             ws.send(payload)
@@ -389,11 +408,11 @@ export function createApp(engine, options = {}) {
 
   function getWebSocketUserAddress(req) {
     const url = new URL(req.url, `http://localhost:${appPort}`)
-    const address = url.searchParams.get('address') || ''
+    const cert = url.searchParams.get('cert') || ''
     const timestamp = url.searchParams.get('timestamp') || ''
     const signature = url.searchParams.get('signature') || ''
     const auth = verifyAuthHeader(
-      `${address},${timestamp},${signature}`,
+      `${cert},${timestamp},${signature}`,
       'GET',
       '/ws'
     )

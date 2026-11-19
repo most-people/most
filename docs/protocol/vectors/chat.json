@@ -1,0 +1,324 @@
+{
+  "description": "Chat swarm framing (chat.md §2), channel-hello splitting (§4), attachments (§6.4), clientMessageId (§6.1), mentions (§6.5, desktop only) and history dedup/order (§6.7). History entries are listed in read order: core by core, block index ascending.",
+  "frames": [
+    {
+      "chunks": ["{\"a\":1}\n{\"b\"", ":2}\n  \n"],
+      "maxFrameBytes": 100,
+      "frames": ["{\"a\":1}", "{\"b\":2}", ""],
+      "remainder": ""
+    },
+    {
+      "chunks": ["abc"],
+      "maxFrameBytes": 100,
+      "frames": [],
+      "remainder": "abc"
+    },
+    {
+      "chunks": ["0123456789\n"],
+      "maxFrameBytes": 10,
+      "frames": ["0123456789"],
+      "remainder": ""
+    },
+    {
+      "chunks": ["0123456789"],
+      "maxFrameBytes": 10,
+      "frames": [],
+      "remainder": "0123456789"
+    },
+    {
+      "chunks": ["01234567890"],
+      "maxFrameBytes": 10,
+      "error": "CHANNEL_FRAME_TOO_LARGE"
+    }
+  ],
+  "hello": {
+    "base": {
+      "type": "channel-hello",
+      "peerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "authorName": "aaaa"
+    },
+    "channels": [
+      {
+        "channelId": "ch1",
+        "channelKey": "ch1",
+        "type": "public",
+        "createdAt": "2026-11-18T00:00:00.000Z",
+        "lastMessageAt": "",
+        "writerCoreKeys": [
+          "1111111111111111111111111111111111111111111111111111111111111111"
+        ]
+      },
+      {
+        "channelId": "ch2",
+        "channelKey": "ch2",
+        "type": "public",
+        "createdAt": "2026-11-18T00:00:00.000Z",
+        "lastMessageAt": "",
+        "writerCoreKeys": [
+          "2222222222222222222222222222222222222222222222222222222222222222"
+        ]
+      },
+      {
+        "channelId": "ch3",
+        "channelKey": "ch3",
+        "type": "public",
+        "createdAt": "2026-11-18T00:00:00.000Z",
+        "lastMessageAt": "",
+        "writerCoreKeys": [
+          "3333333333333333333333333333333333333333333333333333333333333333"
+        ]
+      }
+    ],
+    "cases": [
+      { "maxFrameBytes": 400, "frames": [["ch1"], ["ch2"], ["ch3"]] },
+      { "maxFrameBytes": 600, "frames": [["ch1", "ch2"], ["ch3"]] },
+      { "maxFrameBytes": 800, "frames": [["ch1", "ch2", "ch3"]] },
+      { "maxFrameBytes": 200, "error": "entry" },
+      { "maxFrameBytes": 50, "error": "header" }
+    ],
+    "empty": { "maxFrameBytes": 800, "frames": [[]] }
+  },
+  "attachments": {
+    "valid": [
+      {
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt"
+        },
+        "output": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt"
+        }
+      },
+      {
+        "input": {
+          "kind": "image",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "p.png",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=p.png",
+          "mimeType": "image/png",
+          "size": 12.7
+        },
+        "output": {
+          "kind": "image",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "p.png",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=p.png",
+          "mimeType": "image/png",
+          "size": 12
+        }
+      },
+      {
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a b.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a%20b.txt"
+        },
+        "output": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a b.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a%20b.txt"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "reason": "link CID differs",
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a.txt",
+          "link": "most://bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku?filename=a.txt"
+        }
+      },
+      {
+        "reason": "link filename differs",
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=b.txt"
+        }
+      },
+      {
+        "reason": "empty fileName",
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt"
+        }
+      },
+      {
+        "reason": "negative size",
+        "input": {
+          "kind": "file",
+          "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+          "fileName": "a.txt",
+          "link": "most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt",
+          "size": -1
+        }
+      },
+      {
+        "reason": "invalid CID",
+        "input": {
+          "kind": "file",
+          "cid": "notacid",
+          "fileName": "a.txt",
+          "link": "most://notacid?filename=a.txt"
+        }
+      }
+    ]
+  },
+  "clientMessageIds": [
+    {
+      "input": "0B9A3C1E-2F4D-4A6B-8C7D-9E0F1A2B3C4D",
+      "output": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d"
+    },
+    {
+      "input": " 0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d ",
+      "output": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d"
+    },
+    { "input": "0b9a3c1e-2f4d-1a6b-8c7d-9e0f1a2b3c4d", "output": "" },
+    { "input": "x", "output": "" }
+  ],
+  "mentions": [
+    {
+      "content": "hi @bob",
+      "input": [
+        {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "label": "bob",
+          "start": 3,
+          "end": 7
+        },
+        {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "label": "x",
+          "start": 0,
+          "end": 2
+        },
+        { "address": "bad", "label": "bob", "start": 3, "end": 7 }
+      ],
+      "output": [
+        {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "label": "bob",
+          "start": 3,
+          "end": 7
+        }
+      ]
+    }
+  ],
+  "history": {
+    "entries": [
+      {
+        "id": "e0",
+        "coreKey": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0,
+        "entry": {
+          "type": "message",
+          "author": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "authorName": "a",
+          "content": "one",
+          "timestamp": 1000,
+          "clientMessageId": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d"
+        }
+      },
+      {
+        "id": "e2",
+        "coreKey": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 1,
+        "entry": {
+          "type": "message",
+          "author": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "authorName": "a",
+          "content": "three",
+          "timestamp": 900
+        }
+      },
+      {
+        "id": "e5",
+        "coreKey": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 2,
+        "entry": {
+          "type": "system",
+          "event": "channel.member.joined",
+          "author": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "authorName": "a",
+          "content": "channel.member.joined",
+          "timestamp": 800
+        }
+      },
+      {
+        "id": "e7",
+        "coreKey": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 3,
+        "entry": {
+          "type": "other",
+          "author": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "content": "x",
+          "timestamp": 700
+        }
+      },
+      {
+        "id": "e1",
+        "coreKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "index": 0,
+        "entry": {
+          "type": "message",
+          "author": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "authorName": "b",
+          "content": "two",
+          "timestamp": 1000
+        }
+      },
+      {
+        "id": "e3",
+        "coreKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "index": 1,
+        "entry": {
+          "type": "message",
+          "author": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "authorName": "a",
+          "content": "one",
+          "timestamp": 1001,
+          "clientMessageId": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d"
+        }
+      },
+      {
+        "id": "e4",
+        "coreKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "index": 2,
+        "entry": {
+          "type": "message",
+          "author": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "authorName": "b",
+          "content": "two",
+          "timestamp": 1000
+        }
+      },
+      {
+        "id": "e6",
+        "coreKey": "2222222222222222222222222222222222222222222222222222222222222222",
+        "index": 3,
+        "entry": {
+          "type": "system",
+          "event": "channel.member.joined",
+          "author": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "authorName": "a",
+          "content": "channel.member.joined",
+          "timestamp": 850
+        }
+      }
+    ],
+    "desktop": ["e5", "e2", "e0", "e1", "e3"],
+    "mobile": ["e2", "e0", "e1"]
+  }
+}

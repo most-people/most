@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { Wallet } from 'ethers'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -8,14 +9,22 @@ import path from 'node:path'
 import { Duplex } from 'node:stream'
 import Hyperswarm from 'hyperswarm'
 import { MostBoxEngine } from '../../src/index.js'
-import { CHANNEL_NAME_PREFIX } from '../../src/config.js'
 import {
-  CHANNEL_PROOF_VERSION,
-  createChannelTopicProof,
-} from '../../src/core/channelHello.js'
+  channelTopics,
+  createChannelProof,
+  resolveChannelHandle,
+} from '../../src/core/channelKeysV2.js'
 
-const alice = `0x${'1'.repeat(40)}`
-const bob = `0x${'2'.repeat(40)}`
+import {
+  presenceOptions,
+  signedPresence,
+  signedVoice,
+  addressOf,
+  defaultSigner,
+} from '../helpers/signedMessage.js'
+const alice = addressOf(defaultSigner)
+const bobSigner = Wallet.createRandom()
+const bob = addressOf(bobSigner)
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 async function waitFor(check, description) {
@@ -71,25 +80,26 @@ function presence(engine, channel, address, ownerAddress = alice) {
 }
 
 async function expectPresence(first, second, channel, sessionId) {
-  first.joinChannelPresence(channel, { ownerAddress: alice, sessionId })
+  first.joinChannelPresence(
+    channel,
+    await presenceOptions(first, channel, 'online', {
+      ownerAddress: alice,
+      sessionId,
+    })
+  )
   await waitFor(
     () => presence(second, channel, alice),
     `presence for ${channel}`
   )
 }
 
-function idTopic(channelId) {
-  return crypto
-    .createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}id:${channelId}:candidates`)
-    .digest('hex')
+// v2: the public channel ID that replaces a channel handle on the wire.
+function channelKey(handle) {
+  return resolveChannelHandle(handle).channelKey
 }
 
-function chatTopic(channelId) {
-  return crypto
-    .createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}channel:${channelId}:chat`)
-    .digest('hex')
+function chatTopic(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).chat.toString('hex')
 }
 
 function mockDiscovery(context) {
@@ -121,8 +131,8 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
     'data',
     Buffer.from(
       JSON.stringify({
-        type: 'channel-proof-challenge',
-        version: CHANNEL_PROOF_VERSION,
+        v: 2,
+        type: 'channel-challenge',
         challenge: crypto.randomBytes(32).toString('hex'),
       }) + '\n'
     )
@@ -130,7 +140,7 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
   return {
     frames,
     publicKey,
-    challenge: frames.find(frame => frame.type === 'channel-proof-challenge')
+    challenge: frames.find(frame => frame.type === 'channel-challenge')
       .challenge,
     send(frame) {
       stream.emit('data', Buffer.from(JSON.stringify(frame) + '\n'))
@@ -139,26 +149,26 @@ function remoteConnection(swarm, publicKey = crypto.randomBytes(32)) {
       info.topics = topics.map(topic => Buffer.from(topic, 'hex'))
       info.emit('topic')
     },
-    proof(channelId, challenge = this.challenge) {
-      const topic = idTopic(channelId)
+    proof(handle, challenge = this.challenge) {
+      const topic = chatTopic(handle)
       return {
         topic,
-        proof: createChannelTopicProof({
-          channelId,
+        proof: createChannelProof({
+          key: resolveChannelHandle(handle).key,
           topic,
           challenge,
           proverPublicKey: publicKey,
           verifierPublicKey: swarm.keyPair.publicKey,
-        }),
+        }).toString('hex'),
       }
     },
-    authorize(channelId) {
-      this.send({ type: 'channel-scope', topics: [idTopic(channelId)] })
+    authorize(handle) {
+      this.send({ v: 2, type: 'channel-scope', topics: [chatTopic(handle)] })
       this.send({
+        v: 2,
         type: 'channel-proof',
-        version: CHANNEL_PROOF_VERSION,
         challenge: this.challenge,
-        proofs: [this.proof(channelId)],
+        proofs: [this.proof(handle)],
       })
     },
     close() {
@@ -178,28 +188,27 @@ describe('channel authorization cache', () => {
     await join(second, 'cached-0')
     test.connect(first, second)
     await expectPresence(first, second, 'cached-0', 'warm-up')
-    first.heartbeatChannelPresence('cached-0', {
+    const heartbeat = await presenceOptions(first, 'cached-0', 'heartbeat', {
       ownerAddress: alice,
       sessionId: 'warm-up',
     })
-    await tick()
-
-    const hash = context.mock.method(crypto, 'createHash')
-    for (let index = 0; index < 100; index++) {
-      first.heartbeatChannelPresence('cached-0', {
-        ownerAddress: alice,
-        sessionId: 'warm-up',
-      })
-    }
-    await tick()
-    assert.equal(hash.mock.callCount(), 0)
-    first.setChannelRemark('cached-0', 'renamed', { ownerAddress: alice })
-    first.updateChannelPresenceProfile('cached-0', {
+    const profile = await presenceOptions(first, 'cached-0', 'profile', {
       ownerAddress: alice,
       sessionId: 'warm-up',
       displayName: 'New profile',
       profileUpdatedAt: Date.now(),
     })
+    first.heartbeatChannelPresence('cached-0', heartbeat)
+    await tick()
+
+    const hash = context.mock.method(crypto, 'createHash')
+    for (let index = 0; index < 100; index++) {
+      first.heartbeatChannelPresence('cached-0', heartbeat)
+    }
+    await tick()
+    assert.equal(hash.mock.callCount(), 0)
+    first.setChannelRemark('cached-0', 'renamed', { ownerAddress: alice })
+    first.updateChannelPresenceProfile('cached-0', profile)
     await tick()
     assert.equal(hash.mock.callCount(), 0)
     assert.equal(presence(second, 'cached-0', alice).displayName, 'New profile')
@@ -218,6 +227,54 @@ describe('channel authorization cache', () => {
     }
   })
 
+  it('sends both live sessions and a subsequent signed profile to a newly authorized peer', async context => {
+    const test = await fixture(context)
+    const first = await test.engine()
+    const second = await test.engine()
+    const channel = 'late-presence'
+    for (const engine of [first, second]) await join(engine, channel)
+    for (const sessionId of ['one', 'two']) {
+      first.joinChannelPresence(
+        channel,
+        await presenceOptions(first, channel, 'online', { sessionId })
+      )
+    }
+    const profile = name =>
+      presenceOptions(first, channel, 'profile', {
+        sessionId: 'two',
+        displayName: name,
+      })
+    first.updateChannelPresenceProfile(channel, await profile('Before connect'))
+    test.connect(first, second)
+    await waitFor(
+      () => presence(second, channel, alice)?.displayName === 'Before connect',
+      'cached signed profile'
+    )
+    first.leaveChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'offline', { sessionId: 'two' })
+    )
+    first.updateChannelPresenceProfile(
+      channel,
+      await presenceOptions(first, channel, 'profile', {
+        sessionId: 'one',
+        displayName: 'Remaining tab',
+      })
+    )
+    await waitFor(
+      () => presence(second, channel, alice)?.displayName === 'Remaining tab',
+      'remaining session after late connect'
+    )
+    first.leaveChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'offline', { sessionId: 'one' })
+    )
+    await waitFor(
+      () => !presence(second, channel, alice),
+      'last session leaving'
+    )
+  })
+
   it('revokes a leaving channel before closing cores and supports rejoining', async context => {
     const test = await fixture(context)
     const first = await test.engine()
@@ -226,10 +283,13 @@ describe('channel authorization cache', () => {
     await join(first, channel)
     await join(second, channel, bob)
     test.connect(first, second)
-    first.joinChannelPresence(channel, {
-      ownerAddress: alice,
-      sessionId: 'warm',
-    })
+    first.joinChannelPresence(
+      channel,
+      await presenceOptions(first, channel, 'online', {
+        ownerAddress: alice,
+        sessionId: 'warm',
+      })
+    )
     await waitFor(
       () => presence(second, channel, alice, bob),
       'initial authorization'
@@ -239,8 +299,10 @@ describe('channel authorization cache', () => {
     const leaving = first.leaveChannel(channel, { ownerAddress: alice })
     second.sendChannelVoiceEvent(
       channel,
-      { event: 'join', sessionId: 'during-leave' },
-      { ownerAddress: bob }
+      await signedVoice(channelKey(channel), 'join', 'during-leave', {
+        signer: bobSigner,
+      }),
+      { ownerAddress: bob, sourceId: 'ws:bob' }
     )
     await leaving
     await tick()
@@ -250,8 +312,10 @@ describe('channel authorization cache', () => {
     await join(first, channel)
     second.sendChannelVoiceEvent(
       channel,
-      { event: 'join', sessionId: 'after-rejoin' },
-      { ownerAddress: bob }
+      await signedVoice(channelKey(channel), 'join', 'after-rejoin', {
+        signer: bobSigner,
+      }),
+      { ownerAddress: bob, sourceId: 'ws:bob' }
     )
     await waitFor(
       () => voices.some(event => event.sessionId === 'after-rejoin'),
@@ -282,7 +346,7 @@ describe('channel authorization cache', () => {
         frame =>
           frame.type === 'channel-hello' &&
           frame.channels.some(
-            channel => channel.channelId === 'imported-channel'
+            channel => channel.channelId === channelKey('imported-channel')
           )
       )
     )
@@ -290,7 +354,7 @@ describe('channel authorization cache', () => {
     await target.clearUserData(alice)
     remote.frames.length = 0
     const removedChatTopic = chatTopic('imported-channel')
-    remote.setTopics([removedChatTopic, idTopic('retained-channel')])
+    remote.setTopics([removedChatTopic, chatTopic('retained-channel')])
     await tick()
     const scopes = remote.frames.filter(frame => frame.type === 'channel-scope')
     assert.ok(scopes.length > 0)
@@ -300,7 +364,7 @@ describe('channel authorization cache', () => {
     assert.ok(
       hellos.every(frame =>
         frame.channels.every(
-          channel => channel.channelId !== 'imported-channel'
+          channel => channel.channelId !== channelKey('imported-channel')
         )
       )
     )
@@ -338,21 +402,25 @@ describe('channel authorization cache', () => {
     test.track(second)
     for (const remote of [first, second]) {
       remote.send({
+        v: 2,
         type: 'channel-scope',
-        topics: [idTopic('allowed-channel'), idTopic('private-channel')],
+        topics: [chatTopic('allowed-channel'), chatTopic('private-channel')],
       })
     }
     first.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: first.challenge,
-      proofs: [{ topic: idTopic('allowed-channel'), proof: 'f'.repeat(64) }],
+      proofs: [{ topic: chatTopic('allowed-channel'), proof: 'f'.repeat(64) }],
     })
     await tick()
-    engine.joinChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.joinChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'online', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(
       [first, second].every(
         remote =>
@@ -365,46 +433,53 @@ describe('channel authorization cache', () => {
     assert.ok(first.frames.some(frame => frame.type === 'channel-presence'))
     for (const challenge of [first.challenge, second.challenge]) {
       second.send({
+        v: 2,
         type: 'channel-proof',
-        version: CHANNEL_PROOF_VERSION,
         challenge,
         proofs: [first.proof('allowed-channel')],
       })
     }
     second.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: second.challenge,
       proofs: [second.proof('allowed-channel', first.challenge)],
     })
     await tick()
-    engine.heartbeatChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.heartbeatChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'heartbeat', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(!second.frames.some(frame => frame.type === 'channel-presence'))
 
     const voices = []
     engine.on('channel:voice', event => voices.push(event))
     first.send({
+      v: 2,
       type: 'channel-voice',
       peerId: 'untrusted-peer',
-      channelId: 'private-channel',
+      channelId: channelKey('private-channel'),
       event: 'join',
       sessionId: 'untrusted-session',
       sender: { address: bob },
     })
-    engine.joinChannelPresence('private-channel', {
-      ownerAddress: alice,
-      sessionId: 'private',
-    })
+    engine.joinChannelPresence(
+      'private-channel',
+      await presenceOptions(engine, 'private-channel', 'online', {
+        ownerAddress: alice,
+        sessionId: 'private',
+      })
+    )
     await tick()
     assert.equal(voices.length, 0)
     assert.ok(
       first.frames.every(
         frame =>
           frame.type !== 'channel-presence' ||
-          frame.channelId !== 'private-channel'
+          frame.body.channelId !== channelKey('private-channel')
       )
     )
     assert.ok(
@@ -412,7 +487,7 @@ describe('channel authorization cache', () => {
         .filter(frame => frame.type === 'channel-hello')
         .every(frame =>
           frame.channels.every(
-            channel => channel.channelId !== 'private-channel'
+            channel => channel.channelId !== channelKey('private-channel')
           )
         )
     )
@@ -425,19 +500,23 @@ describe('channel authorization cache', () => {
     const replacement = remoteConnection(swarm, first.publicKey)
     test.track(replacement)
     replacement.send({
+      v: 2,
       type: 'channel-scope',
-      topics: [idTopic('allowed-channel')],
+      topics: [chatTopic('allowed-channel')],
     })
     replacement.send({
+      v: 2,
       type: 'channel-proof',
-      version: CHANNEL_PROOF_VERSION,
       challenge: replacement.challenge,
       proofs: [first.proof('allowed-channel')],
     })
-    engine.heartbeatChannelPresence('allowed-channel', {
-      ownerAddress: alice,
-      sessionId: 'online',
-    })
+    engine.heartbeatChannelPresence(
+      'allowed-channel',
+      await presenceOptions(engine, 'allowed-channel', 'heartbeat', {
+        ownerAddress: alice,
+        sessionId: 'online',
+      })
+    )
     assert.ok(
       !replacement.frames.some(frame => frame.type === 'channel-presence')
     )
@@ -447,74 +526,177 @@ describe('channel authorization cache', () => {
     )
   })
 
-  it('includes temporary ID discovery in proofs and expires it before creating a local channel', async context => {
+  it('sends signed signal frames only to the target swarm stream and drops unknown targets', async context => {
     const discovery = mockDiscovery(context)
     const test = await fixture(context)
     const engine = await test.engine(false)
-    await join(engine, 'permanent-channel')
+    const handle = 'voice-stream-routing'
+    await join(engine, handle)
+    const channelId = channelKey(handle)
+    const peers = [1, 2].map(() => remoteConnection(discovery.swarms.at(-1)))
+    for (const peer of peers) {
+      test.track(peer)
+      peer.authorize(handle)
+    }
+    await tick()
+    const frame = signed => ({ v: 2, type: 'channel-voice', ...signed })
+    peers[0].send(frame(await signedVoice(channelId, 'join', 'target')))
+    const options = { ownerAddress: alice, sourceId: 'ws:local' }
+    const signed = await signedVoice(channelId, 'signal', 'caller', {
+      targetSessionId: 'target',
+      transport: 'webrtc1',
+      signal: { type: 'offer', sdp: 'v=0' },
+    })
+    engine.sendChannelVoiceEvent(handle, signed, options)
+    assert.deepEqual(
+      peers[0].frames.filter(f => f.type === 'channel-voice'),
+      [frame(signed)]
+    )
+    assert.ok(!peers[1].frames.some(f => f.type === 'channel-voice'))
+    const delivered = []
+    engine.on('channel:voice', (event, target) =>
+      delivered.push({ event, target })
+    )
+    peers[0].send(
+      frame(
+        await signedVoice(channelId, 'signal', 'target', {
+          targetSessionId: 'caller',
+          transport: 'webrtc1',
+          signal: { type: 'answer', sdp: 'v=0' },
+        })
+      )
+    )
+    assert.deepEqual(
+      delivered.map(e => e.target),
+      ['ws:local']
+    )
+    peers[0].close()
+    await tick()
+    assert.equal(engine.sendChannelVoiceEvent(handle, signed, options), null)
+  })
+
+  it('sends the session frame first and requires signatures from peers that list no features', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    const handle = 'session-features'
+    await join(engine, handle)
+    const channelId = channelKey(handle)
+    const delivered = []
+    engine.on('channel:voice', event => delivered.push(event))
+
+    // These peers send no session frame, or one listing only other
+    // features: sig1 is never negotiated away.
+    for (const features of [null, ['e2ee1']]) {
+      const remote = remoteConnection(discovery.swarms.at(-1))
+      test.track(remote)
+      assert.deepEqual(remote.frames[0], {
+        v: 2,
+        type: 'session',
+        features: ['sig1'],
+      })
+      if (features) remote.send({ v: 2, type: 'session', features })
+      remote.authorize(handle)
+      await tick()
+
+      const sessionId = `unsigned-${features ? 'listed' : 'none'}`
+      const presenceFrame = await signedPresence(channelId, 'online', {
+        sessionId,
+      })
+      remote.send({ v: 2, type: 'channel-presence', body: presenceFrame.body })
+      const voiceFrame = await signedVoice(channelId, 'join', sessionId)
+      remote.send({ v: 2, type: 'channel-voice', body: voiceFrame.body })
+      await tick()
+      assert.equal(presence(engine, handle, alice), undefined)
+      assert.equal(delivered.length, 0)
+      remote.close()
+      await tick()
+    }
+
+    // Control: the same frames signed are accepted from a peer without one.
     const remote = remoteConnection(discovery.swarms.at(-1))
     test.track(remote)
-    remote.authorize('permanent-channel')
+    remote.authorize(handle)
     await tick()
-    const temporaryTopic = idTopic('temporary-channel')
-    const pending = engine.createChannel('temporary-channel', 'public', {
-      ownerAddress: alice,
-      discover: true,
-      discoveryTimeout: 500,
+    remote.send({
+      v: 2,
+      type: 'channel-presence',
+      ...(await signedPresence(channelId, 'online', { sessionId: 'signed' })),
     })
-    try {
-      await tick()
-      remote.authorize('temporary-channel')
-      await tick()
-      assert.ok(
-        remote.frames.some(
-          frame =>
-            frame.type === 'channel-proof' &&
-            frame.proofs.some(item => item.topic === temporaryTopic)
-        )
-      )
+    remote.send({
+      v: 2,
+      type: 'channel-voice',
+      ...(await signedVoice(channelId, 'join', 'signed')),
+    })
+    await waitFor(() => presence(engine, handle, alice), 'signed presence')
+    await waitFor(() => delivered.length === 1, 'signed voice')
+  })
 
-      // Probe after temporary discovery is removed, before local core creation
-      // can join the permanent discovery topics and authorize that ID again.
-      let acceptedExpiredHello = false
-      engine.on('channel:peer:online', event => {
-        if (event.peerId === 'expired-temporary-peer')
-          acceptedExpiredHello = true
-      })
-      const leave = context.mock.method(
-        Hyperswarm.prototype,
-        'leave',
-        async function (topic) {
-          if (Buffer.from(topic).toString('hex') !== temporaryTopic) return
-          remote.send({
-            type: 'channel-hello',
-            peerId: 'expired-temporary-peer',
-            channels: [{ channelId: 'temporary-channel', writerCoreKeys: [] }],
-          })
-        }
-      )
-      await pending
-      assert.ok(
-        leave.mock.calls.some(
-          call =>
-            Buffer.from(call.arguments[0]).toString('hex') === temporaryTopic
-        )
-      )
-      assert.equal(acceptedExpiredHello, false)
-      engine.joinChannelPresence('temporary-channel', {
+  it('sends only v2 frames and drops frames without v: 2 without disconnecting', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    const handle = 'v2-frames'
+    await join(engine, handle)
+    const remote = remoteConnection(discovery.swarms.at(-1))
+    test.track(remote)
+
+    // v1-shaped scope and proof: dropped, so the channel stays unauthorized.
+    const { topic, proof } = remote.proof(handle)
+    remote.send({ type: 'channel-scope', topics: [topic] })
+    remote.send({
+      type: 'channel-proof',
+      version: 1,
+      challenge: remote.challenge,
+      proofs: [{ topic, proof }],
+    })
+    remote.send({ v: 3, type: 'channel-scope', topics: [topic] })
+    remote.send({ v: 2, type: 'unknown-frame' })
+    await tick()
+    assert.ok(!remote.frames.some(frame => frame.type === 'channel-hello'))
+
+    // The same connection still works with v2 frames.
+    remote.authorize(handle)
+    await waitFor(
+      () => remote.frames.some(frame => frame.type === 'channel-hello'),
+      'hello after v2 authorization'
+    )
+    assert.ok(remote.frames.every(frame => frame.v === 2))
+    assert.ok(remote.frames.some(frame => frame.type === 'channel-challenge'))
+    assert.ok(remote.frames.every(frame => frame.version === undefined))
+  })
+
+  it('identifies channels on the wire only by their public channel ID', async context => {
+    const discovery = mockDiscovery(context)
+    const test = await fixture(context)
+    const engine = await test.engine(false)
+    await join(engine, 'wire-channel')
+    const remote = remoteConnection(discovery.swarms.at(-1))
+    test.track(remote)
+    remote.authorize('wire-channel')
+    engine.joinChannelPresence(
+      'wire-channel',
+      await presenceOptions(engine, 'wire-channel', 'online', {
         ownerAddress: alice,
-        sessionId: 'permanent',
+        sessionId: 'wire',
       })
-      await tick()
-      assert.ok(
-        remote.frames.some(
-          frame =>
-            frame.type === 'channel-presence' &&
-            frame.channelId === 'temporary-channel'
-        )
+    )
+    await tick()
+
+    const hello = remote.frames.find(frame => frame.type === 'channel-hello')
+    assert.deepEqual(
+      hello.channels.map(channel => channel.channelId),
+      [channelKey('wire-channel')]
+    )
+    assert.equal(hello.channels[0].channelKey, undefined)
+    const presenceFrame = remote.frames.find(
+      frame => frame.type === 'channel-presence'
+    )
+    assert.equal(presenceFrame.body.channelId, channelKey('wire-channel'))
+    assert.ok(
+      remote.frames.every(
+        frame => !JSON.stringify(frame).includes('wire-channel')
       )
-    } finally {
-      await pending
-    }
+    )
   })
 })

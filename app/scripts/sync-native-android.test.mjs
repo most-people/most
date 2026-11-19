@@ -64,7 +64,7 @@ describe('Android native project synchronization', () => {
     assert.equal(resolveProductProfile('most').appName, 'MostBox')
     assert.equal(resolveProductProfile('most').androidPackage, 'most.box')
     assert.equal(resolveProductProfile('inkbox').appName, '墨盒')
-    assert.equal(resolveProductProfile('mohe').androidPackage, 'red.most.mohe')
+    assert.equal(resolveProductProfile('mohe').androidPackage, 'most.people')
     assert.equal(resolveProductProfile('invalid').id, 'most')
   })
 

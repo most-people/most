@@ -12,6 +12,9 @@ export const zhCNConnectionMessages = {
   'remote.history.current': '当前',
   'remote.history.switchTo': '切换到 {url}',
   'remote.error.invalidUrl': '请输入有效的节点地址',
+  'remote.error.invite': '邀请码不对，请检查后重试',
+  'remote.error.busy': '节点请求太频繁，请稍等一分钟再试',
+  'remote.error.timeout': '连接节点超时，请检查网络后重试',
   'remote.error.http': '远程节点 HTTP 不可达，请检查地址',
   'remote.error.ws': '远程节点 WebSocket 不可达，请检查地址或代理配置',
   'remote.error.failed': '远程节点连接失败，请检查地址和邀请码',
@@ -38,6 +41,9 @@ export const zhTWConnectionMessages = {
   'remote.history.current': '當前',
   'remote.history.switchTo': '切換到 {url}',
   'remote.error.invalidUrl': '請輸入有效的節點地址',
+  'remote.error.invite': '邀請碼不對，請檢查後重試',
+  'remote.error.busy': '節點請求太頻繁，請稍等一分鐘再試',
+  'remote.error.timeout': '連線節點逾時，請檢查網路後重試',
   'remote.error.http': '遠端節點 HTTP 不可達，請檢查地址',
   'remote.error.ws': '遠端節點 WebSocket 不可達，請檢查地址或代理設定',
   'remote.error.failed': '遠端節點連線失敗，請檢查地址和邀請碼',
@@ -64,6 +70,11 @@ export const enConnectionMessages = {
   'remote.history.current': 'Current',
   'remote.history.switchTo': 'Switch to {url}',
   'remote.error.invalidUrl': 'Please enter a valid node URL',
+  'remote.error.invite': 'Wrong invite code. Check it and try again.',
+  'remote.error.busy':
+    'The node is getting too many requests. Wait a minute and try again.',
+  'remote.error.timeout':
+    'The node took too long to respond. Check your network and try again.',
   'remote.error.http': 'The remote node HTTP endpoint is unreachable',
   'remote.error.ws':
     'The remote node WebSocket endpoint is unreachable. Check the URL or proxy.',

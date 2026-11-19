@@ -203,6 +203,11 @@ export const appMessages = {
     'zh-TW': '這筆下載記錄缺少分享連結。',
     en: 'This download record does not contain a share link.',
   },
+  'app.download.failedTitle': {
+    'zh-CN': '下载失败',
+    'zh-TW': '下載失敗',
+    en: 'Download failed',
+  },
   'app.download.retryFailed': {
     'zh-CN': '重试失败',
     'zh-TW': '重試失敗',

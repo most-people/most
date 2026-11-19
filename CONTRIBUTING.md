@@ -33,7 +33,7 @@ Android 子包建议使用 Node.js >= 24，并在 `app/` 目录中执行安装�
 - 使用 ESM，本地导入带 `.js` 扩展名
 - 使用 2 空格缩进、单引号，默认不写分号
 - 只修改与问题直接相关的代码，不顺手重构无关模块
-- 修改 CID、发布、下载、链接解析或 P2P pull 时，不得改变 `most://`、CID 或 topic 不变量
+- 修改 CID、发布、下载、链接解析或 P2P pull 时，不得改变 `most://`、CID 或 topic 不变量；不兼容的协议改动只按[长期方案](docs/decentralization-plan.md)阶段 2 统一进行
 - 用户界面文案通过 i18n 消息键维护，前端样式使用 CSS class
 - 新行为需要覆盖对应的 `node:test` 回归；修复 Bug 时优先添加能够复现问题的测试
 

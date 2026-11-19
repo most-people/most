@@ -23,63 +23,87 @@ import path from 'node:path'
 import { Duplex, Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
+import { snapshotLocalChannelArchive } from './core/localChannelArchive.js'
 import {
   calculateCid,
   calculateDirectoryCid,
   parseMostLink,
   buildMostLink,
 } from './core/cid.js'
-import { normalizeChannelAttachment } from './core/channelAttachment.js'
-import { paginateChannelHistory } from './core/channelHistory.js'
+import { ACCOUNT_HELLO_TYPE, AccountSync } from './node/accountSync.js'
+import {
+  compareChannelHistoryEntries,
+  paginateChannelHistory,
+} from './core/channelHistory.js'
 import {
   MAX_CHANNEL_FRAME_BYTES,
   consumeChannelFrames,
 } from './core/channelFrames.js'
 import {
-  CHANNEL_PROOF_VERSION,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
   buildChannelHelloMessages,
   chunkChannelScopeTopics,
   createChannelProofChallenge,
-  createChannelTopicProof,
-  isChannelAllowedForConnection,
   normalizeChannelProofChallenge,
   normalizeChannelScopeTopics,
-  selectChannelsForHello,
-  verifyChannelTopicProof,
 } from './core/channelHello.js'
-import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
+import {
+  VoiceRoutes,
+  VOICE_FRAME_LIMIT,
+  voiceFrame,
+  voiceFrameError,
+  voiceEvent,
+} from './core/channelSignedVoice.js'
 import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
+import {
+  buildSessionFrame,
+  isSessionFrame,
+  isV2Frame,
+  parseSessionFeatures,
+  sharedFeatures,
+} from './core/channelSession.js'
+import { attachCidDriveChannel, cidDriveName } from './core/cidDriveExchange.js'
 import { P2PPingManager } from './core/p2pPing.js'
 import {
-  CHANNEL_DISCOVERY_TIMEOUT,
-  CHANNEL_CANDIDATE_TTL,
   normalizeChannelDisplayName,
   normalizeChannelAvatar,
   normalizeChannelId,
-  createChannelWriterId,
-  buildChannelKey,
   normalizeChannelKey,
   isSpecialChannel,
   uniqueStrings,
 } from './core/channelIdentity.js'
 import {
-  CHANNEL_MEMBER_JOINED_EVENT,
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+  verifyChannelProof,
+} from './core/channelKeysV2.js'
+import {
   CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS,
   CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
   getChannelHistoryDedupeKey,
-  isChannelHistoryEntry,
   isChannelMemberProfileEventEntry,
   normalizeChannelMentionList,
   normalizeClientMessageId,
 } from './core/channelMessage.js'
-import { ChannelPresenceManager } from './core/channelPresence.js'
 import {
-  createChannelPresenceMessage,
-  createChannelVoiceMessage,
-  normalizeRemoteChannelFrame,
-  normalizeRemoteChannelPresence,
-} from './core/channelWire.js'
+  SIGNED_TS_FUTURE_LIMIT_MS,
+  buildSignedEntry,
+  readSignedEntry,
+  readSignedMessageEntry,
+  readSignedProfileEntry,
+  signedMessageError,
+  signedProfileError,
+} from './core/channelSignedEntry.js'
+import { canonicalJson } from './core/canonicalJson.js'
+import {
+  createSignedPresenceFrame,
+  readSignedPresenceFrame,
+  presenceSession,
+  signedPresenceError,
+} from './core/channelSignedPresence.js'
+import { ChannelPresenceManager } from './core/channelPresence.js'
 import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
 import {
   normalizeOwnerAddress,
@@ -147,19 +171,18 @@ import {
   DOWNLOAD_POLL_INTERVAL_MIN,
   DOWNLOAD_POLL_INTERVAL_MAX,
   DRIVE_UPDATE_INTERVAL,
+  TOPIC_LOOKUP_INTERVAL,
   HOLDING_REJOIN_BATCH_SIZE,
   HOLDING_REJOIN_BATCH_DELAY,
   PROGRESS_THROTTLE,
   DEFAULT_READ_LIMIT,
-  CHANNEL_NAME_MIN_LENGTH,
-  CHANNEL_NAME_MAX_LENGTH,
-  CHANNEL_NAME_REGEX,
-  CHANNEL_NAME_PREFIX,
   CHANNEL_MESSAGE_LIMIT,
-  MAX_MESSAGE_LENGTH,
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
+// channel-keys.md §5: writer core keys accepted per channel from one hello.
+const MAX_HELLO_WRITER_CORE_KEYS = 256
 const PUBLISH_WRITE_STALL_TIMEOUT = 15 * 1000
 const PUBLISH_DRIVE_RESET_TIMEOUT = 5 * 1000
 const PUBLISH_BUFFER_WRITE_LIMIT = 32 * 1024 * 1024
@@ -168,6 +191,12 @@ const LOCAL_CONTENT_PROBE_TIMEOUT = 2 * 1000
 
 function hasOwnProperty(value, key) {
   return Object.prototype.hasOwnProperty.call(value || {}, key)
+}
+
+// 折叠是三态：true/false 为用户手动设置，undefined 表示交给前端自动判断。
+function getOwnerFolded(channel, owner) {
+  const value = owner ? channel?.foldedBy?.[owner] : undefined
+  return typeof value === 'boolean' ? value : undefined
 }
 
 function getDirectoryBlockBytes(directory) {
@@ -232,6 +261,8 @@ function createMemoryDuplexPair() {
   return [left, right]
 }
 
+const ACCOUNT_SYNC_RECONCILE_DELAY = 400
+
 export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
@@ -247,22 +278,30 @@ export class MostBoxEngine extends EventEmitter {
   #activePublishes = new Map()
   #seedStates = new Map()
   #holdingResumeTask = null
+  #cidDriveSecret = null
+  #cidDrivePeers = new Set()
+  #cidDriveOffers = new Map()
+  #cidDriveWants = new Map()
+  #cidDriveOfferWaiters = new Set()
   #storageReservations = new StorageReservationLedger()
 
   #channels = []
   #channelCores = new Map()
   #channelLocalCoreKey = new Map()
+  #channelCoresOpening = new Set()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
-  #channelIdDiscoveries = new Map()
   #channelTopicMap = null
   #channelTopicMapVersion = 0
   #channelPeers = new Map()
-  #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelPresence = null
   #channelCreationQueues = new Map()
   #channelMessageQueues = new Map()
+  #channelHistoryIndex = new Map()
+  #accountSync = null
+  #accountSyncQueue = Promise.resolve()
+  #accountSyncTimer = null
 
   #accountMetadata = { profiles: {} }
 
@@ -277,6 +316,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
    * @param {boolean} [options.disableNetwork] - 测试用：跳过真实 Hyperswarm 网络
    * @param {string|Buffer|null} [options.relayThrough] - 可选的 Hyperswarm 数据中继公钥
+   * @param {Array<string|object>} [options.bootstrap] - 测试用：覆盖 DHT bootstrap 节点（如本地测试网）
    */
   constructor(options) {
     super()
@@ -298,6 +338,7 @@ export class MostBoxEngine extends EventEmitter {
         options.localContentProbeTimeout ?? LOCAL_CONTENT_PROBE_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
       relayThrough: options.relayThrough || null,
+      bootstrap: options.bootstrap || SWARM_BOOTSTRAP,
       createP2PPingSwarm: options.createP2PPingSwarm,
     }
     this.#channelPresence = new ChannelPresenceManager({
@@ -316,85 +357,95 @@ export class MostBoxEngine extends EventEmitter {
     return this.#channelPresence.list(channel.channelKey)
   }
 
-  sendChannelVoiceEvent(channelKeyInput, input = {}, options = {}) {
+  #voiceRoutes = new VoiceRoutes()
+
+  sendChannelVoiceEvent(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = normalizeChannelVoiceEvent(channel.channelKey, input, options)
-    this.#broadcastChannelVoice(event)
-    this.emit('channel:voice', event)
+    const frame = voiceFrame(signed)
+    const error = voiceFrameError(frame, {
+      channelId: channel.channelKey,
+      author: normalizeOwnerAddress(options.ownerAddress),
+      event: options.event,
+    })
+    if (error || !options.sourceId)
+      throw new ValidationError(error || 'voice source required')
+    return this.#routeVoice(frame, options.sourceId)
+  }
+
+  #routeVoice(frame, source) {
+    const route = this.#voiceRoutes.accept(frame, source)
+    if (!route) return null
+    const event = voiceEvent(frame)
+    if (route.broadcast) {
+      if (typeof source === 'string') this.#broadcastChannelVoice(frame)
+      this.emit('channel:voice', event)
+    } else if (typeof route.target === 'string') {
+      this.emit('channel:voice', event, route.target)
+    } else if (typeof source === 'string') {
+      this.#sendChannelVoice(route.target, frame)
+    }
     return event
   }
 
-  joinChannelPresence(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.join(channel, {
-      ...options,
-      address: options.ownerAddress,
-      local: true,
-    })
-    if (event) {
-      this.#broadcastChannelPresence(event)
+  #applyPresence(channel, body, session) {
+    switch (body.status) {
+      case 'online':
+        return this.#channelPresence.join(channel, session)
+      case 'heartbeat':
+        return this.#channelPresence.heartbeat(channel, session)
+      case 'profile':
+        return this.#channelPresence.updateProfile(channel, session)
+      case 'offline':
+        return this.#channelPresence.leave(channel.channelKey, session)
     }
-    return this.#channelPresence.list(channel.channelKey)
   }
 
-  heartbeatChannelPresence(channelKeyInput, options = {}) {
+  #acceptLocalPresence(
+    channelKeyInput,
+    { signed, ownerAddress, sourceId },
+    status
+  ) {
     this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.heartbeat(channel, {
-      ...options,
-      address: options.ownerAddress,
+    this.#assertChannelMember(channelKeyInput, ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    const error = signedPresenceError(signed, {
+      channelId: channel.channelKey,
+      author: normalizeOwnerAddress(ownerAddress),
+      status,
+    })
+    if (error) throw new ValidationError(error)
+    const frame = createSignedPresenceFrame(structuredClone(signed))
+    this.#applyPresence(channel, frame.body, {
+      ...presenceSession(frame.body, sourceId),
       local: true,
+      frame,
     })
-    this.#broadcastChannelPresence(
-      event ||
-        this.#channelPresence.format(
-          channel.channelKey,
-          options.ownerAddress,
-          'heartbeat'
-        )
-    )
+    this.#broadcastChannelPresence(frame)
     return this.#channelPresence.list(channel.channelKey)
   }
 
-  updateChannelPresenceProfile(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = this.#channelPresence.updateProfile(channel, {
-      ...options,
-      address: options.ownerAddress,
-      local: true,
-    })
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
-    return this.#channelPresence.list(channel.channelKey)
+  joinChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'online')
   }
 
-  leaveChannelPresence(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const events = this.#channelPresence.leave(channel.channelKey, {
-      ...options,
-      address: options.ownerAddress,
-    })
-    events.forEach(event => this.#broadcastChannelPresence(event))
-    return this.#channelPresence.list(channel.channelKey)
+  heartbeatChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'heartbeat')
   }
 
-  clearChannelPresenceSource(sourceId, options = {}) {
+  updateChannelPresenceProfile(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'profile')
+  }
+
+  leaveChannelPresence(channel, options = {}) {
+    return this.#acceptLocalPresence(channel, options, 'offline')
+  }
+
+  clearChannelPresenceSource(sourceId) {
+    this.#voiceRoutes.clearSource(sourceId)
     this.#ensureInitialized()
-    const events = this.#channelPresence.clearSource(sourceId)
-    if (options.broadcast) {
-      events.forEach(event => this.#broadcastChannelPresence(event))
-    }
-    return events
+    return this.#channelPresence.clearSource(sourceId)
   }
 
   pruneChannelPresence() {
@@ -537,7 +588,7 @@ export class MostBoxEngine extends EventEmitter {
           : []),
         localKeyHex,
       ])
-      channel.writerId = createChannelWriterId()
+      channel.writerGeneration = (channel.writerGeneration || 0) + 1
       channel.localWriterCoreKey = ''
     }
 
@@ -571,6 +622,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const nodeSeed = loadOrCreateNodeSeed(dataPath)
+    this.#cidDriveSecret = nodeSeed
     const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
     this.#store = new Corestore(dataPath, {
       primaryKey: GLOBAL_SHARED_SEED,
@@ -604,6 +656,14 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    // The store lock is held, so no download can be using these: they are
+    // left over from a crash.
+    for (const name of fs.readdirSync(dataPath)) {
+      if (name.startsWith('.download-tmp-')) {
+        fs.rmSync(path.join(dataPath, name), { recursive: true, force: true })
+      }
+    }
+
     try {
       ensureNodeSeedPersisted(dataPath, nodeSeed)
     } catch (err) {
@@ -623,7 +683,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#swarm = new Hyperswarm({
         seed: nodeSeed,
         maxPeers: MAX_PEERS,
-        bootstrap: SWARM_BOOTSTRAP,
+        bootstrap: this.#options.bootstrap,
         firewall: () => false,
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
@@ -653,13 +713,14 @@ export class MostBoxEngine extends EventEmitter {
       })
 
       this.#store.replicate(conn)
+      this.#attachCidDrivePeer(conn)
       this.emit('connection', conn)
     })
 
     if (!this.#options.disableNetwork) {
       this.#chatSwarm = new Hyperswarm({
         maxPeers: MAX_PEERS,
-        bootstrap: SWARM_BOOTSTRAP,
+        bootstrap: this.#options.bootstrap,
         firewall: () => false,
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
@@ -749,7 +810,22 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
+      // Persist v1 records migrated to v2 channel keys on load.
+      this.#saveChannelsMetadata()
+
       this.#accountMetadata = this.#loadAccountMetadata()
+
+      this.#accountSync = new AccountSync({
+        store: this.#store,
+        dataPath: this.#options.dataPath,
+        swarm: this.#swarm,
+        chatSwarm: this.#chatSwarm,
+      })
+      this.#accountSync.on('change', event => {
+        this.emit('account:sync:change', event)
+        this.#enqueueAccountSync(() => this.#applyAccountSyncChange(event))
+      })
+      await this.#accountSync.start()
     } catch (err) {
       await this.stop()
       throw err
@@ -792,9 +868,20 @@ export class MostBoxEngine extends EventEmitter {
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
     this.#fileDiscoveries.clear()
+    this.#cidDrivePeers.clear()
+    this.#cidDriveOffers.clear()
+    this.#cidDriveWants.clear()
     this.#activePublishes.clear()
     this.#seedStates.clear()
     this.#holdingResumeTask = null
+
+    clearTimeout(this.#accountSyncTimer)
+    this.#accountSyncTimer = null
+    await this.#accountSyncQueue.catch(() => {})
+    if (this.#accountSync) {
+      await this.#accountSync.stop()
+      this.#accountSync = null
+    }
 
     if (this.#p2pPingManager) {
       await this.#p2pPingManager.destroy()
@@ -824,13 +911,12 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelLocalCoreKey.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
-    this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
-    this.#channelCandidateCache.clear()
     for (const stream of [...this.#channelStreams.keys()]) {
       this.#removeChannelStream(stream)
     }
     this.#channelPresence.clear()
+    this.#voiceRoutes.clear()
     this.#channels = []
     this.#invalidateChannelTopicMap()
 
@@ -866,6 +952,7 @@ export class MostBoxEngine extends EventEmitter {
       peers: total,
       appPeers: appConnections,
       chatPeers: chatConnections,
+      online: this.#swarm.dht?.online !== false,
       relayConfigured: Boolean(this.#options.relayThrough),
       status: total > 0 ? 'connected' : 'waiting',
     }
@@ -1116,6 +1203,14 @@ export class MostBoxEngine extends EventEmitter {
           starred: false,
           syncUpdatedAt: now,
         }
+        // Holding first: after a crash a library record always has one.
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: safeFileName,
+          size: fileSize,
+          driveName: name,
+          source: 'published',
+        })
         if (addToLibrary) {
           if (repairingMissingContent) {
             publishedBucket[existingIndex] = fileRecord
@@ -1124,13 +1219,6 @@ export class MostBoxEngine extends EventEmitter {
           }
           this.#savePublishedMetadata()
         }
-        this.#upsertHolding({
-          cid: cidString,
-          fileName: safeFileName,
-          size: fileSize,
-          driveName: name,
-          source: 'published',
-        })
 
         const result = {
           cid: cidString,
@@ -1347,6 +1435,14 @@ export class MostBoxEngine extends EventEmitter {
         syncUpdatedAt: now,
         ...(libraryVisible ? {} : { libraryVisible: false }),
       }
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeCollectionName,
+        kind: 'collection',
+        size: 0,
+        driveName: name,
+        source: 'published',
+      })
       if (addToLibrary) {
         if (repairingMissingContent) {
           publishedBucket[existingIndex] = fileRecord
@@ -1357,14 +1453,6 @@ export class MostBoxEngine extends EventEmitter {
         }
         this.#savePublishedMetadata()
       }
-      this.#upsertHolding({
-        cid: cidString,
-        fileName: safeCollectionName,
-        kind: 'collection',
-        size: 0,
-        driveName: name,
-        source: 'published',
-      })
 
       const result = {
         kind: 'collection',
@@ -1516,23 +1604,12 @@ export class MostBoxEngine extends EventEmitter {
         const localSize =
           Number(existingHolding?.size) ||
           (Number.isFinite(localContent.size) ? localContent.size : 0)
-        if (addToLibrary && !alreadyInOwnerLibrary) {
+        const addRecord = addToLibrary && !alreadyInOwnerLibrary
+        if (addRecord) {
           this.#assertDisplayNameAvailable(linkFileName, {
             ownerAddress,
             excludeCid: cidString,
           })
-          const syncUpdatedAt = Date.now()
-          publishedBucket.push({
-            fileName: linkFileName,
-            cid: cidString,
-            driveName: existingFile?.driveName || name,
-            size: localSize,
-            source: 'downloaded',
-            publishedAt: new Date(syncUpdatedAt).toISOString(),
-            starred: false,
-            syncUpdatedAt,
-          })
-          this.#savePublishedMetadata()
         }
         await this.#joinCidTopicInternal(cidString)
         this.#upsertHolding({
@@ -1542,12 +1619,26 @@ export class MostBoxEngine extends EventEmitter {
             (alreadyInOwnerLibrary ? existingFile?.fileName : linkFileName) ||
             linkFileName,
           size: localSize,
-          driveName: existingFile?.driveName || name,
+          driveName: name,
           source:
             existingHolding?.source ||
             (alreadyInOwnerLibrary ? existingFile?.source : 'downloaded') ||
             'downloaded',
         })
+        if (addRecord) {
+          const syncUpdatedAt = Date.now()
+          publishedBucket.push({
+            fileName: linkFileName,
+            cid: cidString,
+            driveName: name,
+            size: localSize,
+            source: 'downloaded',
+            publishedAt: new Date(syncUpdatedAt).toISOString(),
+            starred: false,
+            syncUpdatedAt,
+          })
+          this.#savePublishedMetadata()
+        }
         return {
           taskId,
           cid: cidString,
@@ -1596,327 +1687,343 @@ export class MostBoxEngine extends EventEmitter {
       })
 
       console.log(
-        `[MostBox] Waiting for drive entry /${cidString} (timeout: ${downloadTimeout / 1000}s)...`
+        `[MostBox] Waiting for a seed drive with /${cidString} (timeout: ${downloadTimeout / 1000}s)...`
       )
       const driveKey = '/' + cidString
-      const entry = await this.#waitForDriveEntry(
-        drive,
-        driveKey,
-        downloadTimeout,
-        taskId,
-        taskState
-      )
-
-      if (!entry) {
-        console.log(`[MostBox] Expected drive entry ${driveKey} not found`)
-
-        const peerCount = this.#swarm.connections.size
-        let errorMessage = `Expected file ${driveKey} was not found. `
-
-        if (peerCount === 0) {
-          errorMessage +=
-            'Could not connect to any peers. This may be due to:\n'
-          errorMessage += '1. Network firewall blocking P2P connections\n'
-          errorMessage += '2. DHT bootstrap nodes unreachable\n'
-          errorMessage += '3. NAT traversal failed (try port forwarding)\n'
-          errorMessage += '4. No peers are currently sharing this file'
-        } else {
-          errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
-          errorMessage += '1. Publisher node offline\n'
-          errorMessage += '2. File may have been removed by publisher\n'
-          errorMessage += '3. File link may be invalid or corrupted'
-        }
-
-        throw new PeerNotFoundError(errorMessage)
-      }
-
-      if (taskState.aborted) throw new Error('Download cancelled')
-
-      console.log(
-        `[MostBox] Found expected entry ${driveKey}, starting download...`
-      )
-
-      const remoteCollection = await this.#tryReadCollectionFromDrive(
-        cidString,
-        drive,
-        linkFileName
-      )
-      if (remoteCollection) {
-        const result = await this.#downloadCollectionFiles(
-          remoteCollection,
-          taskId,
-          {
-            ...options,
-            ownerAddress,
-            fileName: linkFileName,
-            taskState,
-          }
+      const discoveryDeadline = Date.now() + downloadTimeout
+      const triedKeys = new Set()
+      let sourceMismatch = null
+      findSource: for (;;) {
+        const source = await this.#waitForRemoteCidDrive(
+          cidString,
+          discoveryDeadline - Date.now(),
+          { triedKeys, taskId, taskState }
         )
-        return result
-      }
-
-      const writableCheck = await checkDirectoryWritable(this.#options.dataPath)
-      if (!writableCheck.writable) {
-        throw new PermissionError(writableCheck.error)
-      }
-
-      // 下载文件
-      const entries = [entry]
-      for (const entry of entries) {
-        const cleanKey = entry.key.replace(/^[\/\\]/, '')
-        const sanitizedFileName = linkFileName
-          ? sanitizeFilename(linkFileName)
-          : sanitizeFilename(cleanKey)
-
-        let totalBytes = 0
+        const entry = source?.entry
+        const sourceDrive = source?.drive
         try {
-          const stat = await drive.entry(entry.key)
-          if (stat && stat.value && stat.value.blob) {
-            totalBytes = stat.value.blob.byteLength || 0
+          if (!entry) {
+            if (sourceMismatch) throw sourceMismatch
+            console.log(`[MostBox] Expected drive entry ${driveKey} not found`)
+
+            const peerCount = this.#swarm.connections.size
+            let errorMessage = `Expected file ${driveKey} was not found. `
+
+            if (peerCount === 0) {
+              errorMessage +=
+                'Could not connect to any peers. This may be due to:\n'
+              errorMessage += '1. Network firewall blocking P2P connections\n'
+              errorMessage += '2. DHT bootstrap nodes unreachable\n'
+              errorMessage += '3. NAT traversal failed (try port forwarding)\n'
+              errorMessage += '4. No peers are currently sharing this file'
+            } else {
+              errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
+              errorMessage += '1. Publisher node offline\n'
+              errorMessage += '2. File may have been removed by publisher\n'
+              errorMessage += '3. File link may be invalid or corrupted'
+            }
+
+            throw new PeerNotFoundError(errorMessage)
           }
-        } catch {
-          // 忽略
-        }
-
-        if (totalBytes > this.#options.maxFileSize) {
-          throw new FileSizeError(
-            'Downloaded file exceeds the configured maximum file size',
-            totalBytes,
-            this.#options.maxFileSize
-          )
-        }
-
-        const tempDir = fs.mkdtempSync(
-          path.join(this.#options.dataPath, '.download-tmp-')
-        )
-        const tempPath = path.join(tempDir, 'content')
-        const existingHolding = this.#holdings.find(
-          item => item.cid === cidString
-        )
-        taskState.releaseCapacity = this.#reserveCapacity(
-          existingHolding ? 0 : totalBytes,
-          [
-            {
-              path: this.#options.dataPath,
-              bytes: totalBytes,
-              label: 'hyperdrive',
-            },
-            {
-              path: this.#options.dataPath,
-              bytes: totalBytes,
-              label: 'download-temp',
-            },
-          ]
-        )
-
-        try {
-          this.emit('download:status', {
-            taskId,
-            cid: cidString,
-            topic: topicHex,
-            status: 'downloading',
-            file: sanitizedFileName,
-            size: totalBytes ? formatFileSize(totalBytes) : null,
-          })
-
-          const rs = drive.createReadStream(entry.key)
-          const ws = fs.createWriteStream(tempPath)
-
-          taskState.readStream = rs
-          taskState.writeStream = ws
-
-          let loadedBytes = 0
-          let lastProgressUpdate = 0
-
-          await new Promise((resolve, reject) => {
-            let settled = false
-            let readTimer = null
-
-            const clearReadTimer = () => {
-              if (readTimer) {
-                clearTimeout(readTimer)
-                readTimer = null
-              }
-            }
-
-            const fail = err => {
-              if (settled) return
-              settled = true
-              clearReadTimer()
-              rs.destroy(err)
-              ws.destroy()
-              fs.unlink(tempPath, () => {})
-              reject(err)
-            }
-
-            const complete = () => {
-              if (settled) return
-              settled = true
-              clearReadTimer()
-              resolve()
-            }
-
-            const resetReadTimer = () => {
-              clearReadTimer()
-              if (streamReadTimeout > 0) {
-                readTimer = setTimeout(() => {
-                  fail(
-                    new Error(
-                      `Download stalled: no data received for ${streamReadTimeout / 1000}s`
-                    )
-                  )
-                }, streamReadTimeout)
-              }
-            }
-
-            resetReadTimer()
-
-            rs.on('data', chunk => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-                return
-              }
-              resetReadTimer()
-              loadedBytes += chunk.length
-              const now = Date.now()
-              if (
-                totalBytes > 0 &&
-                now - lastProgressUpdate > PROGRESS_THROTTLE
-              ) {
-                lastProgressUpdate = now
-                const percent = Math.round((loadedBytes / totalBytes) * 100)
-                this.emit('download:progress', {
-                  taskId,
-                  loaded: loadedBytes,
-                  total: totalBytes,
-                  percent,
-                })
-              }
-            })
-
-            rs.pipe(ws)
-            ws.on('finish', complete)
-            ws.on('error', fail)
-            rs.on('error', fail)
-            rs.on('close', () => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-              }
-            })
-            ws.on('close', () => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-              }
-            })
-          })
 
           if (taskState.aborted) throw new Error('Download cancelled')
 
-          this.emit('download:status', {
-            taskId,
-            cid: cidString,
-            topic: topicHex,
-            status: 'verifying',
-          })
-
-          const { cid: downloadedCid, size: downloadedSize } =
-            await calculateCid(tempPath)
-          const downloadedCidString = downloadedCid.toString()
-
-          if (downloadedCidString !== cidString) {
-            throw new IntegrityError(
-              `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
-            )
-          }
-
-          const driveKey = '/' + cidString
-          const existingEntry = await drive.entry(driveKey, { wait: false })
-          const hasDriveContent =
-            Boolean(existingEntry?.value?.blob) &&
-            (await this.#hasLocalDriveContent(drive, driveKey))
-          if (!hasDriveContent) {
-            await pipeline(
-              fs.createReadStream(tempPath),
-              drive.createWriteStream(driveKey)
-            )
-          }
-          const verifyEntry = await drive.entry(driveKey, { wait: false })
-          const verifiedDriveContent =
-            Boolean(verifyEntry?.value?.blob) &&
-            (await this.#hasLocalDriveContent(drive, driveKey))
-          if (!verifiedDriveContent) {
-            throw new IntegrityError(
-              `Failed to write file to Hyperdrive for seeding: ${driveKey}`
-            )
-          }
-          await this.#joinCidTopicInternal(cidString)
-
-          const result = {
-            taskId,
-            cid: cidString,
-            fileName: sanitizedFileName,
-            localAvailable: true,
-          }
-
-          const publishedBucket = addToLibrary
-            ? this.#getPublishedBucket(ownerAddress, true)
-            : []
-          const existingIndex = publishedBucket.findIndex(
-            f => f.cid === cidString
+          console.log(
+            `[MostBox] Found expected entry ${driveKey}, starting download...`
           )
-          if (addToLibrary) {
-            this.#assertDisplayNameAvailable(sanitizedFileName, {
-              ownerAddress,
-              excludeCid: cidString,
-            })
-          }
-          const savedSize =
-            totalBytes || downloadedSize || fs.statSync(tempPath).size
-          const syncUpdatedAt =
-            existingIndex !== -1
-              ? getNextSyncTimestamp(
-                  publishedBucket[existingIndex].syncUpdatedAt
-                )
-              : Date.now()
-          if (addToLibrary) {
-            if (existingIndex !== -1) {
-              const existing = publishedBucket[existingIndex]
-              existing.fileName = sanitizedFileName
-              existing.driveName = name
-              existing.size = savedSize
-              existing.source = 'downloaded'
-              existing.publishedAt = new Date(syncUpdatedAt).toISOString()
-              existing.syncUpdatedAt = syncUpdatedAt
-            } else {
-              publishedBucket.push({
-                fileName: sanitizedFileName,
-                cid: cidString,
-                driveName: name,
-                size: savedSize,
-                source: 'downloaded',
-                publishedAt: new Date(syncUpdatedAt).toISOString(),
-                starred: false,
-                syncUpdatedAt,
-              })
-            }
-            this.#savePublishedMetadata()
-          }
-          this.#upsertHolding({
-            cid: cidString,
-            fileName: sanitizedFileName,
-            size: savedSize,
-            driveName: name,
-            source: 'downloaded',
-          })
 
-          if (!options.suppressSuccessEvent) {
-            this.emit('download:success', result)
+          const remoteCollection = await this.#tryReadCollectionFromDrive(
+            cidString,
+            sourceDrive,
+            linkFileName
+          )
+          if (remoteCollection) {
+            await this.#copyUnixfsBlocks(sourceDrive, drive, cidString)
+            const result = await this.#downloadCollectionFiles(
+              remoteCollection,
+              taskId,
+              {
+                ...options,
+                ownerAddress,
+                fileName: linkFileName,
+                taskState,
+              }
+            )
+            return result
           }
-          return result
+
+          const writableCheck = await checkDirectoryWritable(
+            this.#options.dataPath
+          )
+          if (!writableCheck.writable) {
+            throw new PermissionError(writableCheck.error)
+          }
+
+          // 下载文件
+          const entries = [entry]
+          for (const entry of entries) {
+            const cleanKey = entry.key.replace(/^[\/\\]/, '')
+            const sanitizedFileName = linkFileName
+              ? sanitizeFilename(linkFileName)
+              : sanitizeFilename(cleanKey)
+
+            let totalBytes = 0
+            try {
+              const stat = await sourceDrive.entry(entry.key)
+              if (stat && stat.value && stat.value.blob) {
+                totalBytes = stat.value.blob.byteLength || 0
+              }
+            } catch {
+              // 忽略
+            }
+
+            if (totalBytes > this.#options.maxFileSize) {
+              throw new FileSizeError(
+                'Downloaded file exceeds the configured maximum file size',
+                totalBytes,
+                this.#options.maxFileSize
+              )
+            }
+
+            const tempDir = fs.mkdtempSync(
+              path.join(this.#options.dataPath, '.download-tmp-')
+            )
+            const tempPath = path.join(tempDir, 'content')
+            const existingHolding = this.#holdings.find(
+              item => item.cid === cidString
+            )
+            taskState.releaseCapacity = this.#reserveCapacity(
+              existingHolding ? 0 : totalBytes,
+              [
+                {
+                  path: this.#options.dataPath,
+                  bytes: totalBytes,
+                  label: 'hyperdrive',
+                },
+                {
+                  path: this.#options.dataPath,
+                  bytes: totalBytes,
+                  label: 'download-temp',
+                },
+              ]
+            )
+
+            try {
+              this.emit('download:status', {
+                taskId,
+                cid: cidString,
+                topic: topicHex,
+                status: 'downloading',
+                file: sanitizedFileName,
+                size: totalBytes ? formatFileSize(totalBytes) : null,
+              })
+
+              const rs = sourceDrive.createReadStream(entry.key)
+              const ws = fs.createWriteStream(tempPath)
+
+              taskState.readStream = rs
+              taskState.writeStream = ws
+
+              let loadedBytes = 0
+              let lastProgressUpdate = 0
+
+              await new Promise((resolve, reject) => {
+                let settled = false
+                let readTimer = null
+
+                const clearReadTimer = () => {
+                  if (readTimer) {
+                    clearTimeout(readTimer)
+                    readTimer = null
+                  }
+                }
+
+                const fail = err => {
+                  if (settled) return
+                  settled = true
+                  clearReadTimer()
+                  rs.destroy(err)
+                  ws.destroy()
+                  fs.unlink(tempPath, () => {})
+                  reject(err)
+                }
+
+                const complete = () => {
+                  if (settled) return
+                  settled = true
+                  clearReadTimer()
+                  resolve()
+                }
+
+                const resetReadTimer = () => {
+                  clearReadTimer()
+                  if (streamReadTimeout > 0) {
+                    readTimer = setTimeout(() => {
+                      fail(
+                        new Error(
+                          `Download stalled: no data received for ${streamReadTimeout / 1000}s`
+                        )
+                      )
+                    }, streamReadTimeout)
+                  }
+                }
+
+                resetReadTimer()
+
+                rs.on('data', chunk => {
+                  if (taskState.aborted) {
+                    fail(new Error('Download cancelled'))
+                    return
+                  }
+                  resetReadTimer()
+                  loadedBytes += chunk.length
+                  const now = Date.now()
+                  if (
+                    totalBytes > 0 &&
+                    now - lastProgressUpdate > PROGRESS_THROTTLE
+                  ) {
+                    lastProgressUpdate = now
+                    const percent = Math.round((loadedBytes / totalBytes) * 100)
+                    this.emit('download:progress', {
+                      taskId,
+                      loaded: loadedBytes,
+                      total: totalBytes,
+                      percent,
+                    })
+                  }
+                })
+
+                rs.pipe(ws)
+                ws.on('finish', complete)
+                ws.on('error', fail)
+                rs.on('error', fail)
+                rs.on('close', () => {
+                  if (taskState.aborted) {
+                    fail(new Error('Download cancelled'))
+                  }
+                })
+                ws.on('close', () => {
+                  if (taskState.aborted) {
+                    fail(new Error('Download cancelled'))
+                  }
+                })
+              })
+
+              if (taskState.aborted) throw new Error('Download cancelled')
+
+              this.emit('download:status', {
+                taskId,
+                cid: cidString,
+                topic: topicHex,
+                status: 'verifying',
+              })
+
+              const { cid: downloadedCid, size: downloadedSize } =
+                await calculateCid(tempPath)
+              const downloadedCidString = downloadedCid.toString()
+
+              if (downloadedCidString !== cidString) {
+                sourceMismatch = new IntegrityError(
+                  `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
+                )
+                console.warn(
+                  `[MostBox] Seed drive ${source.keyHex.slice(0, 16)} served wrong content for ${cidString}`
+                )
+                continue findSource
+              }
+
+              const driveKey = '/' + cidString
+              const existingEntry = await drive.entry(driveKey, { wait: false })
+              const hasDriveContent =
+                Boolean(existingEntry?.value?.blob) &&
+                (await this.#hasLocalDriveContent(drive, driveKey))
+              if (!hasDriveContent) {
+                await pipeline(
+                  fs.createReadStream(tempPath),
+                  drive.createWriteStream(driveKey)
+                )
+              }
+              const verifyEntry = await drive.entry(driveKey, { wait: false })
+              const verifiedDriveContent =
+                Boolean(verifyEntry?.value?.blob) &&
+                (await this.#hasLocalDriveContent(drive, driveKey))
+              if (!verifiedDriveContent) {
+                throw new IntegrityError(
+                  `Failed to write file to Hyperdrive for seeding: ${driveKey}`
+                )
+              }
+              await this.#joinCidTopicInternal(cidString)
+
+              const result = {
+                taskId,
+                cid: cidString,
+                fileName: sanitizedFileName,
+                localAvailable: true,
+              }
+
+              const publishedBucket = addToLibrary
+                ? this.#getPublishedBucket(ownerAddress, true)
+                : []
+              const existingIndex = publishedBucket.findIndex(
+                f => f.cid === cidString
+              )
+              if (addToLibrary) {
+                this.#assertDisplayNameAvailable(sanitizedFileName, {
+                  ownerAddress,
+                  excludeCid: cidString,
+                })
+              }
+              const savedSize =
+                totalBytes || downloadedSize || fs.statSync(tempPath).size
+              const syncUpdatedAt =
+                existingIndex !== -1
+                  ? getNextSyncTimestamp(
+                      publishedBucket[existingIndex].syncUpdatedAt
+                    )
+                  : Date.now()
+              this.#upsertHolding({
+                cid: cidString,
+                fileName: sanitizedFileName,
+                size: savedSize,
+                driveName: name,
+                source: 'downloaded',
+              })
+              if (addToLibrary) {
+                if (existingIndex !== -1) {
+                  const existing = publishedBucket[existingIndex]
+                  existing.fileName = sanitizedFileName
+                  existing.driveName = name
+                  existing.size = savedSize
+                  existing.source = 'downloaded'
+                  existing.publishedAt = new Date(syncUpdatedAt).toISOString()
+                  existing.syncUpdatedAt = syncUpdatedAt
+                } else {
+                  publishedBucket.push({
+                    fileName: sanitizedFileName,
+                    cid: cidString,
+                    driveName: name,
+                    size: savedSize,
+                    source: 'downloaded',
+                    publishedAt: new Date(syncUpdatedAt).toISOString(),
+                    starred: false,
+                    syncUpdatedAt,
+                  })
+                }
+                this.#savePublishedMetadata()
+              }
+
+              if (!options.suppressSuccessEvent) {
+                this.emit('download:success', result)
+              }
+              return result
+            } finally {
+              taskState.readStream = null
+              taskState.writeStream = null
+              fs.rmSync(tempDir, { recursive: true, force: true })
+            }
+          }
         } finally {
-          taskState.readStream = null
-          taskState.writeStream = null
-          fs.rmSync(tempDir, { recursive: true, force: true })
+          if (!source?.local) await sourceDrive?.close().catch(() => {})
         }
       }
     } finally {
@@ -2020,7 +2127,6 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const cidString = parsed.cid
-    const { driveName: name } = this.#getCidInfo(cidString)
     const localContent = await this.#getLocalCidContent(cidString, {
       ownerAddress,
       public: true,
@@ -2068,55 +2174,49 @@ export class MostBoxEngine extends EventEmitter {
       throw new PermissionError(writableCheck.error)
     }
 
-    let drive = this.#drives.get(name)
-
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(name, {
-        server: true,
-        client: true,
-      })
-    }
-
     await this.#joinCidTopicInternal(cidString)
 
-    const driveKey = '/' + cidString
-    const entry = await this.#waitForDriveEntry(drive, driveKey, timeout)
-
-    if (!entry) {
+    const source = await this.#waitForRemoteCidDrive(cidString, timeout)
+    if (!source) {
       throw new PeerNotFoundError(
         '当前没有发现可下载的在线种子，请稍后重试或确认发布者在线'
       )
     }
 
-    const collection = await this.#tryReadCollectionFromDrive(
-      cidString,
-      drive,
-      sanitizeFilename(parsed.fileName)
-    )
-    if (collection) {
+    const { drive, entry } = source
+    try {
+      const collection = await this.#tryReadCollectionFromDrive(
+        cidString,
+        drive,
+        sanitizeFilename(parsed.fileName)
+      )
+      if (collection) {
+        return {
+          available: true,
+          ...this.#withCollectionFileStates(collection),
+          alreadyExists: this.#isCollectionPublishedInOwnerLibrary(
+            collection,
+            ownerAddress
+          ),
+        }
+      }
+
+      let size = null
+      try {
+        const stat = await drive.entry(entry.key)
+        if (stat?.value?.blob) {
+          size = stat.value.blob.byteLength || 0
+        }
+      } catch {}
+
       return {
         available: true,
-        ...this.#withCollectionFileStates(collection),
-        alreadyExists: this.#isCollectionPublishedInOwnerLibrary(
-          collection,
-          ownerAddress
-        ),
+        cid: cidString,
+        fileName: parsed.fileName,
+        size,
       }
-    }
-
-    let size = null
-    try {
-      const stat = await drive.entry(entry.key)
-      if (stat?.value?.blob) {
-        size = stat.value.blob.byteLength || 0
-      }
-    } catch {}
-
-    return {
-      available: true,
-      cid: cidString,
-      fileName: parsed.fileName,
-      size,
+    } finally {
+      if (!source.local) await drive.close().catch(() => {})
     }
   }
 
@@ -2590,6 +2690,8 @@ export class MostBoxEngine extends EventEmitter {
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
+    this.#attachCidDrivePeer(left)
+    peerEngine.#attachCidDrivePeer(right)
     this.#handleChannelConnection(leftChat, localPeerInfo).catch(() => {})
     peerEngine
       .#handleChannelConnection(rightChat, remotePeerInfo)
@@ -2603,6 +2705,242 @@ export class MostBoxEngine extends EventEmitter {
         rightChat.destroy()
       },
     }
+  }
+
+  // ---- 账号状态同步：把本机变更发布到账号日志，并应用其他设备的变更 ----
+
+  #enqueueAccountSync(task) {
+    const run = this.#accountSyncQueue.then(task)
+    this.#accountSyncQueue = run.catch(err => {
+      console.warn('[MostBox] Account sync failed:', err.message)
+    })
+    return this.#accountSyncQueue
+  }
+
+  #scheduleAccountSyncReconcile() {
+    if (!this.#accountSync?.hasAccounts() || this.#accountSyncTimer) return
+    this.#accountSyncTimer = setTimeout(() => {
+      this.#accountSyncTimer = null
+      this.#enqueueAccountSync(async () => {
+        for (const address of this.#accountSync?.addresses() || []) {
+          await this.#reconcileAccountSync(address)
+        }
+      })
+    }, ACCOUNT_SYNC_RECONCILE_DELAY)
+    this.#accountSyncTimer.unref?.()
+  }
+
+  /**
+   * 账号同步用的稳定投影：只含用户设置的内容，去掉 lastMessageAt、writerCoreKeys、
+   * updatedAt 这类会随聊天活动频繁变化的字段，否则每条消息都会触发重复发布。
+   */
+  #toAccountSyncRecords(address) {
+    const backup = this.exportUserData(address)
+    const records = new Map()
+    if (backup.profile) {
+      const { displayName, avatar, tag } = backup.profile
+      records.set('profile:self', { displayName, avatar, tag })
+    }
+    for (const file of backup.files) {
+      const record = { ...file }
+      delete record.updatedAt
+      records.set(`file:${file.cid}`, record)
+    }
+    for (const channel of backup.channels) {
+      records.set(`channel:${channel.channelKey}`, {
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        remark: channel.remark,
+        pinned: channel.pinned,
+        folded: channel.folded,
+        member: channel.member
+          ? {
+              displayName: channel.member.displayName,
+              avatar: channel.member.avatar,
+              ...(channel.member.tag ? { tag: channel.member.tag } : {}),
+            }
+          : undefined,
+      })
+    }
+    return records
+  }
+
+  #hashAccountSyncRecord(record) {
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(record))
+      .digest('hex')
+  }
+
+  #stripEmptyChannelSettings(record) {
+    const data = { ...record }
+    if (!data.remark) delete data.remark
+    if (!data.pinned) delete data.pinned
+    if (typeof data.folded !== 'boolean') delete data.folded
+    return data
+  }
+
+  async #reconcileAccountSync(address) {
+    if (!address || !this.#accountSync?.has(address)) return
+    const records = this.#toAccountSyncRecords(address)
+    const published = this.#accountSync.getPublished(address)
+    let changed = false
+    for (const [key, record] of records) {
+      const hash = this.#hashAccountSyncRecord(record)
+      if (published.get(key) === hash) continue
+      const [kind, ...rest] = key.split(':')
+      // 首次发布的频道记录不带空的备注/置顶：否则新开启同步的节点会用空值
+      // 覆盖其他设备上已有的设置（最后写入者胜出）。之后的变化仍显式发布，包括清空。
+      const data =
+        kind === 'channel' && !published.has(key)
+          ? this.#stripEmptyChannelSettings(record)
+          : record
+      await this.#accountSync.append(address, {
+        kind,
+        id: rest.join(':'),
+        data,
+      })
+      published.set(key, hash)
+      changed = true
+    }
+    for (const key of [...published.keys()]) {
+      if (records.has(key)) continue
+      const [kind, ...rest] = key.split(':')
+      await this.#accountSync.append(address, {
+        kind,
+        id: rest.join(':'),
+        deleted: true,
+      })
+      published.delete(key)
+      changed = true
+    }
+    if (changed) this.#accountSync.setPublished(address, published)
+  }
+
+  /**
+   * 一批远端变更合并成一次导入：一次落盘、每类（资料/文件/频道）最多推送一次
+   * `user:metadata:updated`。逐条导入会让客户端为每条记录各刷新一次，几百条
+   * 记录足以触发节点限流。
+   */
+  async #applyAccountSyncChange({ address, changed }) {
+    const localDevice = this.#accountSync?.deviceIdFor(address)
+    // 同一批里同一条记录可能出现多次（来自不同设备），后出现的更新。
+    const latest = new Map()
+    for (const entry of changed) {
+      if (entry.deviceId === localDevice) continue
+      latest.set(`${entry.kind}:${entry.id}`, entry)
+    }
+
+    const applied = []
+    const channels = []
+    const files = []
+    let profile = null
+    for (const [key, entry] of latest) {
+      if (entry.kind === 'channel') {
+        const channel = this.#channels.find(
+          item => item.channelKey === entry.id
+        )
+        if (entry.deleted) {
+          if (channel && this.#channelHasMember(channel, address)) {
+            await this.leaveChannel(entry.id, { ownerAddress: address })
+          }
+        } else {
+          channels.push({
+            ...entry.data,
+            updatedAt: Math.max(
+              entry.updatedAt,
+              this.#getRecordUpdatedAt(channel) + 1
+            ),
+          })
+        }
+      } else if (entry.kind === 'file' && !entry.deleted) {
+        const existing = this.#getPublishedBucket(address).find(
+          file => file.cid === entry.id
+        )
+        files.push({
+          ...entry.data,
+          updatedAt: Math.max(
+            entry.updatedAt,
+            this.#getRecordUpdatedAt(existing) + 1
+          ),
+        })
+      } else if (entry.kind === 'profile' && !entry.deleted) {
+        profile = { ...entry.data, updatedAt: entry.updatedAt }
+      } else {
+        continue
+      }
+      applied.push(key)
+    }
+    if (applied.length === 0) return
+
+    if (profile || files.length > 0 || channels.length > 0) {
+      await this.#importAccountSyncRecord(
+        address,
+        { profile, files, channels },
+        { overwriteProfile: true }
+      )
+    }
+
+    // 记录应用后的本地内容哈希，避免把刚收到的变更再发布回去。
+    const published = this.#accountSync.getPublished(address)
+    const records = this.#toAccountSyncRecords(address)
+    for (const key of applied) {
+      const record = records.get(key)
+      if (record) published.set(key, this.#hashAccountSyncRecord(record))
+      else published.delete(key)
+    }
+    this.#accountSync.setPublished(address, published)
+  }
+
+  #importAccountSyncRecord(address, parts, options = {}) {
+    return this.importUserData(
+      address,
+      {
+        type: 'mostbox.account-backup',
+        schemaVersion: 1,
+        ownerAddress: address,
+        profile: null,
+        files: [],
+        channels: [],
+        ...parts,
+      },
+      options
+    )
+  }
+
+  /**
+   * 登记账号的同步子密钥，开始与同账号的其他设备同步账号状态。
+   * 节点只保存同步子密钥，不接触账号种子。
+   */
+  async registerAccountSync(ownerAddress, syncKey) {
+    this.#ensureInitialized()
+    const status = await this.#accountSync.register(ownerAddress, syncKey)
+    await this.#enqueueAccountSync(() =>
+      this.#reconcileAccountSync(normalizeOwnerAddress(ownerAddress))
+    )
+    return status
+  }
+
+  async unregisterAccountSync(ownerAddress) {
+    this.#ensureInitialized()
+    return this.#accountSync.unregister(ownerAddress)
+  }
+
+  getAccountSyncStatus(ownerAddress) {
+    this.#ensureInitialized()
+    return this.#accountSync.status(ownerAddress)
+  }
+
+  listAccountSyncEntries(ownerAddress, options = {}) {
+    this.#ensureInitialized()
+    return this.#accountSync.list(ownerAddress, options)
+  }
+
+  async appendAccountSyncEntry(ownerAddress, entry) {
+    this.#ensureInitialized()
+    return this.#accountSync.append(ownerAddress, entry)
   }
 
   getUserProfile(ownerAddressInput) {
@@ -2661,6 +2999,89 @@ export class MostBoxEngine extends EventEmitter {
       scope: 'profile',
     })
     return { ...profile }
+  }
+
+  /**
+   * Moves a v1 account's data on this node to its v2 chat identity
+   * (docs/protocol/v2/signatures.md §7.4) by renaming the owner: published
+   * files, channel membership with remarks and pins, and the profile. The
+   * caller has already proven control of both addresses. Returns what moved,
+   * or null when the old address has nothing on this node.
+   */
+  async migrateUserData(oldAddressInput, newAddressInput) {
+    this.#ensureInitialized()
+    const oldAddress = normalizeOwnerAddress(oldAddressInput)
+    const newAddress = normalizeOwnerAddress(newAddressInput)
+    if (!oldAddress || !newAddress || oldAddress === newAddress) {
+      throw new ValidationError('two different owner addresses are required')
+    }
+    const files = this.#getPublishedBucket(oldAddress)
+    const channels = this.#channels.filter(channel =>
+      this.#channelHasMember(channel, oldAddress)
+    )
+    const profile = this.#accountMetadata.profiles?.[oldAddress]
+    if (files.length === 0 && channels.length === 0 && !profile) return null
+
+    if (files.length > 0) {
+      const target = this.#getPublishedBucket(newAddress, true)
+      const known = new Set(target.map(file => file.cid))
+      for (const file of files) {
+        if (!known.has(file.cid)) target.push(file)
+      }
+      this.#setPublishedBucket(newAddress, target)
+      this.#setPublishedBucket(oldAddress, [])
+      this.#savePublishedMetadata()
+    }
+
+    const renameKey = map => {
+      if (!map || typeof map !== 'object') return map
+      const next = {}
+      for (const [address, value] of Object.entries(map)) {
+        const owner = normalizeOwnerAddress(address)
+        if (owner === oldAddress) {
+          if (!(newAddress in next)) next[newAddress] = value
+        } else {
+          next[address] = value
+        }
+      }
+      return next
+    }
+    for (const channel of channels) {
+      if (channel.legacyOwners?.includes(oldAddress)) {
+        channel.legacyOwners = uniqueStrings(
+          channel.legacyOwners.map(owner =>
+            owner === oldAddress ? newAddress : owner
+          )
+        )
+      }
+      const hasNew = this.#channelHasMember(channel, newAddress)
+      channel.members = channel.members.flatMap(member => {
+        if (normalizeOwnerAddress(member?.address) !== oldAddress) {
+          return [member]
+        }
+        return hasNew ? [] : [{ ...member, address: newAddress }]
+      })
+      channel.remarks = renameKey(channel.remarks)
+      channel.pinnedBy = renameKey(channel.pinnedBy)
+      channel.foldedBy = renameKey(channel.foldedBy)
+      channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
+    }
+    if (channels.length > 0) {
+      this.#saveChannelsMetadata()
+      this.#broadcastChannelHello()
+    }
+
+    if (profile) {
+      this.#accountMetadata.profiles[newAddress] ??= profile
+      delete this.#accountMetadata.profiles[oldAddress]
+      this.#saveAccountMetadata()
+    }
+
+    return {
+      filesMoved: files.length,
+      channelsMoved: channels.length,
+      profileMoved: Boolean(profile),
+    }
   }
 
   exportUserData(ownerAddressInput) {
@@ -2748,9 +3169,9 @@ export class MostBoxEngine extends EventEmitter {
     for (const channel of Array.isArray(backupInput.channels)
       ? backupInput.channels
       : []) {
-      const mergeResult = await this.#mergeAccountChannelRecord(
-        ownerAddress,
-        channel
+      const mergeResult = await this.#runChannelCreationTask(
+        normalizeChannelId(channel?.channelId),
+        () => this.#mergeAccountChannelRecord(ownerAddress, channel)
       )
       if (mergeResult.added) result.channelsAdded += 1
       else if (mergeResult.updated) result.channelsUpdated += 1
@@ -3033,7 +3454,28 @@ export class MostBoxEngine extends EventEmitter {
     }
     const node = dagPb.decode(block)
     const unixfs = UnixFS.unmarshal(node.Data)
-    return { node, unixfs }
+    return { node, unixfs, block }
+  }
+
+  // Copies the verified collection blocks that #readCollectionFromDrive reads.
+  async #copyUnixfsBlocks(source, target, rootCid, cid = rootCid) {
+    const { node, unixfs, block } = await this.#readUnixfsBlock(
+      source,
+      cid,
+      rootCid
+    )
+    await target.put(cid === rootCid ? `/${cid}` : `/.unixfs/${cid}`, block)
+    if (!unixfs.isDirectory()) return
+    for (const link of node.Links || []) {
+      if (link.Hash.code === 0x70) {
+        await this.#copyUnixfsBlocks(
+          source,
+          target,
+          rootCid,
+          link.Hash.toString()
+        )
+      }
+    }
   }
 
   async #readCollectionFromDrive(rootCid, drive, fileName) {
@@ -3443,10 +3885,11 @@ export class MostBoxEngine extends EventEmitter {
       (options.public
         ? this.#allPublishedRecords().find(f => f.cid === cid)
         : null)
-    if (!options.allowHoldingFallback && !fileRecord) {
+    const holding = this.#holdings.find(item => item.cid === cid)
+    // Blocks without a publish record or holding were never CID-verified here.
+    if (!fileRecord && !(options.allowHoldingFallback && holding)) {
       return null
     }
-    const holding = this.#holdings.find(item => item.cid === cid)
     const { driveName } = this.#getCidInfo(cid)
     const probeTimeoutMs = Number(options.probeTimeoutMs)
     const timeoutEnabled = Number.isFinite(probeTimeoutMs) && probeTimeoutMs > 0
@@ -3455,8 +3898,7 @@ export class MostBoxEngine extends EventEmitter {
       timeoutEnabled
         ? this.#withTimeout(promise, probeTimeoutMs, message, timeoutCode)
         : promise
-    const targetDriveName =
-      fileRecord?.driveName || holding?.driveName || driveName
+    const targetDriveName = driveName
     let drive = await this.#getOrCreateDrive(targetDriveName, {
       server: true,
       client: false,
@@ -3493,7 +3935,7 @@ export class MostBoxEngine extends EventEmitter {
           fileRecord: fileRecord || {
             cid,
             fileName: holding?.fileName || cid,
-            driveName: holding?.driveName || driveName,
+            driveName,
             kind: holding?.kind,
             size,
             ownerAddress,
@@ -3523,104 +3965,51 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [type='personal'] - 频道类型
    * @returns {Promise<object>}
    */
-  async createChannel(channelIdInput, type = 'personal', options = {}) {
+  async createChannel(handleInput, type = 'personal', options = {}) {
     this.#ensureInitialized()
-    const channelId = normalizeChannelId(channelIdInput)
-    const previous =
-      this.#channelCreationQueues.get(channelId) || Promise.resolve()
-    const pending = previous.then(() =>
-      this.#createChannel(channelId, type, options)
+    const resolved = resolveChannelHandle(handleInput)
+    if (!resolved) {
+      throw new ValidationError('频道凭证或名称无效', 'INVALID_CHANNEL_HANDLE')
+    }
+    return this.#runChannelCreationTask(resolved.channelKey, () =>
+      this.#createChannel(resolved, type, options)
     )
+  }
+
+  // 同一频道的创建/加入串行执行，避免并发请求各自写入一条频道记录。
+  async #runChannelCreationTask(channelKey, task) {
+    const previous =
+      this.#channelCreationQueues.get(channelKey) || Promise.resolve()
+    const pending = previous.then(task)
     const completed = pending.then(
       () => undefined,
       () => undefined
     )
-    this.#channelCreationQueues.set(channelId, completed)
+    this.#channelCreationQueues.set(channelKey, completed)
     try {
       return await pending
     } finally {
-      if (this.#channelCreationQueues.get(channelId) === completed) {
-        this.#channelCreationQueues.delete(channelId)
+      if (this.#channelCreationQueues.get(channelKey) === completed) {
+        this.#channelCreationQueues.delete(channelKey)
       }
     }
   }
 
-  async #createChannel(channelIdInput, type, options) {
+  async #createChannel(resolved, type, options) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
-    if (channelId.includes('.')) {
-      throw new Error('点号为系统保留，不能用于手动频道 ID')
-    }
-    if (!CHANNEL_NAME_REGEX.test(channelId)) {
-      throw new Error('频道名只能包含字母、数字、下划线和连字符')
-    }
-    if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
-      throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
-    }
-    if (channelId.length > CHANNEL_NAME_MAX_LENGTH) {
-      throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
-    }
+    const existing = this.#channels.find(
+      channel => channel.channelKey === resolved.channelKey
+    )
+    if (existing) return this.#joinExistingChannel(existing, options)
 
-    const localCandidates = this.#getLocalChannelCandidates(channelId)
-    const remoteCandidates = options.discover
-      ? await this.#discoverChannelCandidates(channelId, {
-          timeout: options.discoveryTimeout,
-        })
-      : []
-    const candidates = this.#mergeChannelCandidates([
-      ...localCandidates,
-      ...remoteCandidates,
-    ])
-
-    if (candidates.length > 0) {
-      const candidate = candidates[0]
-      if (candidate.local) {
-        const existing = this.#channels.find(
-          channel => channel.channelKey === candidate.channelKey
-        )
-        if (existing) {
-          const wasMember = this.#channelHasMember(existing, ownerAddress)
-          const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
-            existing,
-            candidate.writerCoreKeys
-          )
-          const memberChanged = this.#upsertChannelMember(existing, options)
-          if (writerKeysChanged || memberChanged) {
-            existing.syncUpdatedAt = getNextSyncTimestamp(
-              existing.syncUpdatedAt
-            )
-            this.#saveChannelsMetadata()
-            this.#broadcastChannelHello()
-          }
-          if (!wasMember || memberChanged) {
-            await this.#appendChannelMemberProfileMessage(existing, options)
-          }
-          await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-          return this.#formatChannelForResponse(existing, ownerAddress)
-        }
-        const joined = await this.#joinChannelFromCandidate(
-          candidate,
-          channelType,
-          options
-        )
-        return joined
-      }
-      const joined = await this.#joinChannelFromCandidate(
-        candidate,
-        channelType,
-        options
-      )
-      return joined
-    }
-
-    const channelInfo = await this.#createLocalChannel(channelId, channelType, {
+    const channelInfo = await this.#createLocalChannel(resolved, channelType, {
       ...options,
       ownerAddress,
     })
 
-    console.log(`[MostBox] Channel created: ${channelInfo.channelKey}`)
+    console.log(`[MostBox] Channel joined: ${channelInfo.channelKey}`)
     this.emit('channel:joined', {
       channel: channelInfo.channelKey,
       channelKey: channelInfo.channelKey,
@@ -3631,61 +4020,22 @@ export class MostBoxEngine extends EventEmitter {
     return this.#formatChannelForResponse(channelInfo, ownerAddress)
   }
 
+  async #joinExistingChannel(existing, options) {
+    const memberChanged = this.#upsertChannelMember(existing, options)
+    if (memberChanged) {
+      existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
+      this.#saveChannelsMetadata()
+      this.#broadcastChannelHello()
+    }
+    return this.#formatChannelForResponse(existing, options.ownerAddress)
+  }
+
   /**
-   * 通过已发现候选加入频道。
-   * @param {string} channelIdInput - 用户可见短频道 ID
-   * @param {object|string|null} candidateInput - 候选对象或 channelKey
-   * @returns {Promise<object>}
+   * 加入频道：v2 中频道句柄（凭证、旧 ID 或公开名）即频道，加入与创建相同。
+   * `_candidate` 为 v1 遗留参数，忽略。
    */
-  async joinChannel(channelIdInput, candidateInput = null, options = {}) {
-    this.#ensureInitialized()
-    const channelId = normalizeChannelId(channelIdInput)
-    const candidate =
-      candidateInput && typeof candidateInput === 'object'
-        ? candidateInput
-        : candidateInput
-          ? { channelKey: String(candidateInput), channelId }
-          : null
-
-    if (!candidate?.channelKey) {
-      return this.createChannel(channelId, options.type || 'group', options)
-    }
-
-    const channelKey = buildChannelKey(channelId)
-    const existing = this.#channels.find(c => c.channelKey === channelKey)
-    if (existing) {
-      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
-      const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
-        existing,
-        candidate.writerCoreKeys
-      )
-      const memberChanged = this.#upsertChannelMember(existing, options)
-      if (writerKeysChanged || memberChanged) {
-        existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
-        this.#saveChannelsMetadata()
-        this.#broadcastChannelHello()
-      }
-      if (!wasMember || memberChanged) {
-        await this.#appendChannelMemberProfileMessage(existing, options)
-      }
-      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-      return this.#formatChannelForResponse(existing, options.ownerAddress)
-    }
-
-    const cached =
-      this.#getCachedChannelCandidate(
-        channelId,
-        normalizeChannelKey(candidate.channelKey)
-      ) || this.#getCachedChannelCandidate(channelId, channelKey)
-    const joined = await this.#joinChannelFromCandidate(
-      cached || candidate,
-      'group',
-      {
-        ...options,
-        channelKey,
-      }
-    )
-    return joined
+  async joinChannel(handleInput, _candidate = null, options = {}) {
+    return this.createChannel(handleInput, options.type || 'group', options)
   }
 
   /**
@@ -3745,26 +4095,6 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
-    const hasSameIdChannel = this.#channels.some(
-      (item, itemIndex) =>
-        itemIndex !== index && item.channelId === channel.channelId
-    )
-    if (!hasSameIdChannel) {
-      const idDiscovery = this.#channelIdDiscoveries.get(channel.channelId)
-      if (idDiscovery && this.#chatSwarm) {
-        this.#channelIdDiscoveries.delete(channel.channelId)
-        this.#invalidateChannelTopicMap()
-        this.#chatSwarm
-          .leave(this.#generateChannelIdDiscoveryKey(channel.channelId))
-          .catch(err => {
-            console.warn(
-              `[MostBox] Failed to leave channel ID discovery for ${channel.channelId}:`,
-              err.message
-            )
-          })
-      }
-    }
-
     const coresMap = this.#channelCores.get(channel.channelKey)
     if (coresMap) {
       for (const [, core] of coresMap) {
@@ -3778,6 +4108,7 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
       this.#channelCores.delete(channel.channelKey)
+      this.#channelHistoryIndex.delete(channel.channelKey)
     }
     this.#channelLocalCoreKey.delete(channel.channelKey)
 
@@ -3852,6 +4183,30 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * 设置当前用户对频道的折叠偏好：true 手动折叠，false 手动取消折叠；
+   * 未设置时由前端按“无消息且未置顶”自动折叠。
+   */
+  setChannelFolded(channelKeyInput, folded, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new Error('需要登录才能设置折叠')
+    }
+
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    this.#assertChannelMember(channel.channelKey, ownerAddress)
+
+    if (!channel.foldedBy) {
+      channel.foldedBy = {}
+    }
+    channel.foldedBy[ownerAddress] = Boolean(folded)
+
+    channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
+    this.#saveChannelsMetadata()
+    return channel.foldedBy[ownerAddress]
+  }
+
+  /**
    * 列出频道；默认排除带点号的系统频道。
    * @returns {Array<{ channelId: string, channelKey: string, name: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
    */
@@ -3887,7 +4242,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
-    const unique = await this.#readChannelHistory(channel)
+    const unique = await this.#visibleHistory(channel, options.ownerAddress)
     const total = unique.length
     const start = Math.max(0, total - offset - limit)
     const end = total - offset
@@ -3903,7 +4258,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const entries = await this.#readChannelHistory(channel)
+    const entries = await this.#visibleHistory(channel, options.ownerAddress)
     const page = paginateChannelHistory(entries, channel.channelKey, options)
     return {
       messages: page.messages.map(({ _coreKey, _index, ...message }) =>
@@ -3911,6 +4266,31 @@ export class MostBoxEngine extends EventEmitter {
       ),
       nextCursor: page.nextCursor,
     }
+  }
+
+  /**
+   * A writer core block as a message or a member profile event, or null:
+   * v2 cores hold only signed entries (signatures.md §6).
+   */
+  #decodeChannelEntry(entry, channelKey) {
+    return readSignedEntry(entry, channelKey)
+  }
+
+  async #visibleHistory(channel, ownerAddress) {
+    const signed = await this.#readChannelHistory(channel)
+    if (!channel.legacyOwners?.includes(normalizeOwnerAddress(ownerAddress)))
+      return signed
+    const archive = JSON.parse(
+      await fs.promises.readFile(this.#archivePath(channel), 'utf8')
+    )
+    return signed.concat(archive).sort(compareChannelHistoryEntries)
+  }
+
+  #archivePath(channel) {
+    return path.join(
+      this.#options.dataPath,
+      `legacy-history-${channel.channelKey}.json`
+    )
   }
 
   async #readChannelHistory(channel, { strict = false } = {}) {
@@ -3923,10 +4303,14 @@ export class MostBoxEngine extends EventEmitter {
     for (const [coreKeyHex, core] of coresMap) {
       for (let i = 0; i < core.length; i++) {
         try {
-          const entry = await core.get(i)
-          if (isChannelHistoryEntry(entry)) {
+          const entry = await core.get(i, { wait: false })
+          // Only blocks held locally: a writer whose block has not arrived
+          // may be offline, and waiting would hang the read.
+          if (entry === null) break
+          const message = this.#decodeChannelEntry(entry, channel.channelKey)
+          if (message) {
             allMessages.push({
-              ...entry,
+              ...message,
               _coreKey: coreKeyHex,
               _index: i,
             })
@@ -3938,15 +4322,19 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    // Sort first so a duplicate keeps its earliest copy (§4.5).
+    allMessages.sort(compareChannelHistoryEntries)
     const seen = new Set()
     const unique = allMessages.filter(m => {
-      const key = getChannelHistoryDedupeKey(m)
+      // Shown messages are all signed: (author, id) is unique (§4.5).
+      const key =
+        m.type === 'message'
+          ? `message:${m.author}:${m.clientMessageId}`
+          : getChannelHistoryDedupeKey(m)
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
-
-    unique.sort((a, b) => a.timestamp - b.timestamp)
 
     this.#applyChannelMemberProfileEntries(channel, unique, { save: true })
 
@@ -3954,29 +4342,96 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * 发送消息到频道
-   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
-   * @param {string} content - 消息内容
-   * @param {string} author - 作者 address
-   * @param {string} authorName - 作者显示名
-   * @param {object} [options.attachment] - 附件元数据
+   * Writes a message a client signed (docs/protocol/v2/signatures.md §4.6).
+   * @param {string} channelKeyInput - 公开频道 ID，或本地句柄
+   * @param {{ body: object, device: string, cert: string, sig: string }} signed
+   * @param {object} [options]
+   * @param {string} [options.ownerAddress] - 已认证账号；须等于 body.author
    * @returns {Promise<object>}
    */
-  async sendMessage(
-    channelKeyInput,
-    content,
-    author,
-    authorName,
-    options = {}
-  ) {
+  async sendMessage(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const key = channel.channelKey
-    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
-    const pending = previous.then(() =>
-      this.#sendChannelMessage(key, content, author, authorName, options)
+    return this.#enqueueChannelWrite(channel.channelKey, () =>
+      this.#writeSignedMessage(channel.channelKey, signed, options)
     )
+  }
+
+  async #writeSignedMessage(channelKey, signed, options) {
+    const channel = this.#resolveChannel(channelKey, options.ownerAddress)
+    const error = signedMessageError(signed, { channelId: channel.channelKey })
+    if (error) throw new ValidationError(`Invalid signed message: ${error}`)
+    const { body } = signed
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (ownerAddress && body.author !== ownerAddress) {
+      throw new PermissionError('message author must match logged-in user')
+    }
+
+    const index = await this.#refreshChannelHistoryIndex(channel, {
+      strict: true,
+    })
+    const existing = index.byClientId.get(`${body.author}:${body.id}`)
+    if (existing) {
+      if (existing._bodyJson !== canonicalJson(body)) {
+        throw new ConflictError(
+          'clientMessageId already identifies another message'
+        )
+      }
+      const message = { ...existing }
+      delete message._coreKey
+      delete message._index
+      delete message._bodyJson
+      return this.#normalizeChannelMessageForResponse(
+        channel.channelKey,
+        message
+      )
+    }
+
+    if (
+      this.#upsertChannelMember(channel, {
+        ownerAddress: body.author,
+        displayName: body.authorName,
+        ...(hasOwnProperty(body, 'avatar') ? { avatar: body.avatar } : {}),
+      })
+    ) {
+      this.#saveChannelsMetadata()
+    }
+
+    const entry = buildSignedEntry(
+      signed,
+      await this.#getNextChannelMessageTimestamp(channel)
+    )
+    await this.#appendLocalChannelEntry(channel, entry)
+    const message = readSignedMessageEntry(entry, channel.channelKey)
+    channel.lastMessageAt = new Date(message.timestamp).toISOString()
+    this.#saveChannelsMetadata()
+    return this.#normalizeChannelMessageForResponse(channel.channelKey, message)
+  }
+
+  async #appendLocalChannelEntry(channel, entry) {
+    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
+    const coresMap = this.#channelCores.get(channel.channelKey)
+    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
+    if (!core) {
+      throw new Error('频道未初始化或无可写 core')
+    }
+    try {
+      await core.append(entry)
+    } catch (err) {
+      if (!this.#isRecoverableChannelAppendError(err)) {
+        throw err
+      }
+      const reopenedCore = await this.#reopenChannelLocalWriter(channel, {
+        forceNamedWriter: this.#isReadOnlySessionError(err),
+      })
+      await reopenedCore.append(entry)
+    }
+  }
+
+  async #enqueueChannelWrite(key, write) {
+    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
+    const pending = previous.then(write)
     const completed = pending.then(
       () => {},
       () => {}
@@ -3991,163 +4446,21 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #sendChannelMessage(
-    channelKeyInput,
-    content,
-    author,
-    authorName,
-    options
-  ) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-
-    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
-    const coresMap = this.#channelCores.get(channel.channelKey)
-    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
-    if (!core) {
-      throw new Error('频道未初始化或无可写 core')
-    }
-
-    if (!content || !content.trim()) {
-      throw new Error('消息内容不能为空')
-    }
-
-    const trimmed = content.trim()
-    const authorAddress = normalizeOwnerAddress(author)
-    if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
-    }
-    const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
-      strict: hasOwnProperty(options, 'clientMessageId'),
-    })
-    const attachment = normalizeChannelAttachment(options.attachment)
-    const mentions = normalizeChannelMentionList(options.mentions, trimmed, {
-      strict: hasOwnProperty(options, 'mentions'),
-      attachment,
-    })
-    if (attachment && trimmed !== attachment.link) {
-      throw new ValidationError('attachment content must match link')
-    }
-    if (clientMessageId) {
-      const existing = (
-        await this.#readChannelHistory(channel, { strict: true })
-      ).find(
-        message =>
-          normalizeOwnerAddress(message.author) === authorAddress &&
-          message.clientMessageId === clientMessageId
-      )
-      if (existing) {
-        const samePayload =
-          existing.content === trimmed &&
-          JSON.stringify(existing.attachment || null) ===
-            JSON.stringify(attachment) &&
-          JSON.stringify(existing.mentions || []) ===
-            JSON.stringify(mentions) &&
-          existing.type === (options.type === 'system' ? 'system' : 'message')
-        if (!samePayload) {
-          throw new ConflictError(
-            'clientMessageId already identifies another message'
-          )
-        }
-        const message = { ...existing }
-        delete message._coreKey
-        delete message._index
-        return this.#normalizeChannelMessageForResponse(
-          channel.channelKey,
-          message
-        )
-      }
-    }
-    const existingMember = Array.isArray(channel?.members)
-      ? channel.members.find(
-          member => normalizeOwnerAddress(member?.address) === authorAddress
-        )
-      : null
-    let normalizedAuthorTag
-    if (hasOwnProperty(options, 'authorTag')) {
-      normalizedAuthorTag = normalizeLocalizedChatTag(options.authorTag)
-      if (!normalizedAuthorTag) {
-        throw new ValidationError('Invalid authorTag')
-      }
-    } else if (existingMember?.tag && typeof existingMember.tag === 'object') {
-      normalizedAuthorTag = normalizeLocalizedChatTag(existingMember.tag)
-    }
-    if (
-      channel &&
-      this.#upsertChannelMember(channel, {
-        ownerAddress: options.ownerAddress,
-        displayName: authorName,
-        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
-          ? { avatar: options.avatar }
-          : {}),
-      })
-    ) {
-      this.#saveChannelsMetadata()
-    }
-
-    const normalizedAvatar = normalizeChannelAvatar(options.avatar)
-    const message = {
-      type: options.type === 'system' ? 'system' : 'message',
-      author,
-      authorName: normalizeChannelDisplayName(
-        authorName,
-        normalizeOwnerAddress(author)
-      ),
-      content: trimmed,
-      timestamp: await this.#getNextChannelMessageTimestamp(channel.channelKey),
-    }
-    if (normalizedAuthorTag) {
-      message.authorTag = normalizedAuthorTag
-    }
-    if (clientMessageId) {
-      message.clientMessageId = clientMessageId
-    }
-    if (normalizedAvatar) {
-      message.avatar = normalizedAvatar
-    }
-    if (attachment) {
-      message.attachment = attachment
-    }
-    if (mentions.length > 0) {
-      message.mentions = mentions
-    }
-    if (message.type === 'system') {
-      const event = String(options.event || '').trim()
-      if (event) message.event = event
-      if (
-        event === CHANNEL_MEMBER_PROFILE_UPDATED_EVENT &&
-        options.memberProfile &&
-        typeof options.memberProfile === 'object'
-      ) {
-        message.member = options.memberProfile
-      }
-    }
-
-    try {
-      await core.append(message)
-    } catch (err) {
-      if (!this.#isRecoverableChannelAppendError(err)) {
-        throw err
-      }
-      const reopenedCore = await this.#reopenChannelLocalWriter(channel, {
-        forceNamedWriter: this.#isReadOnlySessionError(err),
-      })
-      await reopenedCore.append(message)
-    }
-    if (channel && !isChannelMemberProfileEventEntry(message)) {
-      channel.lastMessageAt = new Date(message.timestamp).toISOString()
-      this.#saveChannelsMetadata()
-    }
-
-    return this.#normalizeChannelMessageForResponse(channel.channelKey, message)
-  }
-
   /**
    * 获取频道内在线用户
    * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @returns {Array<{ peerId: string, authorName: string, lastSeen: number, memberAddresses: string[] }>}
    */
+  /**
+   * Public channel ID (64 hex) for a handle or ID the caller is a member of.
+   * WebSocket subscriptions use it because engine events carry it.
+   */
+  resolveChannelKey(channelInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelInput, options.ownerAddress)
+    return this.#resolveChannel(channelInput, options.ownerAddress).channelKey
+  }
+
   getChannelPeers(channelKeyInput, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
@@ -4175,29 +4488,50 @@ export class MostBoxEngine extends EventEmitter {
     return this.#getChannelMembers(channel)
   }
 
-  async updateChannelMemberProfile(channelKeyInput, options = {}) {
+  /**
+   * Writes a member profile the client signed (signatures.md §4.2, §6).
+   * @param {{ body: object, device: string, cert: string, sig: string }} signed
+   */
+  async updateChannelMemberProfile(channelKeyInput, signed, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const author = normalizeOwnerAddress(options.author)
-    if (!ownerAddress || !author || ownerAddress !== author) {
+    this.#assertChannelMember(channelKeyInput, ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    const error = signedProfileError(signed, { channelId: channel.channelKey })
+    if (error) throw new ValidationError(`Invalid signed profile: ${error}`)
+    if (ownerAddress && signed.body.author !== ownerAddress) {
       throw new PermissionError(
         'member profile author must match logged-in user'
       )
     }
-    this.#assertChannelMember(channelKeyInput, ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
-    const event = await this.#appendChannelMemberProfileMessage(channel, {
-      ...options,
-      ownerAddress,
-      author,
+    const author = signed.body.author
+    return this.#enqueueChannelWrite(channel.channelKey, async () => {
+      const entry = buildSignedEntry(
+        signed,
+        await this.#getNextChannelMessageTimestamp(channel)
+      )
+      // Applying fails for a createdAt too far ahead; refuse it unwritten.
+      const profileEvent = readSignedProfileEntry(entry, channel.channelKey)
+      if (!this.#normalizeChannelMemberProfileEvent(profileEvent)) {
+        throw new ValidationError('createdAt is too far ahead')
+      }
+      await this.#appendLocalChannelEntry(channel, entry)
+      const event = this.#applyChannelMemberProfileEvent(
+        channel,
+        profileEvent,
+        {
+          save: true,
+          emit: true,
+        }
+      )
+      return {
+        success: true,
+        member: this.#getChannelMembers(channel).find(
+          member => member.address === author
+        ),
+        event,
+      }
     })
-    return {
-      success: Boolean(event),
-      member: this.#getChannelMembers(channel).find(
-        member => member.address === ownerAddress
-      ),
-      event,
-    }
   }
 
   /**
@@ -4236,38 +4570,29 @@ export class MostBoxEngine extends EventEmitter {
     let channel = this.#channels.find(c => c.channelKey === value)
     if (channel) return channel
 
-    channel = this.#channels.find(c => c.channelId === value)
+    const resolvedKey = resolveChannelHandle(value)?.channelKey
+    channel = this.#channels.find(
+      c => c.channelId === value || c.channelKey === resolvedKey
+    )
     if (channel && (!owner || this.#channelHasMember(channel, owner))) {
       return channel
     }
     throw new Error('频道不存在')
   }
 
-  async #createLocalChannel(channelId, type = 'personal', options = {}) {
-    const channelKey = buildChannelKey(channelId)
-    const writerId =
-      String(options.writerId || '').trim() || createChannelWriterId()
-    const ns = this.#store.namespace(`channel-${channelKey}`)
-    const localCore = ns.get({
-      name: `messages-${writerId}`,
-      valueEncoding: 'json',
-    })
-    await localCore.ready()
-    const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
-    const writerCoreKeys = uniqueStrings([
-      ...(Array.isArray(options.writerCoreKeys) ? options.writerCoreKeys : []),
-      localWriterCoreKey,
-    ])
+  async #createLocalChannel(resolved, type = 'personal', options = {}) {
     const channelInfo = {
-      channelId,
-      channelKey,
-      name: channelId,
+      channelId: resolved.handle,
+      channelKey: resolved.channelKey,
+      name: resolved.handle,
+      secretKey: b4a.toString(resolved.key, 'hex'),
+      kind: resolved.kind,
       type: String(type || 'personal').trim() || 'personal',
       createdAt: options.createdAt || new Date().toISOString(),
       lastMessageAt: options.lastMessageAt || '',
-      writerId,
-      localWriterCoreKey,
-      writerCoreKeys,
+      writerGeneration: 0,
+      localWriterCoreKey: '',
+      writerCoreKeys: uniqueStrings(options.writerCoreKeys),
       members: [],
       syncUpdatedAt: Date.now(),
     }
@@ -4283,101 +4608,41 @@ export class MostBoxEngine extends EventEmitter {
     this.#invalidateChannelTopicMap()
     await this.#openChannelRuntime(channelInfo)
     await this.#joinChannelDiscoveryTopics(channelInfo)
-    this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
     this.#saveChannelsMetadata()
-    await this.#appendChannelMemberProfileMessage(channelInfo, options)
-    await this.#appendChannelWelcomeMessage(channelInfo, options, false)
     this.#broadcastChannelHello()
     return channelInfo
   }
 
-  async #joinChannelFromCandidate(
-    candidateInput,
-    type = 'group',
-    options = {}
-  ) {
-    const channelId = normalizeChannelId(
-      candidateInput.channelId || options.channelId
-    )
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) {
-      throw new Error('频道候选缺少身份信息')
-    }
-
-    const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
-    )
-    if (existing) {
-      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
-      const memberChanged = this.#upsertChannelMember(existing, options)
-      if (memberChanged) {
-        this.#saveChannelsMetadata()
-        this.#broadcastChannelHello()
-      }
-      if (!wasMember || memberChanged) {
-        await this.#appendChannelMemberProfileMessage(existing, options)
-      }
-      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
-      return this.#formatChannelForResponse(existing, options.ownerAddress)
-    }
-
-    const hasSameIdLocal = this.#channels.some(
-      channel => channel.channelId === channelId
-    )
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const remark =
-      ownerAddress && hasSameIdLocal && !String(options.remark || '').trim()
-        ? `${channelId}-网络`
-        : options.remark
-    const channelInfo = await this.#createLocalChannel(
-      channelId,
-      candidateInput.type || type,
-      {
-        ...options,
-        ownerAddress,
-        createdAt: candidateInput.createdAt,
-        lastMessageAt: candidateInput.lastMessageAt,
-        writerCoreKeys: candidateInput.writerCoreKeys,
-        remark,
-      }
-    )
-
-    console.log(`[MostBox] Joined channel: ${channelInfo.channelKey}`)
-    this.emit('channel:joined', {
-      channel: channelInfo.channelKey,
-      channelKey: channelInfo.channelKey,
-      channelId: channelInfo.channelId,
-      key: channelInfo.channelKey,
-    })
-
-    return this.#formatChannelForResponse(channelInfo, ownerAddress)
-  }
-
   async #openChannelRuntime(channel) {
+    if (
+      channel.legacyWriterCoreKeys &&
+      !fs.existsSync(this.#archivePath(channel))
+    ) {
+      await snapshotLocalChannelArchive(
+        channel,
+        key =>
+          this.#store.get({ key: b4a.from(key, 'hex'), valueEncoding: 'json' }),
+        data => writeMetadataFile(this.#archivePath(channel), data)
+      )
+    }
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
-    let localCore = null
-    let previousLocalWriterCoreKey = ''
-    if (channel.localWriterCoreKey) {
-      previousLocalWriterCoreKey = channel.localWriterCoreKey
-      localCore = ns.get({
-        key: b4a.from(channel.localWriterCoreKey, 'hex'),
-        valueEncoding: 'json',
-      })
-      await localCore.ready()
-      if (localCore.writable === false) {
-        await localCore.close().catch(() => {})
-        localCore = null
-      }
-    }
-    if (!localCore) {
-      if (!channel.writerId) {
-        channel.writerId = createChannelWriterId()
-      }
-      localCore = ns.get({
-        name: `messages-${channel.writerId}`,
-        valueEncoding: 'json',
-      })
-    }
+    const previousLocalWriterCoreKey = channel.localWriterCoreKey || ''
+    const generation = Number.isInteger(channel.writerGeneration)
+      ? channel.writerGeneration
+      : 0
+    channel.writerGeneration = generation
+    const keyPair = channelWriterKeyPair(
+      this.#cidDriveSecret,
+      channel.channelKey,
+      generation
+    )
+    // Explicit manifest: the core key is the manifest hash, so pinning its
+    // version keeps this node's writer core key stable across library updates.
+    const localCore = ns.get({
+      keyPair,
+      manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
+      valueEncoding: 'json',
+    })
     await localCore.ready()
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
     const localWriterChanged = channel.localWriterCoreKey !== localWriterCoreKey
@@ -4412,10 +4677,27 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveChannelsMetadata()
       this.#broadcastChannelHello()
     }
+    await this.#clearUnreadableLastMessageAt(channel)
+  }
+
+  // An upgraded channel keeps its v1 lastMessageAt even when none of its v1
+  // blocks were on this node. With nothing readable it is an empty chat, so it
+  // auto-folds; a message that arrives later sets lastMessageAt again.
+  async #clearUnreadableLastMessageAt(channel) {
+    if (!channel.legacyWriterCoreKeys || !channel.lastMessageAt) return
+    const archive = JSON.parse(
+      await fs.promises.readFile(this.#archivePath(channel), 'utf8')
+    )
+    if (archive.length > 0) return
+    if ((await this.#readChannelHistory(channel)).length > 0) return
+    channel.lastMessageAt = ''
+    this.#saveChannelsMetadata()
   }
 
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
-    const nextKeys = uniqueStrings(writerCoreKeys)
+    const nextKeys = uniqueStrings(writerCoreKeys).filter(
+      key => !channel.legacyWriterCoreKeys?.includes(key)
+    )
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
@@ -4457,135 +4739,6 @@ export class MostBoxEngine extends EventEmitter {
       this.#channelChatDiscoveries.set(channel.channelKey, chatDiscovery)
       this.#invalidateChannelTopicMap()
     }
-
-    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
-      const idDiscovery = this.#chatSwarm.join(
-        this.#generateChannelIdDiscoveryKey(channel.channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channel.channelId, idDiscovery)
-      this.#invalidateChannelTopicMap()
-    }
-  }
-
-  #getLocalChannelCandidates(channelId, options = {}) {
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    return this.#channels
-      .filter(channel => channel.channelId === channelId)
-      .filter(channel => {
-        if (!ownerAddress) return true
-        return this.#channelHasMember(channel, ownerAddress)
-      })
-      .map(channel => this.#channelToCandidate(channel, true))
-  }
-
-  async #discoverChannelCandidates(channelId, options = {}) {
-    const getCachedCandidates = () => {
-      const now = Date.now()
-      return [
-        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
-      ].filter(
-        candidate =>
-          candidate.local ||
-          !candidate.lastSeen ||
-          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
-      )
-    }
-    if (this.#options.disableNetwork) return getCachedCandidates()
-    const timeout =
-      Number(options.timeout) >= 0
-        ? Number(options.timeout)
-        : CHANNEL_DISCOVERY_TIMEOUT
-    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
-    if (!hadDiscovery) {
-      const discovery = this.#chatSwarm.join(
-        this.#generateChannelIdDiscoveryKey(channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channelId, discovery)
-      this.#invalidateChannelTopicMap()
-    }
-    await sleep(timeout)
-    const candidates = getCachedCandidates()
-    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
-      this.#channelIdDiscoveries.delete(channelId)
-      this.#invalidateChannelTopicMap()
-      this.#chatSwarm
-        .leave(this.#generateChannelIdDiscoveryKey(channelId))
-        .catch(() => {})
-    }
-    return candidates
-  }
-
-  #mergeChannelCandidates(candidates) {
-    const byKey = new Map()
-    for (const candidate of candidates) {
-      if (!candidate?.channelKey) continue
-      const existing = byKey.get(candidate.channelKey)
-      if (!existing) {
-        byKey.set(candidate.channelKey, {
-          ...candidate,
-          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
-        })
-        continue
-      }
-      byKey.set(candidate.channelKey, {
-        ...existing,
-        ...candidate,
-        local: existing.local || candidate.local,
-        writerCoreKeys: uniqueStrings([
-          ...existing.writerCoreKeys,
-          ...(candidate.writerCoreKeys || []),
-        ]),
-      })
-    }
-    return [...byKey.values()]
-  }
-
-  #channelToCandidate(channel, local = false) {
-    return {
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-      local,
-    }
-  }
-
-  #cacheChannelCandidate(candidate) {
-    const channelId = normalizeChannelId(candidate?.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) return
-    if (!this.#channelCandidateCache.has(channelId)) {
-      this.#channelCandidateCache.set(channelId, new Map())
-    }
-    const cache = this.#channelCandidateCache.get(channelId)
-    const existing = cache.get(channelKey)
-    cache.set(channelKey, {
-      ...existing,
-      ...candidate,
-      channelId,
-      channelKey,
-      writerCoreKeys: uniqueStrings([
-        ...(existing?.writerCoreKeys || []),
-        ...(candidate.writerCoreKeys || []),
-      ]),
-      lastSeen: Date.now(),
-    })
-  }
-
-  #getCachedChannelCandidate(channelId, channelKey) {
-    const normalizedChannelId = normalizeChannelId(channelId)
-    const normalizedChannelKey = buildChannelKey(normalizedChannelId)
-    const cache = this.#channelCandidateCache.get(normalizedChannelId)
-    const candidate = cache?.get(channelKey) || cache?.get(normalizedChannelKey)
-    if (candidate) return candidate
-    const local = this.#channels.find(
-      channel => channel.channelKey === normalizedChannelKey
-    )
-    return local ? this.#channelToCandidate(local, true) : null
   }
 
   #formatChannelForResponse(channel, ownerAddress = '') {
@@ -4601,9 +4754,12 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       type: channel.type,
+      kind: channel.kind,
+      public: channel.kind === 'public',
       peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
       remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
       pinned: Boolean(owner && channel.pinnedBy?.[owner]),
+      folded: getOwnerFolded(channel, owner),
     }
   }
 
@@ -4740,106 +4896,6 @@ export class MostBoxEngine extends EventEmitter {
       return 0
     }
     return Math.floor(value)
-  }
-
-  #getNextMemberProfileUpdatedAt(channel, address) {
-    const normalizedAddress = normalizeOwnerAddress(address)
-    const existing = Array.isArray(channel?.members)
-      ? channel.members.find(
-          member => normalizeOwnerAddress(member?.address) === normalizedAddress
-        )
-      : null
-    const current = this.#normalizeMemberProfileUpdatedAt(
-      existing?.profileUpdatedAt
-    )
-    return Math.max(Date.now(), current + 1)
-  }
-
-  async #appendChannelWelcomeMessage(channel, options = {}, wasMember = false) {
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    if (wasMember || !ownerAddress || !channel) {
-      return false
-    }
-    await this.sendMessage(
-      channel.channelKey,
-      CHANNEL_MEMBER_JOINED_EVENT,
-      ownerAddress,
-      normalizeChannelDisplayName(options.displayName, ownerAddress),
-      {
-        ownerAddress,
-        type: 'system',
-        event: CHANNEL_MEMBER_JOINED_EVENT,
-        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
-          ? { avatar: options.avatar }
-          : {}),
-      }
-    )
-    return true
-  }
-
-  async #appendChannelMemberProfileMessage(channel, options = {}) {
-    const ownerAddress = normalizeOwnerAddress(
-      options.ownerAddress || options.author
-    )
-    if (!ownerAddress || !channel) {
-      return null
-    }
-
-    const hasTag = hasOwnProperty(options, 'tag')
-    const tagPatch = normalizeChatMemberTagPatch(options.tag, hasTag)
-    if (tagPatch.action === 'invalid') {
-      throw new ValidationError('Invalid member tag')
-    }
-    const displayName = normalizeChannelDisplayName(
-      options.displayName,
-      ownerAddress
-    )
-    const avatar = normalizeChannelAvatar(options.avatar)
-    const profileUpdatedAt = this.#getNextMemberProfileUpdatedAt(
-      channel,
-      ownerAddress
-    )
-    const memberProfile = {
-      address: ownerAddress,
-      displayName,
-      profileUpdatedAt,
-    }
-    if (hasOwnProperty(options, 'avatar')) {
-      memberProfile.avatar = avatar
-    }
-    if (tagPatch.action === 'set') {
-      memberProfile.tag = tagPatch.tag
-    } else if (tagPatch.action === 'clear') {
-      memberProfile.tag = null
-    }
-
-    if (
-      this.#upsertChannelMember(channel, {
-        ownerAddress,
-        displayName,
-        ...(hasOwnProperty(options, 'avatar') ? { avatar } : {}),
-        ...(hasTag ? { tag: memberProfile.tag } : {}),
-        profileUpdatedAt,
-      })
-    ) {
-      channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
-      this.#saveChannelsMetadata()
-      this.#broadcastChannelHello()
-    }
-
-    return this.sendMessage(
-      channel.channelKey,
-      CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
-      ownerAddress,
-      displayName,
-      {
-        ownerAddress,
-        type: 'system',
-        event: CHANNEL_MEMBER_PROFILE_UPDATED_EVENT,
-        memberProfile,
-        ...(hasOwnProperty(options, 'avatar') ? { avatar } : {}),
-      }
-    )
   }
 
   #normalizeChannelMemberProfileEvent(message, { strict = false } = {}) {
@@ -4999,10 +5055,10 @@ export class MostBoxEngine extends EventEmitter {
     const entries = []
     for (let i = 0; i < core.length; i++) {
       try {
-        const entry = await core.get(i)
-        if (isChannelMemberProfileEventEntry(entry)) {
-          entries.push(entry)
-        }
+        const raw = await core.get(i, { wait: false })
+        if (raw === null) break
+        const entry = readSignedProfileEntry(raw, channel.channelKey)
+        if (entry) entries.push(entry)
       } catch {
         break
       }
@@ -5049,29 +5105,78 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
-  async #getNextChannelMessageTimestamp(channelKey) {
+  /**
+   * 增量扫描各 writer core 的新条目，维护最大时间戳和 clientMessageId 索引，
+   * 避免每次发送都全量读取频道历史。
+   */
+  async #refreshChannelHistoryIndex(channel, { strict = false } = {}) {
+    const channelKey = channel.channelKey
+    let index = this.#channelHistoryIndex.get(channelKey)
+    if (!index) {
+      index = {
+        scanned: new Map(),
+        maxTimestamp: 0,
+        timestamps: [],
+        byClientId: new Map(),
+      }
+      this.#channelHistoryIndex.set(channelKey, index)
+    }
     const coresMap = this.#channelCores.get(channelKey)
-    let maxTimestamp = 0
+    if (!coresMap) return index
 
-    if (coresMap) {
-      for (const [, core] of coresMap) {
-        for (let i = 0; i < core.length; i++) {
-          try {
-            const entry = await core.get(i)
-            if (isChannelHistoryEntry(entry)) {
-              maxTimestamp = Math.max(
-                maxTimestamp,
-                Number(entry.timestamp) || 0
-              )
-            }
-          } catch {
-            break
+    for (const [coreKeyHex, core] of coresMap) {
+      let i = index.scanned.get(coreKeyHex) || 0
+      for (; i < core.length; i++) {
+        let entry
+        try {
+          entry = await core.get(i, { wait: false })
+        } catch (error) {
+          if (strict) throw error
+          break
+        }
+        // Stop at the first block not held locally; it is scanned again
+        // on the next call.
+        if (entry === null) break
+        const message = this.#decodeChannelEntry(entry, channelKey)
+        if (!message) continue
+        index.timestamps.push(Number(message.timestamp) || 0)
+        if (message.type === 'message') {
+          const key = `${message.author}:${message.clientMessageId}`
+          const candidate = {
+            ...message,
+            _coreKey: coreKeyHex,
+            _index: i,
+            _bodyJson: canonicalJson(entry.body),
+          }
+          const current = index.byClientId.get(key)
+          if (
+            !current ||
+            compareChannelHistoryEntries(candidate, current) < 0
+          ) {
+            index.byClientId.set(key, candidate)
           }
         }
       }
+      index.scanned.set(coreKeyHex, i)
     }
+    return index
+  }
 
-    return Math.max(Date.now(), maxTimestamp + 1)
+  /**
+   * ts = max(now, largest seen ts + 1), where only ts ≤ now + 5 min count:
+   * a remote clock far ahead must not drag ours (§4.5). Future ts wait in
+   * the index until they are no longer too far ahead.
+   */
+  async #getNextChannelMessageTimestamp(channel) {
+    const index = await this.#refreshChannelHistoryIndex(channel)
+    const now = Date.now()
+    const limit = now + SIGNED_TS_FUTURE_LIMIT_MS
+    index.timestamps = index.timestamps.filter(ts => {
+      if (ts > limit) return true
+      index.maxTimestamp = Math.max(index.maxTimestamp, ts)
+      return false
+    })
+    return Math.max(now, index.maxTimestamp + 1)
   }
 
   #normalizeChannelMessageForResponse(channelKey, message) {
@@ -5124,7 +5229,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #getCidInfo(cid) {
-    return getCidInfo(cid)
+    const info = getCidInfo(cid)
+    return {
+      ...info,
+      driveName: cidDriveName(this.#cidDriveSecret, info.topic),
+    }
   }
 
   #setSeedState(cid, patch = {}) {
@@ -5156,7 +5265,7 @@ export class MostBoxEngine extends EventEmitter {
     const record = {
       cid,
       fileName: sanitizeFilename(file.fileName || cid),
-      driveName: file.driveName || driveName,
+      driveName,
       size: Number(file.size) || 0,
       source: String(file.source || 'published'),
       publishedAt:
@@ -5197,6 +5306,7 @@ export class MostBoxEngine extends EventEmitter {
       ),
       remark: channel.remarks?.[owner] || '',
       pinned: Boolean(channel.pinnedBy?.[owner]),
+      folded: getOwnerFolded(channel, owner),
       updatedAt,
     }
   }
@@ -5282,7 +5392,7 @@ export class MostBoxEngine extends EventEmitter {
     const normalized = {
       cid,
       fileName,
-      driveName: record.driveName || driveName,
+      driveName,
       size: Number(record.size) || 0,
       source: String(record.source || 'synced'),
       publishedAt:
@@ -5365,11 +5475,11 @@ export class MostBoxEngine extends EventEmitter {
     if (!owner || !record || typeof record !== 'object') {
       return { changed: false, added: false, updated: false }
     }
-    const channelId = normalizeChannelId(record.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) {
+    const resolved = resolveChannelHandle(record.channelId)
+    if (!resolved) {
       return { changed: false, added: false, updated: false }
     }
+    const { channelKey } = resolved
 
     const updatedAt = getSyncTimestamp(record.updatedAt || record.syncUpdatedAt)
     let channel = this.#channels.find(item => item.channelKey === channelKey)
@@ -5382,9 +5492,11 @@ export class MostBoxEngine extends EventEmitter {
     let changed = false
     if (!channel) {
       channel = {
-        channelId,
+        channelId: resolved.handle,
         channelKey,
-        name: channelId,
+        name: resolved.handle,
+        secretKey: b4a.toString(resolved.key, 'hex'),
+        kind: resolved.kind,
         createdAt:
           typeof record.createdAt === 'string'
             ? record.createdAt
@@ -5392,7 +5504,7 @@ export class MostBoxEngine extends EventEmitter {
         lastMessageAt:
           typeof record.lastMessageAt === 'string' ? record.lastMessageAt : '',
         type: String(record.type || 'personal').trim() || 'personal',
-        writerId: createChannelWriterId(),
+        writerGeneration: 0,
         localWriterCoreKey: '',
         writerCoreKeys: uniqueStrings(record.writerCoreKeys),
         members: [],
@@ -5404,7 +5516,9 @@ export class MostBoxEngine extends EventEmitter {
     } else {
       const nextKeys = uniqueStrings([
         ...(channel.writerCoreKeys || []),
-        ...(record.writerCoreKeys || []),
+        ...(record.writerCoreKeys || []).filter(
+          key => !channel.legacyWriterCoreKeys?.includes(key)
+        ),
       ])
       if (nextKeys.length !== (channel.writerCoreKeys || []).length) {
         channel.writerCoreKeys = nextKeys
@@ -5435,13 +5549,23 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     channel.remarks = channel.remarks || {}
-    const remark = String(record.remark || '').slice(0, 50)
-    if (remark) channel.remarks[owner] = remark
-    else delete channel.remarks[owner]
+    // 缺少 remark/pinned 字段表示"没有意见"（例如新设备首次发布时的空值），保留本地设置。
+    if (hasOwnProperty(record, 'remark')) {
+      const remark = String(record.remark || '').slice(0, 50)
+      if (remark) channel.remarks[owner] = remark
+      else delete channel.remarks[owner]
+    }
 
     channel.pinnedBy = channel.pinnedBy || {}
-    if (record.pinned) channel.pinnedBy[owner] = true
-    else delete channel.pinnedBy[owner]
+    if (hasOwnProperty(record, 'pinned')) {
+      if (record.pinned) channel.pinnedBy[owner] = true
+      else delete channel.pinnedBy[owner]
+    }
+
+    if (typeof record.folded === 'boolean') {
+      channel.foldedBy = channel.foldedBy || {}
+      channel.foldedBy[owner] = record.folded
+    }
 
     if (!this.#channelLocalCoreKey.get(channel.channelKey)) {
       await this.#openChannelRuntime(channel)
@@ -5605,6 +5729,7 @@ export class MostBoxEngine extends EventEmitter {
               status: 'checking',
             })
             try {
+              await this.#migrateLegacyCidDrive(holding)
               const localContent = await this.#getLocalCidContent(holding.cid, {
                 public: true,
                 allowHoldingFallback: true,
@@ -5669,16 +5794,50 @@ export class MostBoxEngine extends EventEmitter {
       })
   }
 
+  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
+  // content that recomputes to its CID is copied; anything else stays missing
+  // and reports an error.
+  async #migrateLegacyCidDrive(holding) {
+    const { cid } = holding
+    const driveKey = '/' + cid
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    if (await this.#hasLocalDriveContent(own, driveKey)) return
+
+    const legacy = new Hyperdrive(
+      this.#store.namespace(getCidInfo(cid).legacyDriveName)
+    )
+    try {
+      await legacy.ready()
+      if (!(await this.#hasLocalDriveContent(legacy, driveKey))) return
+      if (holding.kind === 'collection') {
+        await this.#copyUnixfsBlocks(legacy, own, cid)
+      } else {
+        const { cid: actual } = await calculateCid(
+          legacy.createReadStream(driveKey, { wait: false })
+        )
+        if (actual.toString() !== cid) return
+        await pipeline(
+          legacy.createReadStream(driveKey, { wait: false }),
+          own.createWriteStream(driveKey)
+        )
+      }
+      await legacy.clear(driveKey).catch(() => {})
+      console.log(`[MostBox] Migrated ${cid} to its own seed drive`)
+    } catch (err) {
+      console.warn(`[MostBox] Failed to migrate ${cid}:`, err.message)
+    } finally {
+      await legacy.close().catch(() => {})
+    }
+  }
+
   #normalizeHolding(record = {}) {
     const cid = record.cid
     if (!cid) {
       throw new ValidationError('cid is required')
     }
 
+    // topic and driveName are always derived; recorded values are not trusted.
     const { topicHex, driveName } = this.#getCidInfo(cid)
-    if (record.topic && record.topic !== topicHex) {
-      throw new ValidationError('topic must match CID digest')
-    }
 
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
@@ -5852,6 +6011,142 @@ export class MostBoxEngine extends EventEmitter {
     await drive.close()
     this.#drives.delete(driveName)
     return drive
+  }
+
+  #attachCidDrivePeer(stream) {
+    const peer = attachCidDriveChannel(stream, {
+      onWant: (topic, proof, from) => {
+        this.#answerCidDriveWant(topic, proof, from).catch(() => {})
+      },
+      onHave: (topic, driveKey) => {
+        const topicHex = b4a.toString(topic, 'hex')
+        if (!this.#cidDriveWants.has(topicHex)) return
+        this.#cidDriveOffers.get(topicHex)?.add(b4a.toString(driveKey, 'hex'))
+        for (const wake of this.#cidDriveOfferWaiters) wake()
+      },
+      onClose: closed => this.#cidDrivePeers.delete(closed),
+    })
+    if (!peer) return
+    this.#cidDrivePeers.add(peer)
+    for (const { topic, wantKey } of this.#cidDriveWants.values()) {
+      peer.want(topic, wantKey)
+    }
+  }
+
+  // Answer only for content this node seeds (joined topic plus a holding whose
+  // /<cid> is readable from its own drive) and only to a requester whose
+  // proof shows it knows the CID digest (file-privacy §4.3).
+  async #answerCidDriveWant(topic, proof, peer) {
+    const topicHex = b4a.toString(topic, 'hex')
+    let cid = null
+    for (const [joinedCid, discovery] of this.#fileDiscoveries) {
+      if (discovery.topic === topicHex) cid = joinedCid
+    }
+    if (!cid || !this.#holdings.some(holding => holding.cid === cid)) return
+    if (!peer.verifyWant(topic, proof, this.#getCidInfo(cid).wantKey)) return
+    const localContent = await this.#getLocalCidContent(cid, {
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (localContent) peer.have(topic, localContent.drive.key)
+  }
+
+  /**
+   * Waits for a peer that offers a drive with /<cid>. Keys in `triedKeys` are
+   * skipped, and every returned key is added to it. The caller closes the
+   * returned read-only drive.
+   */
+  async #waitForRemoteCidDrive(cid, timeout, options = {}) {
+    const { triedKeys = new Set(), taskId = null, taskState = null } = options
+    const { topic, topicHex, wantKey } = this.#getCidInfo(cid)
+    // This node's own drive is only written after verification; it is tried
+    // first, is not closed by the caller, and goes through the same CID check.
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    const ownKeyHex = b4a.toString(own.key, 'hex')
+    if (
+      !triedKeys.has(ownKeyHex) &&
+      (await this.#hasLocalDriveContent(own, '/' + cid))
+    ) {
+      triedKeys.add(ownKeyHex)
+      const entry = await own.entry('/' + cid, { wait: false })
+      if (entry) return { drive: own, entry, keyHex: ownKeyHex, local: true }
+    }
+    const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
+    const offers = this.#cidDriveOffers.get(topicHex) || new Set()
+    this.#cidDriveOffers.set(topicHex, offers)
+    const pendingWant = this.#cidDriveWants.get(topicHex) || {
+      topic,
+      wantKey,
+      count: 0,
+    }
+    pendingWant.count += 1
+    this.#cidDriveWants.set(topicHex, pendingWant)
+    let lastWantAt = 0
+    let lastLookupAt = Date.now()
+
+    try {
+      while (Date.now() < deadline) {
+        if (taskState?.aborted) throw new Error('Download cancelled')
+        if (Date.now() - lastWantAt >= DRIVE_UPDATE_INTERVAL) {
+          lastWantAt = Date.now()
+          for (const peer of this.#cidDrivePeers) peer.want(topic, wantKey)
+        }
+
+        const keyHex = [...offers].find(key => !triedKeys.has(key))
+        // Hyperswarm looks a topic up again only every 10 minutes. A seed
+        // that announced after our first lookup (e.g. a link shared right
+        // after publishing) would never be found within the timeout.
+        if (!keyHex && Date.now() - lastLookupAt >= TOPIC_LOOKUP_INTERVAL) {
+          lastLookupAt = Date.now()
+          this.#fileDiscoveries
+            .get(cid)
+            ?.discovery.refresh()
+            .catch(() => {})
+        }
+        if (!keyHex) {
+          await new Promise(resolve => {
+            const wake = () => {
+              clearTimeout(timer)
+              this.#cidDriveOfferWaiters.delete(wake)
+              resolve()
+            }
+            const timer = setTimeout(wake, DOWNLOAD_POLL_INTERVAL_MIN)
+            this.#cidDriveOfferWaiters.add(wake)
+          })
+          continue
+        }
+        triedKeys.add(keyHex)
+
+        const drive = new Hyperdrive(
+          this.#store.session(),
+          b4a.from(keyHex, 'hex')
+        )
+        try {
+          await drive.ready()
+          const entry = await this.#waitForDriveEntry(
+            drive,
+            '/' + cid,
+            Math.min(STREAM_READ_TIMEOUT, deadline - Date.now()),
+            taskId,
+            taskState
+          )
+          if (entry) return { drive, entry, keyHex }
+        } catch (err) {
+          if (taskState?.aborted) {
+            await drive.close().catch(() => {})
+            throw err
+          }
+        }
+        await drive.close().catch(() => {})
+      }
+      return null
+    } finally {
+      pendingWant.count -= 1
+      if (pendingWant.count <= 0) {
+        this.#cidDriveWants.delete(topicHex)
+        this.#cidDriveOffers.delete(topicHex)
+      }
+    }
   }
 
   async #reopenDrive(name, options = { server: true, client: false }) {
@@ -6055,8 +6350,18 @@ export class MostBoxEngine extends EventEmitter {
               )
             )
           : undefined
+        const foldedBy = channel.foldedBy
+          ? Object.fromEntries(
+              Object.entries(channel.foldedBy).filter(
+                ([address]) =>
+                  normalizeOwnerAddress(address) !== normalizedOwner
+              )
+            )
+          : undefined
         return {
           ...channel,
+          foldedBy:
+            foldedBy && Object.keys(foldedBy).length > 0 ? foldedBy : undefined,
           remarks:
             remarks && Object.keys(remarks).length > 0 ? remarks : undefined,
           pinnedBy:
@@ -6295,6 +6600,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#getMetadataPath(),
       JSON.stringify(this.#publishedFiles, null, 2)
     )
+    this.#scheduleAccountSyncReconcile()
   }
 
   #loadHoldingsMetadata() {
@@ -6401,6 +6707,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#getAccountMetadataPath(),
       JSON.stringify(this.#accountMetadata, null, 2)
     )
+    this.#scheduleAccountSyncReconcile()
   }
 
   #saveChannelsMetadata() {
@@ -6409,33 +6716,20 @@ export class MostBoxEngine extends EventEmitter {
       getChannelsMetadataPath(this.#options.dataPath),
       serializeChannelsMetadata(this.#channels)
     )
+    this.#scheduleAccountSyncReconcile()
+  }
+
+  #channelSecretKey(channelKey) {
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    return channel?.secretKey ? b4a.from(channel.secretKey, 'hex') : null
   }
 
   #generateChannelDiscoveryKey(channelKey) {
-    const normalizedChannelKey = normalizeChannelKey(channelKey)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}`)
-      .digest()
-    return hash
+    return channelTopics(this.#channelSecretKey(channelKey)).replication
   }
 
   #generateChannelChatDiscoveryKey(channelKey) {
-    const normalizedChannelKey = normalizeChannelKey(channelKey)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}:chat`)
-      .digest()
-    return hash
-  }
-
-  #generateChannelIdDiscoveryKey(channelId) {
-    const normalizedChannelId = normalizeChannelId(channelId)
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}id:${normalizedChannelId}:candidates`)
-      .digest()
-    return hash
+    return channelTopics(this.#channelSecretKey(channelKey)).chat
   }
 
   #addChannelTopicMapping(topicMap, topic, channelIdInput) {
@@ -6465,14 +6759,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#addChannelTopicMapping(
         topicMap,
         this.#generateChannelChatDiscoveryKey(channelKey),
-        channel.channelId
-      )
-    }
-    for (const [channelId] of this.#channelIdDiscoveries) {
-      this.#addChannelTopicMapping(
-        topicMap,
-        this.#generateChannelIdDiscoveryKey(channelId),
-        channelId
+        channel.channelKey
       )
     }
     this.#channelTopicMap = topicMap
@@ -6537,8 +6824,8 @@ export class MostBoxEngine extends EventEmitter {
       record.localChallenge = createChannelProofChallenge()
       stream.write(
         `${JSON.stringify({
-          type: 'channel-proof-challenge',
-          version: CHANNEL_PROOF_VERSION,
+          v: 2,
+          type: 'channel-challenge',
           challenge: record.localChallenge,
         })}\n`
       )
@@ -6567,16 +6854,18 @@ export class MostBoxEngine extends EventEmitter {
     const proofs = []
     for (const topic of topics) {
       if (record.proofSentTopics.has(topic)) continue
-      const channelId = topicMap.get(topic)?.values().next().value
-      if (!channelId) continue
-      const proof = createChannelTopicProof({
-        channelId,
+      const channelKey = topicMap.get(topic)?.values().next().value
+      const key = channelKey ? this.#channelSecretKey(channelKey) : null
+      if (!key) continue
+      const proofBytes = createChannelProof({
+        key,
         topic,
         challenge: record.remoteChallenge,
         proverPublicKey: localPublicKey,
         verifierPublicKey: remotePublicKey,
       })
-      if (!proof) continue
+      if (!proofBytes) continue
+      const proof = b4a.toString(proofBytes, 'hex')
       record.proofSentTopics.add(topic)
       proofs.push({ topic, proof })
     }
@@ -6589,8 +6878,8 @@ export class MostBoxEngine extends EventEmitter {
       ) {
         stream.write(
           `${JSON.stringify({
+            v: 2,
             type: 'channel-proof',
-            version: CHANNEL_PROOF_VERSION,
             challenge: record.remoteChallenge,
             proofs: proofs.slice(
               index,
@@ -6606,10 +6895,9 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #isChannelAllowedForStream(stream, channelId) {
-    return isChannelAllowedForConnection(
-      channelId,
-      this.#getAuthorizedChannelIds(stream)
+  #isChannelAllowedForStream(stream, channelKey) {
+    return this.#getAuthorizedChannelIds(stream).has(
+      normalizeChannelKey(channelKey)
     )
   }
 
@@ -6619,8 +6907,11 @@ export class MostBoxEngine extends EventEmitter {
       if (core.length > lastCoreLength) {
         for (let i = lastCoreLength; i < core.length; i++) {
           try {
-            const entry = await core.get(i)
-            if (isChannelHistoryEntry(entry)) {
+            const entry = this.#decodeChannelEntry(
+              await core.get(i),
+              channelKey
+            )
+            if (entry) {
               const channel = this.#channels.find(
                 c => c.channelKey === channelKey
               )
@@ -6668,6 +6959,10 @@ export class MostBoxEngine extends EventEmitter {
     const coresMap = this.#channelCores.get(channelKey)
     if (!coresMap) return
     if (coresMap.has(coreKeyHex)) return
+    // Hellos can arrive back to back; open each remote core only once.
+    const openingKey = `${channelKey}:${coreKeyHex}`
+    if (this.#channelCoresOpening.has(openingKey)) return
+    this.#channelCoresOpening.add(openingKey)
 
     try {
       const ns = this.#store.namespace(`channel-${channelKey}`)
@@ -6676,6 +6971,9 @@ export class MostBoxEngine extends EventEmitter {
         valueEncoding: 'json',
       })
       await core.ready()
+      // Fetch every block, now and as the writer appends; history reads
+      // only use local blocks and do not request missing ones.
+      core.download({ start: 0, end: -1 })
       const normalizedCoreKey = b4a.toString(core.key, 'hex')
       coresMap.set(normalizedCoreKey, core)
       this.#setupChannelAppendListener(core, channelKey)
@@ -6709,18 +7007,19 @@ export class MostBoxEngine extends EventEmitter {
         `[MostBox] Failed to open remote channel core for ${channelKey}:`,
         err.message
       )
+    } finally {
+      this.#channelCoresOpening.delete(openingKey)
     }
   }
 
   #buildChannelHelloMessages(stream) {
-    const selectedChannels = selectChannelsForHello(
-      this.#channels,
-      this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    const selectedChannels = this.#channels.filter(channel =>
+      authorized.has(channel.channelKey)
     )
+    // On the wire a channel is identified only by its public ID.
     const channels = selectedChannels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
+      channelId: channel.channelKey,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       memberAddresses: this.#getChannelMemberAddresses(channel),
@@ -6731,6 +7030,7 @@ export class MostBoxEngine extends EventEmitter {
     }))
     return buildChannelHelloMessages(
       {
+        v: 2,
         type: 'channel-hello',
         peerId: this.getNodeId(),
         authorName: this.getNodeId().slice(0, 4),
@@ -6740,7 +7040,17 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
+  // Only the first session frame counts; an invalid one lists no features.
+  // Signatures (sig1) never depend on this: they are always sent and required.
+  #processSessionFrame(stream, message) {
+    const record = this.#channelStreams.get(stream)
+    if (!record || record.sessionReceived) return
+    record.sessionReceived = true
+    record.features = sharedFeatures(parseSessionFeatures(message))
+  }
+
   #removeChannelStream(stream) {
+    this.#voiceRoutes.clearSource(stream)
     this.#channelStreams.delete(stream)
   }
 
@@ -6753,7 +7063,9 @@ export class MostBoxEngine extends EventEmitter {
       for (const topics of chunkChannelScopeTopics(
         this.#getVerifiedChannelTopics(stream)
       )) {
-        stream.write(`${JSON.stringify({ type: 'channel-scope', topics })}\n`)
+        stream.write(
+          `${JSON.stringify({ v: 2, type: 'channel-scope', topics })}\n`
+        )
       }
       return true
     } catch {
@@ -6795,14 +7107,10 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    if (!this.#isChannelAllowedForStream(stream, event.body.channelId))
+      return true
     try {
-      stream.write(
-        `${JSON.stringify(
-          createChannelPresenceMessage(this.getNodeId(), event)
-        )}\n`
-      )
+      stream.write(`${JSON.stringify(event)}\n`)
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -6811,7 +7119,8 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #sendCurrentChannelPresence(stream) {
-    for (const event of this.#channelPresence.listLocal()) {
+    this.#channelPresence.prune()
+    for (const event of this.#channelPresence.localFrames()) {
       this.#sendChannelPresence(stream, event)
     }
   }
@@ -6827,14 +7136,10 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    const channelKey = event.body.channelId
+    if (!this.#isChannelAllowedForStream(stream, channelKey)) return true
     try {
-      stream.write(
-        `${JSON.stringify(
-          createChannelVoiceMessage(this.getNodeId(), event)
-        )}\n`
-      )
+      stream.write(JSON.stringify(event) + '\n')
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -6869,9 +7174,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #processChannelProofChallengeMessage(stream, msg) {
-    if (msg.type !== 'channel-proof-challenge') return false
+    if (msg.type !== 'channel-challenge') return false
     const record = this.#channelStreams.get(stream)
-    if (!record || msg.version !== CHANNEL_PROOF_VERSION) return true
+    if (!record) return true
 
     const challenge = normalizeChannelProofChallenge(msg.challenge)
     if (!challenge) return true
@@ -6888,7 +7193,6 @@ export class MostBoxEngine extends EventEmitter {
     const record = this.#channelStreams.get(stream)
     if (
       !record ||
-      msg.version !== CHANNEL_PROOF_VERSION ||
       normalizeChannelProofChallenge(msg.challenge) !== record.localChallenge ||
       !Array.isArray(msg.proofs) ||
       msg.proofs.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
@@ -6913,19 +7217,23 @@ export class MostBoxEngine extends EventEmitter {
       ) {
         continue
       }
-      const channelIds = topicMap.get(topic) || []
-      const valid = [...channelIds].some(channelId =>
-        verifyChannelTopicProof(
-          {
-            channelId,
-            topic,
-            challenge: record.localChallenge,
-            proverPublicKey: remotePublicKey,
-            verifierPublicKey: localPublicKey,
-          },
-          item?.proof
+      const channelKeys = topicMap.get(topic) || []
+      const valid = [...channelKeys].some(channelKey => {
+        const key = this.#channelSecretKey(channelKey)
+        return (
+          key &&
+          verifyChannelProof(
+            {
+              key,
+              topic,
+              challenge: record.localChallenge,
+              proverPublicKey: remotePublicKey,
+              verifierPublicKey: localPublicKey,
+            },
+            String(item?.proof || '')
+          )
         )
-      )
+      })
       if (!valid) continue
       record.authorizedTopics.add(topic)
       changed = true
@@ -6946,21 +7254,16 @@ export class MostBoxEngine extends EventEmitter {
 
     const onlineChannels = []
     const remoteChannels = []
-    const allowedChannelIds = this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
     for (const channel of Array.isArray(msg.channels) ? msg.channels : []) {
       if (!channel || typeof channel !== 'object') continue
-      const channelId = normalizeChannelId(channel.channelId)
-      const declaredType = String(channel.type || 'public').trim() || 'public'
-      if (
-        !channelId ||
-        !isChannelAllowedForConnection(channelId, allowedChannelIds)
-      ) {
+      // v2: channelId on the wire is the 64-hex public channel ID.
+      const channelKey = normalizeChannelKey(channel.channelId)
+      if (!HEX_64_REGEX.test(channelKey) || !authorized.has(channelKey)) {
         continue
       }
       remoteChannels.push({
-        channelId,
-        channelKey: buildChannelKey(channelId),
-        type: declaredType,
+        channelKey,
         createdAt:
           typeof channel.createdAt === 'string' ? channel.createdAt : '',
         lastMessageAt:
@@ -6974,19 +7277,17 @@ export class MostBoxEngine extends EventEmitter {
               )
             : []
         ),
-        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+        writerCoreKeys: uniqueStrings(
+          Array.isArray(channel.writerCoreKeys) ? channel.writerCoreKeys : []
+        )
+          .filter(key => HEX_64_REGEX.test(key))
+          .slice(0, MAX_HELLO_WRITER_CORE_KEYS),
       })
     }
     if (remoteChannels.length === 0) return null
 
     let writerKeysChanged = false
     for (const remoteChannel of remoteChannels) {
-      this.#cacheChannelCandidate({
-        ...remoteChannel,
-        local: false,
-        peerId,
-      })
-
       const localChannel = this.#channels.find(
         channel => channel.channelKey === remoteChannel.channelKey
       )
@@ -7028,58 +7329,29 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  #processChannelPresenceMessage(stream, msg) {
-    const presence = normalizeRemoteChannelPresence(msg, this.getNodeId())
-    if (!presence) return null
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === presence.channelKey
+  #processChannelPresenceMessage(stream, msg, sourceId) {
+    const channel = this.#channels.find(
+      item => item.channelKey === msg.body?.channelId
     )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
-      return null
-    }
-
-    if (presence.status === 'online') {
-      this.#channelPresence.join(localChannel, presence.options)
-    } else if (presence.status === 'heartbeat') {
-      this.#channelPresence.heartbeat(localChannel, presence.options)
-    } else if (presence.status === 'profile') {
-      this.#channelPresence.updateProfile(localChannel, presence.options)
-    } else {
-      this.#channelPresence.leave(localChannel.channelKey, presence.options)
-    }
-
-    return presence.peerId
+    if (
+      !channel ||
+      !this.#isChannelAllowedForStream(stream, channel.channelKey)
+    )
+      return
+    if (!readSignedPresenceFrame(msg, { channelId: channel.channelKey })) return
+    this.#applyPresence(channel, msg.body, presenceSession(msg.body, sourceId))
   }
 
   #processChannelVoiceMessage(stream, msg) {
-    const context = normalizeRemoteChannelFrame(
-      msg,
-      this.getNodeId(),
-      'channel-voice'
-    )
-    if (!context) return null
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === context.channelKey
-    )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
-      return null
-    }
-
-    try {
-      const event = normalizeChannelVoiceEvent(context.channelKey, msg, {
-        timestamp: msg.timestamp,
-      })
-      this.emit('channel:voice', event)
-      return context.peerId
-    } catch {
-      return null
-    }
+    const channelId = msg.body?.channelId
+    if (!channelId || !this.#isChannelAllowedForStream(stream, channelId))
+      return
+    if (!voiceFrameError(msg, { channelId })) this.#routeVoice(msg, stream)
   }
 
   async #handleChannelConnection(conn, info = {}) {
     const stream = conn
+    const presenceSourceId = `stream:${crypto.randomUUID()}`
     let connectedPeerId = null
     let readBuffer = Buffer.alloc(0)
     let closed = false
@@ -7092,7 +7364,16 @@ export class MostBoxEngine extends EventEmitter {
       proofSentTopics: new Set(),
       localChallenge: '',
       remoteChallenge: '',
+      sessionReceived: false,
+      features: new Set(),
     })
+    // envelope §4.2: the session frame goes out first, once per connection.
+    try {
+      stream.write(`${JSON.stringify(buildSessionFrame())}\n`)
+    } catch {
+      this.#removeChannelStream(stream)
+      return
+    }
     const handleTopic = () => {
       if (!closed) this.#sendChannelHello(stream)
     }
@@ -7102,6 +7383,7 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
     this.#sendCurrentChannelPresence(stream)
+    this.#accountSync?.attachStream(stream)
 
     stream.on('data', async data => {
       let lines
@@ -7119,17 +7401,35 @@ export class MostBoxEngine extends EventEmitter {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          // envelope §4.1: frames that are not v2 are dropped, not fatal.
+          if (!isV2Frame(message)) continue
+          if (isSessionFrame(message)) {
+            this.#processSessionFrame(stream, message)
+            continue
+          }
+          if (message?.type === ACCOUNT_HELLO_TYPE) {
+            await this.#accountSync?.handleMessage(stream, message)
+            continue
+          }
           if (this.#processChannelScopeMessage(stream, message)) continue
           if (this.#processChannelProofChallengeMessage(stream, message)) {
             continue
           }
           if (this.#processChannelProofMessage(stream, message)) continue
-          const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(stream, message)
-              : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(stream, message)
-                : await this.#processChannelHelloMessage(stream, message)
+          if (message.type === 'channel-presence') {
+            this.#processChannelPresenceMessage(
+              stream,
+              message,
+              presenceSourceId
+            )
+            continue
+          }
+          if (message.type === 'channel-voice') {
+            if (Buffer.byteLength(line) <= VOICE_FRAME_LIMIT)
+              this.#processChannelVoiceMessage(stream, message)
+            continue
+          }
+          const peerId = await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)
@@ -7142,6 +7442,7 @@ export class MostBoxEngine extends EventEmitter {
       closed = true
       info?.removeListener?.('topic', handleTopic)
       this.#removeChannelStream(stream)
+      this.#channelPresence.clearSource(presenceSourceId)
       if (connectedPeerId) {
         for (const [channelKey, peers] of this.#channelPeers) {
           if (peers.has(connectedPeerId)) {
@@ -7159,7 +7460,6 @@ export class MostBoxEngine extends EventEmitter {
             })
           }
         }
-        this.#channelPresence.clearSource(`peer:${connectedPeerId}`)
       }
     }
 

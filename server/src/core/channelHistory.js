@@ -16,6 +16,10 @@ function comparePositions(left, right) {
   )
 }
 
+export function compareChannelHistoryEntries(left, right) {
+  return comparePositions(getEntryPosition(left), getEntryPosition(right))
+}
+
 function decodeCursor(cursor, channelKey) {
   try {
     if (
@@ -78,9 +82,7 @@ export function paginateChannelHistory(entries, channelKey, options = {}) {
     .filter(
       entry => !before || comparePositions(getEntryPosition(entry), before) < 0
     )
-    .sort((left, right) =>
-      comparePositions(getEntryPosition(left), getEntryPosition(right))
-    )
+    .sort(compareChannelHistoryEntries)
   const messages = candidates.slice(-limit)
   const nextCursor =
     candidates.length > messages.length

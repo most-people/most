@@ -2,43 +2,31 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
-  createChannelPresenceMessage,
   createChannelVoiceMessage,
   normalizeRemoteChannelFrame,
-  normalizeRemoteChannelPresence,
 } from '../../src/core/channelWire.js'
 
-const ALICE_INPUT_ADDRESS = `0x${'aB'.repeat(20)}`
-const ALICE_ADDRESS = `0x${'ab'.repeat(20)}`
+import {
+  createSignedPresenceFrame,
+  presenceSession,
+} from '../../src/core/channelSignedPresence.js'
 
 describe('channel wire messages', () => {
-  it('builds presence messages with stable defaults', () => {
+  it('forwards only signed envelope fields and sets the local receipt time', () => {
+    const body = { author: 'alice', sessionId: 'one', lastSeen: 1 }
+    const signed = { body, device: 'device', cert: 'cert', sig: 'signature' }
     assert.deepEqual(
-      createChannelPresenceMessage(
-        'local-peer',
-        {
-          channelId: 'team-room',
-          channelKey: 'team-room',
-          address: ALICE_ADDRESS,
-          status: 'online',
-          displayName: 'Alice',
-        },
-        1234
-      ),
+      createSignedPresenceFrame({ ...signed, peerId: 'untrusted' }),
       {
+        ...signed,
+        v: 2,
         type: 'channel-presence',
-        peerId: 'local-peer',
-        channelId: 'team-room',
-        channelKey: 'team-room',
-        address: ALICE_ADDRESS,
-        status: 'online',
-        displayName: 'Alice',
-        avatar: undefined,
-        profileUpdatedAt: undefined,
-        lastSeen: 1234,
-        sessionId: 'default',
       }
     )
+    const before = Date.now()
+    const session = presenceSession(body, 'stream')
+    assert.equal(session.sourceId, 'stream')
+    assert.ok(session.lastSeen >= before && session.lastSeen <= Date.now())
   })
 
   it('builds voice messages without changing event fields', () => {
@@ -80,53 +68,6 @@ describe('channel wire messages', () => {
         { type: 'channel-voice', peerId: 'local-peer' },
         'local-peer',
         'channel-voice'
-      ),
-      null
-    )
-  })
-
-  it('normalizes remote presence fields and rejects unknown statuses', () => {
-    assert.deepEqual(
-      normalizeRemoteChannelPresence(
-        {
-          type: 'channel-presence',
-          peerId: 'remote-peer',
-          channelId: 'Team-Room',
-          address: ALICE_INPUT_ADDRESS,
-          status: 'heartbeat',
-          sessionId: 'session-1',
-          lastSeen: '200',
-        },
-        'local-peer',
-        1234
-      ),
-      {
-        peerId: 'remote-peer',
-        channelId: 'team-room',
-        channelKey: 'team-room',
-        status: 'heartbeat',
-        options: {
-          address: ALICE_ADDRESS,
-          sessionId: 'session-1',
-          sourcePeerId: 'remote-peer',
-          local: false,
-          displayName: undefined,
-          avatar: undefined,
-          profileUpdatedAt: undefined,
-          lastSeen: 200,
-        },
-      }
-    )
-    assert.equal(
-      normalizeRemoteChannelPresence(
-        {
-          type: 'channel-presence',
-          peerId: 'remote-peer',
-          channelId: 'team-room',
-          address: ALICE_ADDRESS,
-          status: 'unknown',
-        },
-        'local-peer'
       ),
       null
     )

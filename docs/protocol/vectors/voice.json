@@ -1,0 +1,147 @@
+{
+  "description": "channel-voice normalization (voice.md §2-3, desktop only). channel is the channel argument; timestamp is passed as an option. {repeat, count} expands to a repeated string.",
+  "valid": [
+    {
+      "channel": "General",
+      "timestamp": 5,
+      "input": {
+        "event": "join",
+        "sessionId": "voice-1-abc",
+        "sender": {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "displayName": " alice "
+        },
+        "micMuted": 0
+      },
+      "output": {
+        "channel": "general",
+        "channelKey": "general",
+        "channelId": "general",
+        "event": "join",
+        "sessionId": "voice-1-abc",
+        "sender": {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "displayName": "alice"
+        },
+        "timestamp": 5,
+        "micMuted": false
+      }
+    },
+    {
+      "channel": "General",
+      "timestamp": 5,
+      "input": {
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "targetSessionId": "voice-2-def",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "signal": { "type": "offer", "sdp": "v=0" }
+      },
+      "output": {
+        "channel": "general",
+        "channelKey": "general",
+        "channelId": "general",
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "sender": {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "displayName": "0xaaaaaaaa"
+        },
+        "timestamp": 5,
+        "targetSessionId": "voice-2-def",
+        "signal": { "type": "offer", "sdp": "v=0" }
+      }
+    },
+    {
+      "channel": "General",
+      "timestamp": 5,
+      "input": {
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "targetSessionId": "voice-2-def",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "signal": {
+          "type": "candidate",
+          "candidate": {
+            "candidate": "c",
+            "sdpMid": 0,
+            "sdpMLineIndex": "1",
+            "usernameFragment": "u"
+          }
+        }
+      },
+      "output": {
+        "channel": "general",
+        "channelKey": "general",
+        "channelId": "general",
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "sender": {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "displayName": "0xaaaaaaaa"
+        },
+        "timestamp": 5,
+        "targetSessionId": "voice-2-def",
+        "signal": {
+          "type": "candidate",
+          "candidate": {
+            "candidate": "c",
+            "sdpMid": "0",
+            "sdpMLineIndex": 1,
+            "usernameFragment": "u"
+          }
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "reason": "unknown event",
+      "channel": "General",
+      "input": {
+        "event": "dance",
+        "sessionId": "voice-1-abc",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      }
+    },
+    {
+      "reason": "session ID too short",
+      "channel": "General",
+      "input": {
+        "event": "join",
+        "sessionId": "ab",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      }
+    },
+    {
+      "reason": "invalid sender address",
+      "channel": "General",
+      "input": {
+        "event": "join",
+        "sessionId": "voice-1-abc",
+        "sender": { "address": "bad" }
+      }
+    },
+    {
+      "reason": "signal without target",
+      "channel": "General",
+      "input": {
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "signal": { "type": "offer", "sdp": "v=0" }
+      }
+    },
+    {
+      "reason": "signal over 64 KiB",
+      "channel": "General",
+      "input": {
+        "event": "signal",
+        "sessionId": "voice-1-abc",
+        "targetSessionId": "voice-2-def",
+        "sender": { "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "signal": { "type": "offer", "sdp": { "repeat": "x", "count": 70000 } }
+      }
+    }
+  ]
+}

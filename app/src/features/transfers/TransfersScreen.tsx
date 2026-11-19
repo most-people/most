@@ -24,7 +24,6 @@ import {
   getTransferDisplayMessage,
   partitionTransfers,
 } from '../../ui/presentation'
-import { fixtureTransfers } from '../../ui/fixtures'
 import {
   darkTheme,
   lightTheme,
@@ -94,9 +93,7 @@ export function TransfersScreen({
   const styles = transferStyles[theme.mode]
   const scrollRef = useRef<ScrollView | null>(null)
   const [view, setView] = useState<TransferView>('active')
-  const transfersSnapshot = snapshot.transfers.length
-    ? snapshot.transfers
-    : fixtureTransfers
+  const transfersSnapshot = snapshot.transfers
   const { active, completed, failed } = useMemo(
     () => partitionTransfers(transfersSnapshot),
     [transfersSnapshot]

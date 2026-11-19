@@ -1,3 +1,4 @@
+import { deriveChatSeedJs } from '../remoteNode/chatIdentity'
 import type {
   CancelDownloadInput,
   CancelDownloadResult,
@@ -32,6 +33,11 @@ function createRemoteRequiredError() {
 }
 
 export class BareWorkletMostBoxCore {
+  /** Web build: no Bare core, so derive the v2 chat seed with ethers. */
+  deriveChatSeed(username: string, password: string) {
+    return deriveChatSeedJs(username, password)
+  }
+
   #listeners = new Set<CoreListener>()
   #snapshot: MobileCoreSnapshot
 

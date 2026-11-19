@@ -1,0 +1,27 @@
+{
+  "description": "CID drive names for a fixed secret (file-transfer.md §4) and most-cid-drive/2 message payloads (§3).",
+  "secret": "4444444444444444444444444444444444444444444444444444444444444444",
+  "driveNames": [
+    {
+      "topic": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "driveName": "cid-drive-a8cdb2a8680c7d3fac1d5d7902db39efbc8fab4f216346deb6c97c7dc8ffe86b"
+    },
+    {
+      "topic": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "driveName": "cid-drive-93388ff5fb14ad11ecc56a4975bc014ce8d17354398f2010d8860be3e7b2c072"
+    }
+  ],
+  "messages": {
+    "protocol": "most-cid-drive/2",
+    "topic": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+    "driveKey": "2222222222222222222222222222222222222222222222222222222222222222",
+    "want": {
+      "type": 0,
+      "payload": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    },
+    "have": {
+      "type": 1,
+      "payload": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde92222222222222222222222222222222222222222222222222222222222222222"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAuthenticatedWebSocketUrl } from '~server/src/utils/api'
+import { signChatBody } from '~/lib/chatSigning'
+import { useUserStore } from '~/stores/userStore'
 
 const VOICE_HEARTBEAT_MS = 15000
 const VOICE_STALE_MS = 45000
@@ -37,6 +39,7 @@ interface VoiceSignal {
 }
 
 interface ChannelVoiceEvent {
+  transport?: string
   channel?: string
   channelKey?: string
   channelId?: string
@@ -92,6 +95,7 @@ export function useVoiceRoom({
   channelName,
   profile,
 }: UseVoiceRoomOptions) {
+  const identity = useUserStore(s => s.identity)
   const sessionIdRef = useRef(createVoiceSessionId())
   const wsRef = useRef<WebSocket | null>(null)
   const joinedRef = useRef(false)
@@ -125,9 +129,15 @@ export function useVoiceRoom({
 
   const sendVoiceEvent = useCallback(
     (event: VoiceEventName, data: Record<string, unknown> = {}) => {
-      if (!channelName || !isOpen(wsRef.current)) return
+      if (!channelName || !identity || !isOpen(wsRef.current)) return
       const voiceData: Record<string, unknown> = {
-        channel: channelName,
+        kind: 'voice',
+        channelId: channelName,
+        event,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        author: identity.address.toLowerCase(),
+        ...(event === 'signal' ? { transport: 'webrtc1' } : {}),
         sessionId: localSessionId,
         displayName: profileRef.current.displayName,
         avatar: profileRef.current.avatar,
@@ -138,11 +148,17 @@ export function useVoiceRoom({
       wsRef.current?.send(
         JSON.stringify({
           event: VOICE_WS_EVENTS[event],
-          data: voiceData,
+          data: {
+            channel: channelName,
+            signed: signChatBody(
+              JSON.parse(JSON.stringify(voiceData)),
+              identity.device
+            ),
+          },
         })
       )
     },
-    [channelName, localSessionId]
+    [channelName, localSessionId, identity]
   )
 
   const updateParticipant = useCallback(
@@ -356,6 +372,7 @@ export function useVoiceRoom({
   const handleVoiceEvent = useCallback(
     (rawEvent: ChannelVoiceEvent) => {
       const event = rawEvent
+      if (event.event === 'signal' && event.transport !== 'webrtc1') return
       if (getEventChannelKey(event) !== channelName) return
       const sessionId = String(event.sessionId || '').trim()
       if (!sessionId || sessionId === localSessionId) return

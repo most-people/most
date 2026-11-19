@@ -21,7 +21,44 @@ export function shouldShowMessageTime(
   )
 }
 
-export type JoinedChannel = { name: string; remark: string; pinned: boolean }
+export type JoinedChannel = {
+  /** Public channel ID (64 hex); the key the app uses for a conversation. */
+  name: string
+  /**
+   * What people type to join: a public name, a v1 ID or a private credential.
+   * Empty when unknown.
+   */
+  handle: string
+  remark: string
+  pinned: boolean
+  /** Public channel (channel-keys §4): anyone who knows the name can read. */
+  public: boolean
+}
+
+// Public names and v1 IDs are at most 30 characters; a 52-character private
+// credential is a secret and is never used as a label.
+const MAX_LABEL_HANDLE_LENGTH = 30
+
+/** Channel name to show: the handle people know, else the public ID. */
+export function channelLabel(channel: Pick<JoinedChannel, 'name' | 'handle'>) {
+  return channel.handle && channel.handle.length <= MAX_LABEL_HANDLE_LENGTH
+    ? channel.handle
+    : channel.name
+}
+
+/** Remark if set, else `#label`. */
+export function channelDisplayName(
+  channel: Pick<JoinedChannel, 'name' | 'handle' | 'remark'>
+) {
+  return channel.remark || `#${channelLabel(channel)}`
+}
+
+/** What to copy or share so a friend can join: the handle, never the ID. */
+export function channelShareText(
+  channel: Pick<JoinedChannel, 'name' | 'handle'>
+) {
+  return `#${channel.handle || channel.name}`
+}
 
 export function getJoinedChannels(
   channels: Array<{
@@ -30,6 +67,7 @@ export function getJoinedChannels(
     name?: unknown
     remark?: unknown
     pinned?: unknown
+    public?: unknown
   }>
 ): JoinedChannel[] {
   const result = new Map<string, JoinedChannel>()
@@ -39,8 +77,10 @@ export function getJoinedChannels(
     if (!name || result.has(name)) continue
     result.set(name, {
       name,
+      handle: typeof channel.channelId === 'string' ? channel.channelId : '',
       remark: typeof channel.remark === 'string' ? channel.remark : '',
       pinned: channel.pinned === true,
+      public: channel.public === true,
     })
   }
   return [...result.values()].sort(
@@ -91,6 +131,8 @@ export function getRemainingHiddenConversations(
 export type ConversationState = {
   drafts: Record<string, string>
   readAt: Record<string, number>
+  // author key -> display name captured when the user was blocked
+  blocked: Record<string, string>
 }
 
 export function normalizeConversationState(value: unknown): ConversationState {
@@ -121,7 +163,66 @@ export function normalizeConversationState(value: unknown): ConversationState {
         .map(([name, timestamp]) => [normalizeChatChannel(name), timestamp])
         .filter(([name]) => name)
     ),
+    blocked: Object.fromEntries(
+      entries(state.blocked)
+        .map(([author, name]) => [
+          getBlockedAuthorKey(author),
+          typeof name === 'string' ? name : '',
+        ])
+        .filter(([author]) => author)
+    ),
   }
+}
+
+export function getBlockedAuthorKey(author: unknown) {
+  const value = typeof author === 'string' ? author.trim() : ''
+  return /^0x[0-9a-f]{40}$/i.test(value) ? value.toLowerCase() : value
+}
+
+export function blockAuthor(
+  state: ConversationState,
+  author: string,
+  name: string
+): ConversationState {
+  const key = getBlockedAuthorKey(author)
+  if (!key || Object.hasOwn(state.blocked, key)) return state
+  return { ...state, blocked: { ...state.blocked, [key]: name } }
+}
+
+export function unblockAuthor(
+  state: ConversationState,
+  author: string
+): ConversationState {
+  const key = getBlockedAuthorKey(author)
+  if (!Object.hasOwn(state.blocked, key)) return state
+  const blocked = { ...state.blocked }
+  delete blocked[key]
+  return { ...state, blocked }
+}
+
+export function withoutBlockedMessages(
+  messages: ChatMessage[],
+  blocked: Record<string, string>
+) {
+  if (!Object.keys(blocked).length) return messages
+  return messages.filter(
+    message =>
+      message.type === 'system' ||
+      !Object.hasOwn(blocked, getBlockedAuthorKey(message.author))
+  )
+}
+
+export function withoutBlockedChannelMessages(
+  messages: Record<string, ChatMessage[]>,
+  blocked: Record<string, string>
+) {
+  if (!Object.keys(blocked).length) return messages
+  return Object.fromEntries(
+    Object.entries(messages).map(([name, items]) => [
+      name,
+      withoutBlockedMessages(items, blocked),
+    ])
+  )
 }
 
 export function getConversationDraft(

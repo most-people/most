@@ -1,4 +1,3 @@
-import { normalizeAddress } from '../../core/shared.js'
 import { badRequestOrAppError } from '../errors.js'
 
 export function registerChannelRoutes(app, { engine }) {
@@ -11,7 +10,6 @@ export function registerChannelRoutes(app, { engine }) {
       const channelOptions = {
         ownerAddress: c.get('userAddress'),
         displayName: body.displayName,
-        discover: true,
       }
       if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
         channelOptions.avatar = body.avatar
@@ -91,45 +89,17 @@ export function registerChannelRoutes(app, { engine }) {
   app.post('/api/channels/:name/messages', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
-    if (!body.content || !body.content.trim()) {
-      return c.json({ error: 'content is required' }, 400)
+    const signed = body?.signed
+    if (!signed || typeof signed !== 'object' || Array.isArray(signed)) {
+      return c.json({ error: 'signed message is required' }, 400)
     }
-    if (!body.author || !body.authorName) {
-      return c.json({ error: 'author and authorName are required' }, 400)
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
-      return c.json({ error: 'Invalid author format' }, 400)
-    }
-    if (normalizeAddress(body.author) !== c.get('userAddress')) {
+    if (signed.body?.author !== c.get('userAddress')) {
       return c.json({ error: 'message author must match logged-in user' }, 403)
     }
-    if (body.authorName.length > 50) {
-      return c.json({ error: 'authorName too long' }, 400)
-    }
     try {
-      const messageOptions = {
+      const message = await engine.sendMessage(name, signed, {
         ownerAddress: c.get('userAddress'),
-        attachment: body.attachment,
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'clientMessageId')) {
-        messageOptions.clientMessageId = body.clientMessageId
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'mentions')) {
-        messageOptions.mentions = body.mentions
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
-        messageOptions.avatar = body.avatar
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'authorTag')) {
-        messageOptions.authorTag = body.authorTag
-      }
-      const message = await engine.sendMessage(
-        name,
-        body.content,
-        body.author,
-        body.authorName,
-        messageOptions
-      )
+      })
       return c.json({ success: true, message })
     } catch (err) {
       return badRequestOrAppError(c, err)
@@ -151,36 +121,20 @@ export function registerChannelRoutes(app, { engine }) {
   app.post('/api/channels/:name/member-profile', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
-    if (!body.author) {
-      return c.json({ error: 'author is required' }, 400)
+    const signed = body?.signed
+    if (!signed || typeof signed !== 'object' || Array.isArray(signed)) {
+      return c.json({ error: 'signed profile is required' }, 400)
     }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
-      return c.json({ error: 'Invalid author format' }, 400)
-    }
-    if (normalizeAddress(body.author) !== c.get('userAddress')) {
+    if (signed.body?.author !== c.get('userAddress')) {
       return c.json(
         { error: 'member profile author must match logged-in user' },
         403
       )
     }
     try {
-      const profileOptions = {
+      const result = await engine.updateChannelMemberProfile(name, signed, {
         ownerAddress: c.get('userAddress'),
-        author: body.author,
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'displayName')) {
-        profileOptions.displayName = body.displayName
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
-        profileOptions.avatar = body.avatar
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'tag')) {
-        profileOptions.tag = body.tag
-      }
-      const result = await engine.updateChannelMemberProfile(
-        name,
-        profileOptions
-      )
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return badRequestOrAppError(c, err)
@@ -232,6 +186,19 @@ export function registerChannelRoutes(app, { engine }) {
         ownerAddress: c.get('userAddress'),
       })
       return c.json({ success: true, pinned })
+    } catch (err) {
+      return c.json({ error: err.message }, 400)
+    }
+  })
+
+  app.put('/api/channels/:name/fold', async c => {
+    const name = c.req.param('name')
+    const body = await c.req.json()
+    try {
+      const folded = engine.setChannelFolded(name, Boolean(body.folded), {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json({ success: true, folded })
     } catch (err) {
       return c.json({ error: err.message }, 400)
     }

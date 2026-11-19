@@ -1,6 +1,6 @@
 {
   "name": "@most-box/app",
-  "version": "0.5.5",
+  "version": "0.8.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -23,18 +23,22 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "preflight:ios": "npm run bundle:ios && node scripts/check-ios-release.mjs",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
-    "test": "node --import tsx --test src/chat/chatProtocol.test.ts src/chat/chatWebSocket.test.ts src/chat/voiceProtocol.test.ts src/product/productProfile.test.ts src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/receiveFlow.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/files/filesModel.test.ts src/features/files/textPreview.test.ts src/features/chat/attachmentModel.test.ts src/features/chat/conversationModel.test.ts src/features/chat/conversationStorage.test.ts src/features/chat/chatNotificationModel.test.ts src/features/chat/voiceRecordingSession.test.ts src/features/chat/voiceRecorder.web.test.ts src/features/transfers/transferModel.test.ts src/i18n/messages.test.ts src/navigation/rootNavigation.test.ts src/privacy/privacyConsent.test.ts src/ui/feedbackModel.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/ensure-ios-debug-rncore.test.mjs scripts/store-platform-boundary.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
+    "test": "node --import tsx --test src/chat/chatProtocol.test.ts src/chat/chatSigning.test.ts src/chat/chatWebSocket.test.ts src/chat/voiceProtocol.test.ts src/product/productProfile.test.ts src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/protocolVectors.test.ts src/devtools/scryptBenchmark.test.ts src/mobileCore/receiveFlow.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/files/filesModel.test.ts src/features/files/textPreview.test.ts src/features/chat/attachmentModel.test.ts src/features/chat/conversationModel.test.ts src/features/chat/conversationStorage.test.ts src/features/chat/chatNotificationModel.test.ts src/features/chat/voiceRecordingSession.test.ts src/features/chat/voiceRecorder.web.test.ts src/features/transfers/transferModel.test.ts src/i18n/messages.test.ts src/i18n/messageTime.test.ts src/navigation/rootNavigation.test.ts src/privacy/privacyConsent.test.ts src/ui/feedbackModel.test.ts src/ui/presentation.test.ts src/ui/connectionStatus.test.ts && node --test backend/protocol.test.mjs backend/protocol-vectors.test.mjs backend/protocol-v2.test.mjs backend/scrypt-native.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/ensure-ios-debug-rncore.test.mjs scripts/store-platform-boundary.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
+    "benchmark:scrypt": "node --import tsx scripts/scrypt-benchmark.mjs",
+    "benchmark:scrypt:web": "node scripts/scrypt-benchmark-web.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dicebear/core": "^10.7.0",
     "@dicebear/styles": "^10.6.0",
     "@expo/metro-runtime": "~57.0.8",
+    "@noble/curves": "^1.2.0",
     "@noble/hashes": "1.3.2",
     "b4a": "1.8.1",
     "bare-fs": "4.8.0",
     "bare-path": "3.0.1",
     "bare-url": "2.4.5",
+    "compact-encoding": "3.2.0",
     "corestore": "7.12.0",
     "ethers": "^6.17.0",
     "expo": "~57.0.10",
@@ -48,11 +52,14 @@
     "expo-intent-launcher": "~57.0.1",
     "expo-notifications": "~57.0.22",
     "expo-sharing": "~57.0.8",
+    "hypercore": "11.39.6",
+    "hypercore-crypto": "^3.7.0",
     "hyperdrive": "13.3.3",
     "hyperswarm": "4.17.0",
     "ipfs-unixfs-importer": "17.0.1",
     "lucide-react-native": "1.28.0",
     "multiformats": "14.0.5",
+    "protomux": "3.11.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
@@ -60,7 +67,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
-    "sodium-native": "5.1.0"
+    "sodium-native": "5.1.0",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/b4a": "1.6.5",

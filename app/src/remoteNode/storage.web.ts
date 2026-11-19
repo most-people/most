@@ -1,4 +1,5 @@
 import type { MobileIdentity } from '../mobileCore/types'
+import { MOBILE_IDENTITY_VERSION, isUsableDevice } from './identity'
 import {
   normalizeRemoteNodes,
   type StoredRemoteNode,
@@ -20,10 +21,12 @@ function readJson<T>(key: string): T | null {
 export async function loadMobileIdentity() {
   const identity = readJson<Partial<MobileIdentity>>(IDENTITY_KEY)
   if (
+    identity?.version !== MOBILE_IDENTITY_VERSION ||
     !identity?.username ||
     !identity.address ||
     !/^0x[0-9a-f]{40}$/i.test(identity.address) ||
-    !/^0x[0-9a-f]{64}$/i.test(identity.danger || '')
+    !/^0x[0-9a-f]{64}$/.test(identity.syncKey || '') ||
+    !isUsableDevice(identity.device)
   ) {
     return null
   }

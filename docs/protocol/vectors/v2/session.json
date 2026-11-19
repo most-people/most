@@ -1,0 +1,345 @@
+{
+  "description": "Protocol v2 session frames (v2/envelope.md \u00a74.2), validated independently in Python. features is what the receiver accepts, null when the frame is rejected.",
+  "localFeatures": ["sig1"],
+  "cases": [
+    {
+      "name": "local 0.8.0",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["sig1"]
+      },
+      "features": ["sig1"]
+    },
+    {
+      "name": "empty list",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": []
+      },
+      "features": []
+    },
+    {
+      "name": "unknown feature kept",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["sig1", "e2ee1"]
+      },
+      "features": ["sig1", "e2ee1"]
+    },
+    {
+      "name": "unknown field ignored",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["sig1"],
+        "extra": 1
+      },
+      "features": ["sig1"]
+    },
+    {
+      "name": "64 features",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": [
+          "f0",
+          "f1",
+          "f2",
+          "f3",
+          "f4",
+          "f5",
+          "f6",
+          "f7",
+          "f8",
+          "f9",
+          "f10",
+          "f11",
+          "f12",
+          "f13",
+          "f14",
+          "f15",
+          "f16",
+          "f17",
+          "f18",
+          "f19",
+          "f20",
+          "f21",
+          "f22",
+          "f23",
+          "f24",
+          "f25",
+          "f26",
+          "f27",
+          "f28",
+          "f29",
+          "f30",
+          "f31",
+          "f32",
+          "f33",
+          "f34",
+          "f35",
+          "f36",
+          "f37",
+          "f38",
+          "f39",
+          "f40",
+          "f41",
+          "f42",
+          "f43",
+          "f44",
+          "f45",
+          "f46",
+          "f47",
+          "f48",
+          "f49",
+          "f50",
+          "f51",
+          "f52",
+          "f53",
+          "f54",
+          "f55",
+          "f56",
+          "f57",
+          "f58",
+          "f59",
+          "f60",
+          "f61",
+          "f62",
+          "f63"
+        ]
+      },
+      "features": [
+        "f0",
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+        "f5",
+        "f6",
+        "f7",
+        "f8",
+        "f9",
+        "f10",
+        "f11",
+        "f12",
+        "f13",
+        "f14",
+        "f15",
+        "f16",
+        "f17",
+        "f18",
+        "f19",
+        "f20",
+        "f21",
+        "f22",
+        "f23",
+        "f24",
+        "f25",
+        "f26",
+        "f27",
+        "f28",
+        "f29",
+        "f30",
+        "f31",
+        "f32",
+        "f33",
+        "f34",
+        "f35",
+        "f36",
+        "f37",
+        "f38",
+        "f39",
+        "f40",
+        "f41",
+        "f42",
+        "f43",
+        "f44",
+        "f45",
+        "f46",
+        "f47",
+        "f48",
+        "f49",
+        "f50",
+        "f51",
+        "f52",
+        "f53",
+        "f54",
+        "f55",
+        "f56",
+        "f57",
+        "f58",
+        "f59",
+        "f60",
+        "f61",
+        "f62",
+        "f63"
+      ]
+    },
+    {
+      "name": "32-char feature",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      },
+      "features": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+    },
+    {
+      "name": "65 features",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": [
+          "f0",
+          "f1",
+          "f2",
+          "f3",
+          "f4",
+          "f5",
+          "f6",
+          "f7",
+          "f8",
+          "f9",
+          "f10",
+          "f11",
+          "f12",
+          "f13",
+          "f14",
+          "f15",
+          "f16",
+          "f17",
+          "f18",
+          "f19",
+          "f20",
+          "f21",
+          "f22",
+          "f23",
+          "f24",
+          "f25",
+          "f26",
+          "f27",
+          "f28",
+          "f29",
+          "f30",
+          "f31",
+          "f32",
+          "f33",
+          "f34",
+          "f35",
+          "f36",
+          "f37",
+          "f38",
+          "f39",
+          "f40",
+          "f41",
+          "f42",
+          "f43",
+          "f44",
+          "f45",
+          "f46",
+          "f47",
+          "f48",
+          "f49",
+          "f50",
+          "f51",
+          "f52",
+          "f53",
+          "f54",
+          "f55",
+          "f56",
+          "f57",
+          "f58",
+          "f59",
+          "f60",
+          "f61",
+          "f62",
+          "f63",
+          "f64"
+        ]
+      },
+      "features": null
+    },
+    {
+      "name": "33-char feature",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      },
+      "features": null
+    },
+    {
+      "name": "no version digit",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["sig"]
+      },
+      "features": null
+    },
+    {
+      "name": "uppercase",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["Sig1"]
+      },
+      "features": null
+    },
+    {
+      "name": "underscore",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": ["sig_1"]
+      },
+      "features": null
+    },
+    {
+      "name": "non-string feature",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": [1]
+      },
+      "features": null
+    },
+    {
+      "name": "features not a list",
+      "frame": {
+        "v": 2,
+        "type": "session",
+        "features": "sig1"
+      },
+      "features": null
+    },
+    {
+      "name": "features missing",
+      "frame": {
+        "v": 2,
+        "type": "session"
+      },
+      "features": null
+    },
+    {
+      "name": "wrong version",
+      "frame": {
+        "v": 3,
+        "type": "session",
+        "features": ["sig1"]
+      },
+      "features": null
+    },
+    {
+      "name": "version missing",
+      "frame": {
+        "type": "session",
+        "features": ["sig1"]
+      },
+      "features": null
+    }
+  ]
+}

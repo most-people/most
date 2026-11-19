@@ -63,6 +63,7 @@ import {
 import { NodeScreen } from './src/features/node/NodeScreen'
 import { MeScreen } from './src/features/node/MeScreen'
 import { AboutMostBox } from './src/features/node/AboutMostBox'
+import { ProfileScreen } from './src/features/node/ProfileScreen'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
@@ -319,6 +320,7 @@ function MostBoxApp() {
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [downloadLinkInput, setDownloadLinkInput] = useState('')
   const [downloadIntent, setDownloadIntent] = useState<IncomingMostLink | null>(
     null
@@ -348,6 +350,14 @@ function MostBoxApp() {
   const isReady =
     isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
+  // 曾经连上的远程节点掉线重连时保留主界面，避免用 onboarding 盖住聊天上下文
+  const wasReadyRef = useRef(false)
+  if (isReady) wasReadyRef.current = true
+  const isReconnecting =
+    wasReadyRef.current &&
+    isRemote &&
+    nodeStatus === 'starting' &&
+    Boolean(currentSnapshot.node.error)
   const backgroundService = useBackgroundService()
   const transferRuntimePolicy = getTransferRuntimePolicy({
     platform: (Platform.OS === 'android' ||
@@ -932,7 +942,7 @@ function MostBoxApp() {
         )
       }
     } catch (error) {
-      alert(t('app.download.retryFailed'), getFriendlyCoreError(error, locale))
+      alert(t('app.download.failedTitle'), getFriendlyCoreError(error, locale))
     } finally {
       setDownloadingCid(null)
     }
@@ -1230,6 +1240,10 @@ function MostBoxApp() {
 
   const openExternalUrl = async (url: string) => {
     try {
+      if (Platform.OS === 'web' && url === SUPPORT_URL) {
+        window.location.assign(url)
+        return
+      }
       await Linking.openURL(url)
     } catch {
       alert(t('app.link.openFailed'), url)
@@ -1288,7 +1302,7 @@ function MostBoxApp() {
     )
   }
 
-  if (Platform.OS === 'web' && !isReady) {
+  if (Platform.OS === 'web' && !isReady && !isReconnecting) {
     return (
       <SafeAreaProvider>
         <SafeAreaView
@@ -1460,6 +1474,7 @@ function MostBoxApp() {
                 channels={joinedChannels}
                 openChannelRequest={openChannelRequest}
                 onDetailChange={setChatDetailRoute}
+                onOpenNode={openNodeStatus}
                 onPublishAttachment={handlePublishChatAttachment}
                 onPublishVoiceMessage={handlePublishVoiceMessage}
                 onSaveAttachment={handleSaveHolding}
@@ -1492,6 +1507,7 @@ function MostBoxApp() {
               <MeScreen
                 snapshot={currentSnapshot}
                 username={currentSnapshot.node.username}
+                onOpenProfile={() => setProfileOpen(true)}
                 onOpenFiles={openFileLibrary}
                 onOpenNode={openNodeStatus}
                 onOpenTransfers={openTransfers}
@@ -1552,6 +1568,14 @@ function MostBoxApp() {
           </View>
         </View>
 
+        <ProfileScreen
+          visible={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          username={currentSnapshot.node.username}
+          address={currentSnapshot.node.userAddress || ''}
+          client={core}
+          deviceCert={core?.getIdentity?.()?.device.cert || ''}
+        />
         <AboutMostBox
           visible={aboutOpen}
           onClose={() => setAboutOpen(false)}

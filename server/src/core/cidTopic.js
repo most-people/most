@@ -2,6 +2,7 @@ import b4a from 'b4a'
 import { CID } from 'multiformats/cid'
 import { MOST_LINK_ERROR_CODES, validateCidString } from './cid.js'
 import { ValidationError } from '../utils/errors.js'
+import { fileTopic, wantKeyFor } from './cidDriveExchange.js'
 
 const CID_INFO_ERROR_MESSAGES = {
   [MOST_LINK_ERROR_CODES.CID_EMPTY]: 'CID is required',
@@ -29,15 +30,17 @@ export function getCidInfo(cid) {
       throw cidValidationError(validation.errorCode)
     }
     const parsedCid = CID.parse(cid)
-    const topic = b4a.from(parsedCid.multihash.digest)
-    if (topic.length !== 32) {
+    const digest = b4a.from(parsedCid.multihash.digest)
+    if (digest.length !== 32) {
       throw cidValidationError(MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH)
     }
-    const topicHex = b4a.toString(topic, 'hex')
+    const topic = fileTopic(digest)
     return {
       topic,
-      topicHex,
-      driveName: `drive-${topicHex}`,
+      topicHex: b4a.toString(topic, 'hex'),
+      wantKey: wantKeyFor(digest),
+      // 0.5.x shared-key drive; read only by the one-time migration (§8).
+      legacyDriveName: `drive-${b4a.toString(digest, 'hex')}`,
     }
   } catch (err) {
     if (err instanceof ValidationError) {

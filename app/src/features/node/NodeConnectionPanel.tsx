@@ -1,3 +1,5 @@
+import { AccountSyncRow } from './AccountSyncRow'
+import { isPasswordShort } from '../../remoteNode/identity'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -30,6 +32,7 @@ import type {
 import { useI18n } from '../../i18n'
 import { PRODUCT_PROFILE } from '../../product/productProfile'
 import { useFeedback } from '../../ui/feedback'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import {
   BottomSheetCard,
@@ -285,6 +288,17 @@ export function NodeConnectionPanel({
                   </IconButton>
                 </View>
 
+                <ConnectionStatusBar
+                  node={{
+                    ...node,
+                    endpoint: node.endpoint || selectedRemote?.url,
+                  }}
+                  chatConnected
+                  hasChannels={false}
+                  remote={remote}
+                  flush
+                />
+
                 {working ? (
                   <View
                     accessibilityLabel={progressMessage}
@@ -359,6 +373,11 @@ export function NodeConnectionPanel({
                         secureTextEntry
                         value={password}
                       />
+                      {isPasswordShort(password) && (
+                        <Text style={styles.passwordHint}>
+                          {t('node.account.passwordShort')}
+                        </Text>
+                      )}
                       <MostButton
                         disabled={working || !username.trim() || !password}
                         icon={
@@ -378,6 +397,13 @@ export function NodeConnectionPanel({
                     </View>
                   )}
                 </View>
+
+                {accountName ? (
+                  <AccountSyncRow
+                    client={client}
+                    refreshKey={`${node.endpoint}|${accountAddress}`}
+                  />
+                ) : null}
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
@@ -566,6 +592,14 @@ function createConnectionStyles(theme: MostBoxTheme) {
     formSection: { gap: 10 },
     formTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
     formFields: { gap: 9 },
+    passwordHint: {
+      backgroundColor: colors.warningSoft,
+      borderRadius: 8,
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      padding: 8,
+    },
     signedInRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     signedInText: { flex: 1, gap: 2, minWidth: 0 },
     primaryText: { color: colors.text, fontSize: 14, fontWeight: '600' },

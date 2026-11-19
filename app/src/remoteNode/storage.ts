@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import type { MobileIdentity } from '../mobileCore/types'
+import { MOBILE_IDENTITY_VERSION, isUsableDevice } from './identity'
 import {
   normalizeRemoteNodes,
   type StoredRemoteNode,
@@ -41,10 +42,12 @@ async function writeState(next: PersistedState) {
 
 function normalizeIdentity(value: PersistedState['identity']) {
   if (
+    value?.version !== MOBILE_IDENTITY_VERSION ||
     !value?.username ||
     !value.address ||
     !/^0x[0-9a-f]{40}$/i.test(value.address) ||
-    !/^0x[0-9a-f]{64}$/i.test(value.danger || '')
+    !/^0x[0-9a-f]{64}$/.test(value.syncKey || '') ||
+    !isUsableDevice(value.device)
   ) {
     return null
   }

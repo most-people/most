@@ -1,0 +1,16 @@
+{
+  "description": "Protocol v2 P2P Ping topics and frames (v2/envelope.md \u00a76), computed independently in Python. Each frame is the JSON line without the trailing newline.",
+  "code": "123456",
+  "direction": "hostToJoin",
+  "nonce": "00112233445566778899aabbccddeeff",
+  "topics": {
+    "hostToJoin": "797182b27b933fc78fa74dd3e6ed440adce67cc2779cbf4acab28c6c56fefb1c",
+    "joinToHost": "f3217a568a5f0315250c6774687e7a1c0bcdea815fb97ad82f058aff31ad339e"
+  },
+  "proofKey": "ad0e09d1b10d2e8bc21e4b6d2fe0fc76f3ae7ef1e8ab69f87c4db22460ce4cd2",
+  "frames": {
+    "p2p-ping": "{\"type\":\"p2p-ping\",\"version\":3,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"000e9dedc0acf7ca71671e6e4d363c3f4f1c9f50c4716fc8e86ec614886691a8\"}",
+    "p2p-pong": "{\"type\":\"p2p-pong\",\"version\":3,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"4dac03ebcca06a7bd4ccc1cdaf0fa67667d789bdd15c0d7ed43015b022c4918a\"}",
+    "p2p-ack": "{\"type\":\"p2p-ack\",\"version\":3,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"20feaa37892d38868436ca036891c4aa76e6f991575e0fb0234fd253488c77da\"}"
+  }
+}

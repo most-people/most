@@ -28,7 +28,7 @@ describe('iOS release profile selection', () => {
     assert.equal(resolveIosReleaseProfile('inkbox').appName, '墨盒')
     assert.equal(
       resolveIosReleaseProfile('mohe').iosBundleIdentifier,
-      'red.most.mohe'
+      'most.people'
     )
   })
 
@@ -42,7 +42,7 @@ describe('iOS release profile selection', () => {
       'inkbox'
     )
     assert.equal(configured.name, '墨盒')
-    assert.equal(configured.ios.bundleIdentifier, 'red.most.mohe')
+    assert.equal(configured.ios.bundleIdentifier, 'most.people')
   })
 })
 const packageVersion = JSON.parse(

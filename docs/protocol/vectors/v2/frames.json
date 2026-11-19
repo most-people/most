@@ -1,0 +1,124 @@
+{
+  "description": "Protocol v2 chat swarm frames as sent by 0.8.0 (v2/envelope.md \u00a74.3) and the \u00a74.1 receive rule: keep is false for frames dropped without disconnecting.",
+  "frames": {
+    "session": {
+      "v": 2,
+      "type": "session",
+      "features": ["sig1"]
+    },
+    "channel-challenge": {
+      "v": 2,
+      "type": "channel-challenge",
+      "challenge": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "channel-scope": {
+      "v": 2,
+      "type": "channel-scope",
+      "topics": [
+        "1111111111111111111111111111111111111111111111111111111111111111"
+      ]
+    },
+    "channel-proof": {
+      "v": 2,
+      "type": "channel-proof",
+      "challenge": "1111111111111111111111111111111111111111111111111111111111111111",
+      "proofs": [
+        {
+          "topic": "1111111111111111111111111111111111111111111111111111111111111111",
+          "proof": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    "channel-hello": {
+      "v": 2,
+      "type": "channel-hello",
+      "peerId": "1111111111111111111111111111111111111111111111111111111111111111",
+      "authorName": "1111",
+      "channels": [
+        {
+          "channelId": "1111111111111111111111111111111111111111111111111111111111111111",
+          "createdAt": "2026-11-18T00:00:00.000Z",
+          "lastMessageAt": "",
+          "memberAddresses": ["0x2222222222222222222222222222222222222222"],
+          "writerCoreKeys": [
+            "1111111111111111111111111111111111111111111111111111111111111111"
+          ]
+        }
+      ]
+    }
+  },
+  "received": [
+    {
+      "name": "v2 frame",
+      "frame": {
+        "v": 2,
+        "type": "channel-scope",
+        "topics": []
+      },
+      "keep": true
+    },
+    {
+      "name": "v2 unknown type",
+      "frame": {
+        "v": 2,
+        "type": "later-feature"
+      },
+      "keep": true
+    },
+    {
+      "name": "v2 unknown field",
+      "frame": {
+        "v": 2,
+        "type": "channel-scope",
+        "topics": [],
+        "extra": true
+      },
+      "keep": true
+    },
+    {
+      "name": "v1 challenge",
+      "frame": {
+        "type": "channel-proof-challenge",
+        "version": 1,
+        "challenge": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "keep": false
+    },
+    {
+      "name": "v1 scope",
+      "frame": {
+        "type": "channel-scope",
+        "topics": []
+      },
+      "keep": false
+    },
+    {
+      "name": "v3",
+      "frame": {
+        "v": 3,
+        "type": "channel-scope",
+        "topics": []
+      },
+      "keep": false
+    },
+    {
+      "name": "string v",
+      "frame": {
+        "v": "2",
+        "type": "channel-scope",
+        "topics": []
+      },
+      "keep": false
+    },
+    {
+      "name": "array",
+      "frame": [2],
+      "keep": false
+    },
+    {
+      "name": "null",
+      "frame": null,
+      "keep": false
+    }
+  ]
+}

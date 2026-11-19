@@ -561,6 +561,36 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     }
   }
 
+  async getAccountSyncStatus() {
+    const status = asRecord(await this.#requestJson('GET', '/api/user/sync'))
+    return {
+      registered: status.registered === true,
+      devices: readNumber(status, 'writerCores'),
+    }
+  }
+
+  async registerAccountSync() {
+    if (!this.#identity?.syncKey) return
+    await this.#requestJson('PUT', '/api/user/sync', {
+      syncKey: this.#identity.syncKey,
+    })
+  }
+
+  async unregisterAccountSync() {
+    await this.#requestJson('DELETE', '/api/user/sync')
+  }
+
+  /** Moves the v1 account's data on this node to the signed-in v2 identity. */
+  async migrateLegacyAccount(migration: {
+    oldAddress: string
+    signature: string
+  }) {
+    const result = asRecord(
+      await this.#requestJson('POST', '/api/user/migrate', migration)
+    )
+    if (result.migrated === true) await this.#refreshFiles()
+  }
+
   async #requestJson(
     method: string,
     path: string,
@@ -632,6 +662,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     const status = asRecord(await this.#requestJson('GET', '/api/node/status'))
     const network = asRecord(status.network)
     this.#snapshot.node.peerCount = readNumber(network, 'peers')
+    this.#snapshot.node.networkOnline = network.online !== false
     this.#emit()
   }
 
@@ -759,6 +790,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     if (event === 'node:status') {
       const network = asRecord(data.network)
       this.#snapshot.node.peerCount = readNumber(network, 'peers')
+      this.#snapshot.node.networkOnline = network.online !== false
       this.#emit()
       return
     }

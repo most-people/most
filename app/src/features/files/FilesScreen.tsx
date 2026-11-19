@@ -35,9 +35,8 @@ import type {
   MobileHolding,
   SeedStatus,
 } from '../../mobileCore/types'
-import { getCidTopicDigest } from '../../mobileCore/protocol'
+import { getCidFileTopic } from '../../mobileCore/protocol'
 import { getTransferDisplayMessage } from '../../ui/presentation'
-import { fixtureHoldings } from '../../ui/fixtures'
 import { useI18n, type MessageKey } from '../../i18n'
 import {
   BottomSheetCard,
@@ -141,9 +140,7 @@ export function FilesScreen({
   const [currentPath, setCurrentPath] = useState('')
   const [selectedCid, setSelectedCid] = useState('')
   const isRemote = snapshot.node.mode === 'remote'
-  const holdings = snapshot.holdings.length
-    ? snapshot.holdings
-    : fixtureHoldings
+  const holdings = snapshot.holdings
   const libraryHoldings = useMemo(
     () => holdings.filter(holding => !holding.folderShare),
     [holdings]
@@ -609,7 +606,7 @@ export function FilesScreen({
                         <Text style={styles.fieldLabel}>Topic</Text>
                         <Text selectable style={styles.topicText}>
                           {Array.from(
-                            getCidTopicDigest(selectedHolding.cid),
+                            getCidFileTopic(selectedHolding.cid),
                             byte => byte.toString(16).padStart(2, '0')
                           ).join('')}
                         </Text>
@@ -639,9 +636,14 @@ export function FilesScreen({
                         <View style={styles.networkItem}>
                           <Wifi size={18} color={theme.colors.info} />
                           <Text style={styles.networkLabel}>
-                            {t('files.details.peers', {
-                              count: selectedHolding.peerCount,
-                            })}
+                            {t(
+                              selectedHolding.peerCount === 1
+                                ? 'files.details.peers.one'
+                                : 'files.details.peers',
+                              {
+                                count: selectedHolding.peerCount,
+                              }
+                            )}
                           </Text>
                         </View>
                       </View>
@@ -655,7 +657,10 @@ export function FilesScreen({
                         icon={
                           <Download size={17} color={theme.colors.onAccent} />
                         }
-                        onPress={() => onDownloadHolding(selectedHolding)}
+                        onPress={() => {
+                          closeDetails()
+                          onDownloadHolding(selectedHolding)
+                        }}
                         style={styles.detailAction}
                         variant="primary"
                       >

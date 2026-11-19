@@ -63,7 +63,7 @@ export function BackgroundServicePanel({
   )
 }
 const styles = StyleSheet.create({
-  panel: { gap: 10, marginTop: 12 },
+  panel: { gap: 10, marginHorizontal: 20, marginTop: 12 },
   light: { color: '#475569', fontSize: 13 },
   dark: { color: '#CBD5E1', fontSize: 13 },
 })

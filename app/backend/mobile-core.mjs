@@ -1,51 +1,74 @@
+import { randomBytes } from 'node:crypto'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
+import { snapshotLocalChannelArchive } from '../../server/src/core/localChannelArchive.js'
 import {
-  CHANNEL_CANDIDATE_TTL,
-  CHANNEL_DISCOVERY_TIMEOUT,
   CHANNEL_MESSAGE_LIMIT,
-  CHANNEL_PROOF_VERSION,
   CHANNEL_PRESENCE_HEARTBEAT_MS,
   CHANNEL_PRESENCE_TIMEOUT_MS,
   CHANNELS_FILE,
-  DIAGNOSTIC_AUTHOR,
-  DIAGNOSTIC_AUTHOR_NAME,
   MAX_CHANNEL_FRAME_BYTES,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
-  assertValidChannelId,
   buildChannelHelloMessages,
-  buildChannelKey,
-  channelToCandidate,
   chunkChannelScopeTopics,
   consumeChannelFrames,
   createChannelProofChallenge,
   createChannelRecord,
-  createChannelTopicProof,
   formatChannelForResponse,
-  generateChannelChatDiscoveryKey,
-  generateChannelDiscoveryKey,
-  generateChannelIdDiscoveryKey,
-  isChannelAllowedForConnection,
   normalizeChannelRemark,
   normalizeChannelId,
   normalizeChannelKey,
-  normalizeChannelMessage,
   normalizeChannelPresenceAddress,
   normalizeChannelPresenceAvatar,
   normalizeChannelPresenceDisplayName,
   normalizeChannelProofChallenge,
   normalizeChannelRecord,
   normalizeChannelScopeTopics,
-  selectChannelsForHello,
   sortChannelMessages,
   uniqueStrings,
-  verifyChannelTopicProof,
 } from './channel-protocol.mjs'
+import {
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+  verifyChannelProof,
+} from './channel-keys-v2.mjs'
 import { P2PPingManager } from './p2p-ping.mjs'
+import {
+  SIGNED_TS_FUTURE_LIMIT_MS,
+  buildSignedEntry,
+  isSignedEntry,
+  readSignedMessageEntry,
+  readSignedProfileEntry,
+  signedProfileError,
+  signedMessageError,
+} from './channel-signed-entry.mjs'
+import {
+  createSignedPresenceFrame,
+  readSignedPresenceFrame,
+  presenceSession,
+  signedPresenceError,
+} from './channel-signed-presence.mjs'
+import { canonicalJson } from '../shared/canonical-json.mjs'
+import { verifySignedEnvelope } from './chat-signatures-v2.mjs'
+import {
+  buildSessionFrame,
+  isSessionFrame,
+  isV2Frame,
+  parseSessionFeatures,
+  sharedFeatures,
+} from './channel-session.mjs'
+import {
+  attachCidDriveChannel,
+  cidDriveName,
+  fileTopic,
+  wantKeyFor,
+} from './cid-drive-exchange.mjs'
 import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
@@ -74,6 +97,8 @@ const FILE_WRITE_CHUNK_SIZE = 64 * 1024
 const DOWNLOAD_POLL_INTERVAL_MIN = 500
 const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 const DRIVE_UPDATE_INTERVAL = 2000
+// Re-run the DHT lookup for a topic this often while a download has no source.
+const TOPIC_LOOKUP_INTERVAL = 5000
 const PROGRESS_THROTTLE = 500
 const HOLDINGS_FILE = 'node-holdings.json'
 const TRANSFERS_FILE = 'transfers.json'
@@ -89,6 +114,9 @@ const SWARM_BOOTSTRAP = [
 ]
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
+// channel-keys.md §5: writer core keys accepted per channel from one hello.
+const MAX_HELLO_WRITER_CORE_KEYS = 256
 
 function createId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -133,6 +161,28 @@ function fileExists(filePath) {
   } catch {
     return false
   }
+}
+
+// This node's secret (channel-keys §6.1): it names the node's own CID drives
+// and writer cores; losing it equals losing that data, so it lives with the
+// store. Before 0.8.0 the file was called `cid-drive-secret`; it is renamed
+// in place with the same content.
+const NODE_SECRET_FILE = 'node-secret'
+const LEGACY_NODE_SECRET_FILE = 'cid-drive-secret'
+
+function loadOrCreateNodeSecret(storagePath) {
+  const filePath = path.join(storagePath, NODE_SECRET_FILE)
+  const legacyPath = path.join(storagePath, LEGACY_NODE_SECRET_FILE)
+  if (!fs.existsSync(filePath) && fs.existsSync(legacyPath)) {
+    fs.renameSync(legacyPath, filePath)
+  }
+  try {
+    const existing = b4a.from(fs.readFileSync(filePath, 'utf8').trim(), 'hex')
+    if (existing.byteLength === 32) return existing
+  } catch {}
+  const secret = randomBytes(32)
+  atomicWrite(filePath, b4a.toString(secret, 'hex'))
+  return secret
 }
 
 function atomicWrite(filePath, data) {
@@ -231,17 +281,19 @@ function getCidInfo(cid) {
     throw new Error('CID v1 required')
   }
 
-  const topic = b4a.from(parsed.multihash.digest)
-  if (topic.byteLength !== 32) {
+  const digest = b4a.from(parsed.multihash.digest)
+  if (digest.byteLength !== 32) {
     throw new Error('CID digest must be 32 bytes')
   }
 
-  const topicHex = b4a.toString(topic, 'hex')
+  const topic = fileTopic(digest)
   return {
     cid: parsed.toString(),
     topic,
-    topicHex,
-    driveName: `drive-${topicHex}`,
+    topicHex: b4a.toString(topic, 'hex'),
+    wantKey: wantKeyFor(digest),
+    // 0.5.x shared-key drive; read only by the one-time migration.
+    legacyDriveName: `drive-${b4a.toString(digest, 'hex')}`,
   }
 }
 
@@ -259,7 +311,7 @@ function normalizeFileUri(uri) {
   return value
 }
 
-async function calculateCid(input, onProgress) {
+export async function calculateCid(input, onProgress) {
   const blockstore = createDummyBlockstore()
   let rootCid = null
   let size = 0
@@ -273,6 +325,8 @@ async function calculateCid(input, onProgress) {
     const stat = fs.statSync(filePath)
     size = stat.size || 0
     content = fs.createReadStream(filePath)
+  } else if (input.stream) {
+    content = input.stream
   } else {
     throw new Error('File content is required')
   }
@@ -488,12 +542,15 @@ export class MobileP2PCore {
   #cancelledDownloads = new Set()
   #channels = []
   #channelCores = new Map()
+  #channelCoresOpening = new Set()
   #channelLocalCoreKey = new Map()
+  // Accounts that signed entries in this node's writer core, per channel: the
+  // mobile counterpart of the desktop's local channel members (hello
+  // memberAddresses, channel-keys §5).
+  #channelLocalMembers = new Map()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
-  #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
-  #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelMessageCache = new Map()
   #channelMessageQueues = new Map()
@@ -506,6 +563,11 @@ export class MobileP2PCore {
   #seedStates = new Map()
   #transfers = []
   #activeDownloadCids = new Set()
+  #cidDriveSecret = null
+  #cidDrivePeers = new Set()
+  #cidDriveOffers = new Map()
+  #cidDriveWants = new Map()
+  #cidDriveOfferWaiters = new Set()
   #logs = []
   #createSwarm
   #relayThrough = null
@@ -534,7 +596,11 @@ export class MobileP2PCore {
 
   getSnapshot() {
     return {
-      node: { ...this.#node, peerCount: this.#peerCount() },
+      node: {
+        ...this.#node,
+        peerCount: this.#peerCount(),
+        networkOnline: this.#swarm?.dht?.online !== false,
+      },
       holdings: this.#holdings.map(holding => this.#toMobileHolding(holding)),
       transfers: this.#transfers.map(transfer => ({ ...transfer })),
       channels: this.#channels.map(channel => this.#toMobileChannel(channel)),
@@ -591,9 +657,11 @@ export class MobileP2PCore {
     this.#swarm.on('connection', conn => {
       conn.on('error', () => {})
       this.#store.replicate(conn)
+      this.#attachCidDrivePeer(conn)
       this.#emitNetworkStatus()
     })
     this.#swarm.on('update', () => this.#emitNetworkStatus())
+    this.#swarm.dht?.on?.('network-update', () => this.#emitNetworkStatus())
     this.#swarm.on('error', err => {
       const message = err && err.message ? err.message : 'Hyperswarm error'
       this.#log('warn', message)
@@ -640,6 +708,7 @@ export class MobileP2PCore {
       },
     })
 
+    this.#cidDriveSecret = loadOrCreateNodeSecret(this.#storagePath)
     this.#transfers = this.#loadTransfers()
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {
@@ -681,7 +750,7 @@ export class MobileP2PCore {
   async stop() {
     this.#node = { ...this.#node, status: 'stopping' }
     this.#emitSnapshot()
-    this.#clearChannelPresenceRuntime({ broadcast: true })
+    this.#clearChannelPresenceRuntime()
 
     if (this.#p2pPingManager) {
       await this.#p2pPingManager.destroy()
@@ -704,11 +773,10 @@ export class MobileP2PCore {
     }
     this.#channelCores.clear()
     this.#channelLocalCoreKey.clear()
+    this.#channelLocalMembers.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
-    this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
-    this.#channelCandidateCache.clear()
     this.#channelStreams.clear()
     this.#channelMessageCache.clear()
     this.#channelMessageQueues.clear()
@@ -719,6 +787,9 @@ export class MobileP2PCore {
     this.#drives.clear()
     this.#drivePromises.clear()
     this.#discoveries.clear()
+    this.#cidDrivePeers.clear()
+    this.#cidDriveOffers.clear()
+    this.#cidDriveWants.clear()
 
     if (this.#store) {
       await this.#store.close()
@@ -765,10 +836,10 @@ export class MobileP2PCore {
   async createChannel(input = {}) {
     this.#ensureReady()
     const requestedType = String(input.type || 'public').trim() || 'public'
-    const channelId = assertValidChannelId(input.name || input.channelId)
-    const channelKey = buildChannelKey(channelId)
+    const resolved = resolveChannelHandle(input.name || input.channelId)
+    if (!resolved) throw new Error('Invalid channel credential or name')
     const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
+      channel => channel.channelKey === resolved.channelKey
     )
 
     if (existing) {
@@ -778,27 +849,10 @@ export class MobileP2PCore {
       return this.#toMobileChannel(existing)
     }
 
-    const localCandidates = this.#getLocalChannelCandidates(channelId)
-    const remoteCandidates =
-      input.discover === false
-        ? []
-        : await this.#discoverChannelCandidates(channelId, {
-            timeout: input.discoveryTimeout,
-          })
-    const candidates = this.#mergeChannelCandidates([
-      ...localCandidates,
-      ...remoteCandidates,
-    ])
-
-    if (candidates.length > 0) {
-      return this.#joinChannelFromCandidate(candidates[0], requestedType)
-    }
-
-    const channel = createChannelRecord(channelId, requestedType)
+    const channel = createChannelRecord(resolved, requestedType)
     this.#channels.push(channel)
     await this.#openChannelRuntime(channel)
     await this.#joinChannelDiscoveryTopics(channel)
-    this.#cacheChannelCandidate(channelToCandidate(channel, true))
     this.#saveChannels()
     this.#broadcastChannelHello()
     this.#log('info', `Joined channel ${channel.channelKey}`)
@@ -817,7 +871,6 @@ export class MobileP2PCore {
     const discoveries = [
       this.#channelDiscoveries.get(channelKey),
       this.#channelChatDiscoveries.get(channelKey),
-      this.#channelIdDiscoveries.get(channel.channelId),
     ].filter(Boolean)
 
     for (const discovery of discoveries) {
@@ -832,13 +885,12 @@ export class MobileP2PCore {
 
     this.#channelDiscoveries.delete(channelKey)
     this.#channelChatDiscoveries.delete(channelKey)
-    this.#channelIdDiscoveries.delete(channel.channelId)
     this.#channelCores.delete(channelKey)
     this.#channelLocalCoreKey.delete(channelKey)
+    this.#channelLocalMembers.delete(channelKey)
     this.#channelPeers.delete(channelKey)
     this.#channelMessageCache.delete(channelKey)
     this.#clearChannelPresenceForChannel(channelKey)
-    this.#clearChannelCandidate(channel)
     this.#channels = this.#channels.filter(
       item => item.channelKey !== channelKey
     )
@@ -893,15 +945,19 @@ export class MobileP2PCore {
       throw new Error('Channel runtime is not initialized')
     }
 
-    const allMessages = []
+    const allMessages = channel.legacyWriterCoreKeys
+      ? JSON.parse(fs.readFileSync(this.#archivePath(channel), 'utf8'))
+      : []
     for (const [coreKeyHex, core] of coresMap) {
       for (let i = 0; i < core.length; i++) {
         try {
-          const entry = await core.get(i)
+          // Only blocks held locally: a writer whose block has not arrived
+          // may be offline, and waiting would hang the read.
+          const entry = await core.get(i, { wait: false })
+          if (entry === null) break
           if (!this.#isChannelActive(channel.channelKey)) return []
-          if (entry && entry.type === 'message') {
-            const message = this.#normalizeIncomingChannelMessage(entry)
-            if (!message) continue
+          const message = readSignedMessageEntry(entry, channel.channelKey)
+          if (message) {
             allMessages.push({
               ...message,
               _coreKey: coreKeyHex,
@@ -932,7 +988,48 @@ export class MobileP2PCore {
     return messages
   }
 
-  async sendChannelMessage(input = {}) {
+  // Rebuild from locally readable signed blocks. Profiles are not chat
+  // messages and must not move the conversation preview or unread cursor.
+  async getChannelMemberProfiles({ channelName }) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(channelName)
+    const cores = this.#channelCores.get(channel.channelKey)
+    if (!cores) throw new Error('Channel runtime is not initialized')
+    const updates = []
+    const now = Date.now()
+    for (const [writer, core] of cores) {
+      for (let index = 0; index < core.length; index++) {
+        const entry = await core.get(index, { wait: false })
+        if (!entry) break
+        const patch = readSignedProfileEntry(entry, channel.channelKey, now)
+        if (patch) updates.push({ patch, writer, index })
+      }
+    }
+    const members = new Map()
+    updates.sort(
+      (a, b) =>
+        a.patch.profileUpdatedAt - b.patch.profileUpdatedAt ||
+        (a.writer < b.writer ? -1 : a.writer > b.writer ? 1 : a.index - b.index)
+    )
+    for (const { patch } of updates) {
+      const previous = members.get(patch.address)
+      if (previous?.profileUpdatedAt === patch.profileUpdatedAt) continue
+      const member = { ...previous, ...patch }
+      if (member.tag === null) delete member.tag
+      members.set(member.address, member)
+    }
+    return [...members.values()]
+  }
+
+  updateChannelMemberProfile(input) {
+    return this.#enqueueChannelWrite(input, 'profile')
+  }
+
+  sendChannelMessage(input = {}) {
+    return this.#enqueueChannelWrite(input, 'message')
+  }
+
+  async #enqueueChannelWrite(input, kind) {
     this.#ensureReady()
     const channel = this.#resolveChannel(input.channelName || input.name)
     const key = channel.channelKey
@@ -942,7 +1039,7 @@ export class MobileP2PCore {
       .catch(() => {})
       .then(() => {
         if (this.#store !== store) throw new Error('P2P core is not ready')
-        return this.#sendChannelMessage(input)
+        return this.#writeChannelEntry(input, kind)
       })
     const completed = pending.then(
       () => {},
@@ -957,7 +1054,7 @@ export class MobileP2PCore {
     }
   }
 
-  async #sendChannelMessage(input) {
+  async #writeChannelEntry(input, kind) {
     this.#ensureReady()
     const channelName = input.channelName || input.name
     const channel = this.#resolveChannel(channelName)
@@ -968,48 +1065,36 @@ export class MobileP2PCore {
       throw new Error('Channel runtime is not initialized')
     }
 
-    const message = normalizeChannelMessage(
-      {
-        content: input.content,
-        author: input.author || DIAGNOSTIC_AUTHOR,
-        authorName: input.authorName || DIAGNOSTIC_AUTHOR_NAME,
-        attachment: input.attachment,
-        clientMessageId: input.clientMessageId,
-      },
-      {
-        timestamp: await this.#getNextChannelMessageTimestamp(
-          channel.channelKey
-        ),
-        requireAttachment: Boolean(input.attachment),
-        requireClientMessageId: Object.hasOwn(input, 'clientMessageId'),
-      }
-    )
+    // The app signs the body with its device key; this core checks it and
+    // never edits it (signatures.md §4.6).
+    const { signed } = input
+    const validate =
+      kind === 'profile' ? signedProfileError : signedMessageError
+    const error = validate(signed, { channelId: channel.channelKey })
+    if (error) throw new Error(`Invalid signed ${kind}: ${error}`)
+    const { body } = signed
 
-    if (message.clientMessageId) {
-      const author =
-        normalizeChannelPresenceAddress(message.author) || message.author
-      for (let index = core.length - 1; index >= 0; index--) {
-        const entry = await core.get(index)
-        if (!entry || entry.type !== 'message') continue
-        const previousAuthor =
-          normalizeChannelPresenceAddress(entry.author) || entry.author
-        if (
-          previousAuthor !== author ||
-          entry.clientMessageId !== message.clientMessageId
-        )
-          continue
-        const previous = normalizeChannelMessage(entry)
-        if (
-          previous.content !== message.content ||
-          JSON.stringify(previous.attachment || null) !==
-            JSON.stringify(message.attachment || null)
-        )
-          throw new Error('clientMessageId already identifies another message')
-        return previous
-      }
+    for (let index = core.length - 1; index >= 0; index--) {
+      const entry = await core.get(index, { wait: false })
+      if (!isSignedEntry(entry)) continue
+      if (entry.body?.author !== body.author || entry.body?.id !== body.id)
+        continue
+      if (canonicalJson(entry.body) !== canonicalJson(body))
+        throw new Error('clientMessageId already identifies another message')
+      if (kind === 'profile') return
+      return readSignedMessageEntry(entry, channel.channelKey)
     }
 
-    await core.append(message)
+    const entry = buildSignedEntry(
+      signed,
+      await this.#getNextChannelMessageTimestamp(channel.channelKey)
+    )
+    await core.append(entry)
+    if (this.#addChannelLocalMember(channel.channelKey, body.author)) {
+      this.#broadcastChannelHello()
+    }
+    if (kind === 'profile') return
+    const message = readSignedMessageEntry(entry, channel.channelKey)
     if (!this.#isChannelActive(channel.channelKey)) return message
 
     channel.lastMessageAt = new Date(message.timestamp).toISOString()
@@ -1029,52 +1114,53 @@ export class MobileP2PCore {
     return this.#getChannelPresenceList(channel.channelKey)
   }
 
-  joinChannelPresence(input = {}) {
+  #applyPresence(channel, body, session) {
+    switch (body.status) {
+      case 'online':
+        return this.#upsertChannelPresenceSession(channel, session)
+      case 'heartbeat':
+        return this.#touchChannelPresenceSession(channel, session)
+      case 'profile':
+        return this.#updateChannelPresenceProfile(channel, session)
+      case 'offline':
+        return this.#removeChannelPresenceSessions(
+          channel.channelKey,
+          session
+        ).at(-1)
+    }
+  }
+
+  #acceptLocalPresence(input, status) {
     this.#ensureReady()
     const channel = this.#resolvePresenceChannel(input)
-    const event = this.#upsertChannelPresenceSession(channel, {
-      ...this.#normalizeLocalPresenceOptions(input),
-      local: true,
+    const error = signedPresenceError(input.signed, {
+      channelId: channel.channelKey,
+      status,
     })
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
+    if (error) throw new Error(error)
+    const frame = createSignedPresenceFrame(
+      JSON.parse(JSON.stringify(input.signed))
+    )
+    this.#applyPresence(channel, frame.body, {
+      ...presenceSession(frame.body, 'local'),
+      local: true,
+      frame,
+    })
+    this.#broadcastChannelPresence(frame)
     this.#emitSnapshot()
     return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  joinChannelPresence(input = {}) {
+    return this.#acceptLocalPresence(input, 'online')
   }
 
   heartbeatChannelPresence(input = {}) {
-    this.#ensureReady()
-    const channel = this.#resolvePresenceChannel(input)
-    const options = {
-      ...this.#normalizeLocalPresenceOptions(input, { includeProfile: false }),
-      local: true,
-    }
-    const event =
-      this.#touchChannelPresenceSession(channel, options) ||
-      this.#formatChannelPresence(
-        channel.channelKey,
-        options.address,
-        'heartbeat'
-      )
-    if (event) {
-      this.#broadcastChannelPresence(event)
-    }
-    this.#emitSnapshot()
-    return this.#getChannelPresenceList(channel.channelKey)
+    return this.#acceptLocalPresence(input, 'heartbeat')
   }
 
   leaveChannelPresence(input = {}) {
-    this.#ensureReady()
-    const channel = this.#resolvePresenceChannel(input)
-    const events = this.#removeChannelPresenceSessions(channel.channelKey, {
-      ...this.#normalizeLocalPresenceOptions(input, { includeProfile: false }),
-    })
-    for (const event of events) {
-      this.#broadcastChannelPresence(event)
-    }
-    this.#emitSnapshot()
-    return this.#getChannelPresenceList(channel.channelKey)
+    return this.#acceptLocalPresence(input, 'offline')
   }
 
   async publishFile(input = {}, requestId = createId('publish')) {
@@ -1099,7 +1185,7 @@ export class MobileP2PCore {
       })
       const cid = result.cid
       const size = result.size || Number(input.size) || 0
-      const { driveName } = getCidInfo(cid)
+      const { driveName } = this.#getCidInfo(cid)
       const driveKey = `/${cid}`
       const drive = await this.#getOrCreateDrive(driveName)
 
@@ -1160,7 +1246,7 @@ export class MobileP2PCore {
     const parsed = splitMostLink(input.link)
     const cid = parsed.cid
     const fileName = sanitizeFilename(parsed.fileName)
-    const { driveName } = getCidInfo(cid)
+    const { driveName } = this.#getCidInfo(cid)
     const driveKey = `/${cid}`
     const tempPath = path.join(this.#downloadPath, `${cid}.part`)
 
@@ -1214,82 +1300,110 @@ export class MobileP2PCore {
         message: 'Finding peers',
       })
 
-      const entry = await this.#waitForDriveEntry(
-        drive,
-        driveKey,
-        input.timeout || DOWNLOAD_DISCOVERY_TIMEOUT,
-        requestId
-      )
-
-      if (!entry) {
-        throw new Error('No online seed was found for this CID')
-      }
-
-      const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
-      const savePath = uniqueSavePath(this.#downloadPath, fileName)
-      let resumeBytes = fileExists(tempPath) ? fs.statSync(tempPath).size : 0
-      if (resumeBytes > totalBytes) {
-        safeRm(tempPath)
-        resumeBytes = 0
-      }
-
-      this.#upsertTransfer({
-        ...transfer,
-        progress: 20,
-        phase: 'downloading',
-        totalBytes,
-        completedBytes: resumeBytes,
-        message: resumeBytes ? 'Resuming downloaded bytes' : 'Downloading file',
-      })
-
-      const readStream = drive.createReadStream(driveKey, {
-        start: resumeBytes,
-      })
-      let loaded = 0
-      await pipeDriveToFile(readStream, tempPath, {
-        timeout: STREAM_READ_TIMEOUT,
-        append: resumeBytes > 0,
-        onProgress: nextLoaded => {
-          this.#assertDownloadActive(requestId)
-          loaded = resumeBytes + nextLoaded
-          if (totalBytes > 0) {
-            const progress = 20 + Math.round((loaded / totalBytes) * 60)
-            this.#upsertTransfer({
-              ...transfer,
-              progress: Math.min(progress, 80),
-              completedBytes: loaded,
-              message: 'Downloading file',
-            })
+      const discoveryDeadline =
+        Date.now() + (input.timeout || DOWNLOAD_DISCOVERY_TIMEOUT)
+      const triedKeys = new Set()
+      let sourceMismatch = null
+      let totalBytes = 0
+      let savePath = ''
+      let downloaded = null
+      for (;;) {
+        const source = await this.#waitForRemoteCidDrive(
+          cid,
+          discoveryDeadline - Date.now(),
+          requestId,
+          triedKeys
+        )
+        if (!source) {
+          throw (
+            sourceMismatch || new Error('No online seed was found for this CID')
+          )
+        }
+        try {
+          const entry = source.entry
+          totalBytes = Number(entry?.value?.blob?.byteLength) || 0
+          savePath = uniqueSavePath(this.#downloadPath, fileName)
+          let resumeBytes = fileExists(tempPath)
+            ? fs.statSync(tempPath).size
+            : 0
+          if (resumeBytes > totalBytes) {
+            safeRm(tempPath)
+            resumeBytes = 0
           }
-        },
-      })
 
-      this.#assertDownloadActive(requestId)
+          this.#upsertTransfer({
+            ...transfer,
+            progress: 20,
+            phase: 'downloading',
+            totalBytes,
+            completedBytes: resumeBytes,
+            message: resumeBytes
+              ? 'Resuming downloaded bytes'
+              : 'Downloading file',
+          })
 
-      this.#upsertTransfer({
-        ...transfer,
-        progress: 85,
-        phase: 'verifying',
-        completedBytes: totalBytes,
-        message: 'Verifying CID',
-      })
+          const readStream = source.drive.createReadStream(driveKey, {
+            start: resumeBytes,
+          })
+          let loaded = 0
+          await pipeDriveToFile(readStream, tempPath, {
+            timeout: STREAM_READ_TIMEOUT,
+            append: resumeBytes > 0,
+            onProgress: nextLoaded => {
+              this.#assertDownloadActive(requestId)
+              loaded = resumeBytes + nextLoaded
+              if (totalBytes > 0) {
+                const progress = 20 + Math.round((loaded / totalBytes) * 60)
+                this.#upsertTransfer({
+                  ...transfer,
+                  progress: Math.min(progress, 80),
+                  completedBytes: loaded,
+                  message: 'Downloading file',
+                })
+              }
+            },
+          })
 
-      const downloaded = await calculateCid(
-        { filePath: tempPath },
-        (loaded, total) => {
           this.#assertDownloadActive(requestId)
-          this.#patchTransfer(requestId, {
-            progress: total > 0 ? 85 + Math.round((loaded / total) * 10) : 95,
+
+          this.#upsertTransfer({
+            ...transfer,
+            progress: 85,
+            phase: 'verifying',
+            completedBytes: totalBytes,
             message: 'Verifying CID',
           })
+
+          downloaded = await calculateCid(
+            { filePath: tempPath },
+            (loaded, total) => {
+              this.#assertDownloadActive(requestId)
+              this.#patchTransfer(requestId, {
+                progress:
+                  total > 0 ? 85 + Math.round((loaded / total) * 10) : 95,
+                message: 'Verifying CID',
+              })
+            }
+          )
+          this.#assertDownloadActive(requestId)
+          if (downloaded.cid !== cid) {
+            safeRm(tempPath)
+            sourceMismatch = new Error(
+              `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
+            )
+            this.#log(
+              'warn',
+              `Seed drive ${source.keyHex.slice(0, 16)} served wrong content for ${cid.slice(0, 16)}`
+            )
+            // Resumed bytes came from an earlier attempt, so the mismatch
+            // may be the cache's; retry this source from byte 0.
+            if (resumeBytes > 0) triedKeys.delete(source.keyHex)
+            continue
+          }
+          break
+        } finally {
+          if (!source.local) await source.drive.close().catch(() => {})
         }
-      )
-      this.#assertDownloadActive(requestId)
-      if (downloaded.cid !== cid) {
-        safeRm(tempPath)
-        throw new Error(
-          `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
-        )
       }
 
       fs.renameSync(tempPath, savePath)
@@ -1378,14 +1492,14 @@ export class MobileP2PCore {
 
   async deleteHolding(input = {}) {
     this.#ensureReady()
-    const { cid, driveName } = getCidInfo(input.cid)
+    const { cid, driveName } = this.#getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
     if (!existing) {
       throw new Error('This CID is not available in local holdings')
     }
 
     await this.#leaveCidTopic(cid)
-    await this.#clearLocalCidContent(cid, existing.driveName || driveName)
+    await this.#clearLocalCidContent(cid, driveName)
 
     for (const cleanupPath of getInternalHoldingCleanupPaths(
       {
@@ -1408,7 +1522,7 @@ export class MobileP2PCore {
 
   async exportHolding(input = {}) {
     this.#ensureReady()
-    const { cid, driveName } = getCidInfo(input.cid)
+    const { cid, driveName } = this.#getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
     if (!existing) {
       throw new Error('This CID is not available in local holdings')
@@ -1419,7 +1533,7 @@ export class MobileP2PCore {
     )
     let exportPath = existing.localPath || ''
     let holding = existing
-    const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+    const drive = await this.#getOrCreateDrive(driveName)
     const driveKey = `/${cid}`
     if (!(await this.#hasLocalCidContent(drive, driveKey))) {
       await this.#leaveCidTopic(cid)
@@ -1474,45 +1588,25 @@ export class MobileP2PCore {
     }
   }
 
-  async #joinChannelFromCandidate(candidateInput, type = 'public') {
-    const channelType = candidateInput.type || type
-    const channelId = assertValidChannelId(candidateInput.channelId)
-    const channelKey = buildChannelKey(channelId)
-    const existing = this.#channels.find(
-      channel => channel.channelKey === channelKey
+  #archivePath(channel) {
+    return path.join(
+      this.#storagePath,
+      `legacy-history-${channel.channelKey}.json`
     )
-
-    if (existing) {
-      await this.#mergeChannelWriterCoreKeys(
-        existing,
-        candidateInput.writerCoreKeys
-      )
-      await this.#joinChannelDiscoveryTopics(existing)
-      this.#broadcastChannelHello()
-      return this.#toMobileChannel(existing)
-    }
-
-    const channel = createChannelRecord(channelId, channelType, {
-      createdAt: candidateInput.createdAt,
-      lastMessageAt: candidateInput.lastMessageAt,
-      writerCoreKeys: candidateInput.writerCoreKeys,
-    })
-
-    this.#channels.push(channel)
-    await this.#openChannelRuntime(channel)
-    await this.#joinChannelDiscoveryTopics(channel)
-    this.#cacheChannelCandidate(channelToCandidate(channel, true))
-    this.#saveChannels()
-    this.#broadcastChannelHello()
-    this.#log('info', `Joined channel ${channel.channelKey}`)
-    this.#send('channel.joined', {
-      channel: this.#toMobileChannel(channel),
-      snapshot: this.getSnapshot(),
-    })
-    return this.#toMobileChannel(channel)
   }
 
   async #openChannelRuntime(channel) {
+    if (
+      channel.legacyWriterCoreKeys &&
+      !fs.existsSync(this.#archivePath(channel))
+    ) {
+      await snapshotLocalChannelArchive(
+        channel,
+        key =>
+          this.#store.get({ key: b4a.from(key, 'hex'), valueEncoding: 'json' }),
+        data => atomicWrite(this.#archivePath(channel), data)
+      )
+    }
     const existingMap = this.#channelCores.get(channel.channelKey)
     if (
       channel.localWriterCoreKey &&
@@ -1535,16 +1629,24 @@ export class MobileP2PCore {
     }
 
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
-    const localCore = channel.localWriterCoreKey
-      ? ns.get({
-          key: b4a.from(channel.localWriterCoreKey, 'hex'),
-          valueEncoding: 'json',
-        })
-      : ns.get({
-          name: `messages-${channel.writerId}`,
-          valueEncoding: 'json',
-        })
+    const generation = Number.isInteger(channel.writerGeneration)
+      ? channel.writerGeneration
+      : 0
+    channel.writerGeneration = generation
+    const keyPair = channelWriterKeyPair(
+      this.#cidDriveSecret,
+      channel.channelKey,
+      generation
+    )
+    // Explicit manifest: the core key is the manifest hash, so pinning its
+    // version keeps this node's writer core key stable across library updates.
+    const localCore = ns.get({
+      keyPair,
+      manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
+      valueEncoding: 'json',
+    })
     await localCore.ready()
+    await this.#loadChannelLocalMembers(channel.channelKey, localCore)
 
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
     channel.localWriterCoreKey = localWriterCoreKey
@@ -1572,8 +1674,34 @@ export class MobileP2PCore {
     }
   }
 
+  async #loadChannelLocalMembers(channelKey, core) {
+    const members = new Set()
+    this.#channelLocalMembers.set(channelKey, members)
+    for (let index = 0; index < core.length; index++) {
+      const entry = await core.get(index, { wait: false })
+      if (!entry) break
+      if (!isSignedEntry(entry)) continue
+      const verified = verifySignedEnvelope(entry, { channelId: channelKey })
+      if (verified.ok) members.add(String(verified.author).toLowerCase())
+    }
+  }
+
+  /** Returns true when the address is new for this channel. */
+  #addChannelLocalMember(channelKey, address) {
+    const members = this.#channelLocalMembers.get(channelKey)
+    const normalized = String(address || '').toLowerCase()
+    if (!members || !normalized || members.has(normalized)) return false
+    members.add(normalized)
+    return true
+  }
+
   async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
     const nextKeys = uniqueStrings(writerCoreKeys)
+      .filter(
+        key =>
+          HEX_64_REGEX.test(key) && !channel.legacyWriterCoreKeys?.includes(key)
+      )
+      .slice(0, MAX_HELLO_WRITER_CORE_KEYS)
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
@@ -1597,7 +1725,7 @@ export class MobileP2PCore {
   async #joinChannelDiscoveryTopics(channel) {
     if (!this.#channelDiscoveries.has(channel.channelKey)) {
       const discovery = this.#swarm.join(
-        generateChannelDiscoveryKey(channel.channelKey),
+        channelTopics(b4a.from(channel.secretKey, 'hex')).replication,
         { server: true, client: true }
       )
       this.#channelDiscoveries.set(channel.channelKey, discovery)
@@ -1609,7 +1737,7 @@ export class MobileP2PCore {
 
     if (!this.#channelChatDiscoveries.has(channel.channelKey)) {
       const discovery = this.#chatSwarm.join(
-        generateChannelChatDiscoveryKey(channel.channelKey),
+        channelTopics(b4a.from(channel.secretKey, 'hex')).chat,
         { server: true, client: true }
       )
       this.#channelChatDiscoveries.set(channel.channelKey, discovery)
@@ -1618,125 +1746,16 @@ export class MobileP2PCore {
         () => {}
       )
     }
-
-    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
-      const discovery = this.#chatSwarm.join(
-        generateChannelIdDiscoveryKey(channel.channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channel.channelId, discovery)
-      discovery.flushed?.().then(
-        () => this.#emitSnapshot(),
-        () => {}
-      )
-    }
-  }
-
-  #getLocalChannelCandidates(channelId) {
-    return this.#channels
-      .filter(channel => channel.channelId === channelId)
-      .map(channel => channelToCandidate(channel, true))
-  }
-
-  async #discoverChannelCandidates(channelId, options = {}) {
-    const getCachedCandidates = () => {
-      const now = Date.now()
-      return [
-        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
-      ].filter(
-        candidate =>
-          candidate.local ||
-          !candidate.lastSeen ||
-          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
-      )
-    }
-
-    const timeout =
-      Number(options.timeout) >= 0
-        ? Number(options.timeout)
-        : CHANNEL_DISCOVERY_TIMEOUT
-    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
-    if (!hadDiscovery) {
-      const discovery = this.#chatSwarm.join(
-        generateChannelIdDiscoveryKey(channelId),
-        { server: true, client: true }
-      )
-      this.#channelIdDiscoveries.set(channelId, discovery)
-    }
-
-    await sleep(timeout)
-    const candidates = getCachedCandidates()
-    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
-      this.#channelIdDiscoveries.delete(channelId)
-      this.#chatSwarm
-        .leave(generateChannelIdDiscoveryKey(channelId))
-        .catch(() => {})
-    }
-    return candidates
-  }
-
-  #mergeChannelCandidates(candidates) {
-    const byKey = new Map()
-    for (const candidate of candidates) {
-      if (!candidate?.channelKey) continue
-      const existing = byKey.get(candidate.channelKey)
-      if (!existing) {
-        byKey.set(candidate.channelKey, {
-          ...candidate,
-          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
-        })
-        continue
-      }
-      byKey.set(candidate.channelKey, {
-        ...existing,
-        ...candidate,
-        local: existing.local || candidate.local,
-        writerCoreKeys: uniqueStrings([
-          ...existing.writerCoreKeys,
-          ...(candidate.writerCoreKeys || []),
-        ]),
-      })
-    }
-    return [...byKey.values()]
-  }
-
-  #cacheChannelCandidate(candidate) {
-    const channelId = normalizeChannelId(candidate?.channelId)
-    const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) return
-    if (!this.#channelCandidateCache.has(channelId)) {
-      this.#channelCandidateCache.set(channelId, new Map())
-    }
-    const cache = this.#channelCandidateCache.get(channelId)
-    const existing = cache.get(channelKey)
-    cache.set(channelKey, {
-      ...existing,
-      ...candidate,
-      channelId,
-      channelKey,
-      writerCoreKeys: uniqueStrings([
-        ...(existing?.writerCoreKeys || []),
-        ...(candidate.writerCoreKeys || []),
-      ]),
-      lastSeen: Date.now(),
-    })
-  }
-
-  #clearChannelCandidate(channel) {
-    const channelId = normalizeChannelId(channel?.channelId)
-    const channelKey = normalizeChannelKey(channel?.channelKey || channelId)
-    const cache = this.#channelCandidateCache.get(channelId)
-    if (!cache) return
-    cache.delete(channelKey)
-    if (cache.size === 0) {
-      this.#channelCandidateCache.delete(channelId)
-    }
   }
 
   #resolveChannel(channelKeyInput) {
     const key = normalizeChannelKey(channelKeyInput)
+    const resolvedKey = resolveChannelHandle(key)?.channelKey
     const channel = this.#channels.find(
-      item => item.channelKey === key || item.channelId === key
+      item =>
+        item.channelKey === key ||
+        item.channelId === key ||
+        item.channelKey === resolvedKey
     )
     if (!channel) throw new Error('Channel does not exist')
     return channel
@@ -1754,35 +1773,10 @@ export class MobileP2PCore {
     return this.#channels.some(channel => channel.channelKey === channelKey)
   }
 
-  #normalizeLocalPresenceOptions(input = {}, options = {}) {
-    const address =
-      normalizeChannelPresenceAddress(input.address) || DIAGNOSTIC_AUTHOR
-    const result = {
-      address,
-      sessionId: input.sessionId || 'android-default',
-      sourceId: 'local',
-      lastSeen: Number(input.lastSeen) || Date.now(),
-    }
-
-    if (options.includeProfile !== false) {
-      result.displayName = normalizeChannelPresenceDisplayName(
-        input.displayName || input.authorName || DIAGNOSTIC_AUTHOR_NAME,
-        address
-      )
-      if (Object.prototype.hasOwnProperty.call(input, 'avatar')) {
-        result.avatar = normalizeChannelPresenceAvatar(input.avatar)
-      }
-      const profileUpdatedAt = Number(input.profileUpdatedAt)
-      if (Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0) {
-        result.profileUpdatedAt = Math.floor(profileUpdatedAt)
-      }
-    }
-
-    return result
-  }
-
   async #getNextChannelMessageTimestamp(channelKey) {
     const coresMap = this.#channelCores.get(channelKey)
+    const now = Date.now()
+    const limit = now + SIGNED_TS_FUTURE_LIMIT_MS
     let maxTimestamp = 0
 
     if (coresMap) {
@@ -1791,11 +1785,13 @@ export class MobileP2PCore {
           try {
             // A missing peer block must not prevent this writer sending offline.
             const entry = await core.get(i, { wait: false })
-            if (entry?.type === 'message') {
-              maxTimestamp = Math.max(
-                maxTimestamp,
-                Number(entry.timestamp) || 0
-              )
+            if (entry === null) break
+            if (
+              entry.ts <= limit &&
+              (readSignedMessageEntry(entry, channelKey) ||
+                readSignedProfileEntry(entry, channelKey, now))
+            ) {
+              maxTimestamp = Math.max(maxTimestamp, entry.ts)
             }
           } catch {
             break
@@ -1804,27 +1800,7 @@ export class MobileP2PCore {
       }
     }
 
-    return Math.max(Date.now(), maxTimestamp + 1)
-  }
-
-  #normalizeIncomingChannelMessage(entry) {
-    if (!entry || entry.type !== 'message') return null
-    try {
-      return normalizeChannelMessage(
-        {
-          author: entry.author,
-          authorName: entry.authorName,
-          content: entry.content,
-          attachment: entry.attachment,
-          clientMessageId: entry.clientMessageId,
-        },
-        {
-          timestamp: Number(entry.timestamp) || Date.now(),
-        }
-      )
-    } catch {
-      return null
-    }
+    return Math.max(now, maxTimestamp + 1)
   }
 
   #setupChannelAppendListener(core, channelKey) {
@@ -1843,8 +1819,7 @@ export class MobileP2PCore {
             lastCoreLength = core.length
             return
           }
-          if (!entry || entry.type !== 'message') continue
-          const message = this.#normalizeIncomingChannelMessage(entry)
+          const message = readSignedMessageEntry(entry, channelKey)
           if (!message) continue
           const channel = this.#channels.find(c => c.channelKey === channelKey)
           if (!channel) {
@@ -1896,6 +1871,18 @@ export class MobileP2PCore {
   }
 
   async #openRemoteChannelCore(channelKey, coreKeyHex) {
+    // Hellos can arrive back to back; open each remote core only once.
+    const openingKey = `${channelKey}:${coreKeyHex}`
+    if (this.#channelCoresOpening.has(openingKey)) return
+    this.#channelCoresOpening.add(openingKey)
+    try {
+      await this.#openRemoteChannelCoreOnce(channelKey, coreKeyHex)
+    } finally {
+      this.#channelCoresOpening.delete(openingKey)
+    }
+  }
+
+  async #openRemoteChannelCoreOnce(channelKey, coreKeyHex) {
     const coresMap = this.#channelCores.get(channelKey)
     if (!coresMap || !coreKeyHex || coresMap.has(coreKeyHex)) return
 
@@ -1906,6 +1893,9 @@ export class MobileP2PCore {
         valueEncoding: 'json',
       })
       await core.ready()
+      // Fetch every block, now and as the writer appends; history reads
+      // only use local blocks and do not request missing ones.
+      core.download({ start: 0, end: -1 })
       const normalizedCoreKey = b4a.toString(core.key, 'hex')
       coresMap.set(normalizedCoreKey, core)
       this.#setupChannelAppendListener(core, channelKey)
@@ -1940,15 +1930,8 @@ export class MobileP2PCore {
       if (!channel) continue
       this.#addChannelTopicMapping(
         topicMap,
-        generateChannelChatDiscoveryKey(channelKey),
-        channel.channelId
-      )
-    }
-    for (const [channelId] of this.#channelIdDiscoveries) {
-      this.#addChannelTopicMapping(
-        topicMap,
-        generateChannelIdDiscoveryKey(channelId),
-        channelId
+        channelTopics(b4a.from(channel.secretKey, 'hex')).chat,
+        channel.channelKey
       )
     }
     return topicMap
@@ -2002,8 +1985,8 @@ export class MobileP2PCore {
       stream.write(
         b4a.from(
           `${JSON.stringify({
-            type: 'channel-proof-challenge',
-            version: CHANNEL_PROOF_VERSION,
+            v: 2,
+            type: 'channel-challenge',
             challenge: record.localChallenge,
           })}\n`
         )
@@ -2033,16 +2016,18 @@ export class MobileP2PCore {
     const proofs = []
     for (const topic of topics) {
       if (record.proofSentTopics.has(topic)) continue
-      const channelId = topicMap.get(topic)?.values().next().value
-      if (!channelId) continue
-      const proof = createChannelTopicProof({
-        channelId,
+      const channelKey = topicMap.get(topic)?.values().next().value
+      const key = channelKey ? this.#channelSecretKey(channelKey) : null
+      if (!key) continue
+      const proofBytes = createChannelProof({
+        key,
         topic,
         challenge: record.remoteChallenge,
         proverPublicKey: localPublicKey,
         verifierPublicKey: remotePublicKey,
       })
-      if (!proof) continue
+      if (!proofBytes) continue
+      const proof = b4a.toString(proofBytes, 'hex')
       record.proofSentTopics.add(topic)
       proofs.push({ topic, proof })
     }
@@ -2056,8 +2041,8 @@ export class MobileP2PCore {
         stream.write(
           b4a.from(
             `${JSON.stringify({
+              v: 2,
               type: 'channel-proof',
-              version: CHANNEL_PROOF_VERSION,
               challenge: record.remoteChallenge,
               proofs: proofs.slice(
                 index,
@@ -2074,24 +2059,30 @@ export class MobileP2PCore {
     }
   }
 
-  #isChannelAllowedForStream(stream, channelId) {
-    return isChannelAllowedForConnection(
-      channelId,
-      this.#getAuthorizedChannelIds(stream)
+  #channelSecretKey(channelKey) {
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    return channel?.secretKey ? b4a.from(channel.secretKey, 'hex') : null
+  }
+
+  #isChannelAllowedForStream(stream, channelKey) {
+    return this.#getAuthorizedChannelIds(stream).has(
+      normalizeChannelKey(channelKey)
     )
   }
 
   #buildChannelHelloMessages(stream) {
-    const selectedChannels = selectChannelsForHello(
-      this.#channels,
-      this.#getAuthorizedChannelIds(stream)
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    const selectedChannels = this.#channels.filter(channel =>
+      authorized.has(channel.channelKey)
     )
+    // On the wire a channel is identified only by its public ID.
     const channels = selectedChannels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
+      channelId: channel.channelKey,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
+      memberAddresses: [
+        ...(this.#channelLocalMembers.get(channel.channelKey) || []),
+      ],
       writerCoreKeys: uniqueStrings([
         ...(channel.writerCoreKeys || []),
         this.#channelLocalCoreKey.get(channel.channelKey),
@@ -2100,6 +2091,7 @@ export class MobileP2PCore {
 
     return buildChannelHelloMessages(
       {
+        v: 2,
         type: 'channel-hello',
         peerId: this.#nodeId(),
         authorName: this.#nodeId().slice(0, 4),
@@ -2107,6 +2099,15 @@ export class MobileP2PCore {
       channels,
       MAX_CHANNEL_FRAME_BYTES
     )
+  }
+
+  // Only the first session frame counts; an invalid one lists no features.
+  // Signatures (sig1) never depend on this: they are always sent and required.
+  #processSessionFrame(stream, message) {
+    const record = this.#channelStreams.get(stream)
+    if (!record || record.sessionReceived) return
+    record.sessionReceived = true
+    record.features = sharedFeatures(parseSessionFeatures(message))
   }
 
   #removeChannelStream(stream) {
@@ -2123,7 +2124,9 @@ export class MobileP2PCore {
         this.#getVerifiedChannelTopics(stream)
       )) {
         stream.write(
-          b4a.from(`${JSON.stringify({ type: 'channel-scope', topics })}\n`)
+          b4a.from(
+            `${JSON.stringify({ v: 2, type: 'channel-scope', topics })}\n`
+          )
         )
       }
       return true
@@ -2161,31 +2164,15 @@ export class MobileP2PCore {
     }
   }
 
-  #sendChannelPresence(stream, event) {
-    if (!stream || stream.destroyed || stream.writableEnded || !event) {
+  #sendChannelPresence(stream, frame) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
       this.#removeChannelStream(stream)
       return false
     }
-    const channelId = normalizeChannelId(event.channelId || event.channelKey)
-    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
+    if (!this.#isChannelAllowedForStream(stream, frame.body.channelId))
+      return true
     try {
-      stream.write(
-        b4a.from(
-          `${JSON.stringify({
-            type: 'channel-presence',
-            peerId: this.#nodeId(),
-            channelId: event.channelId,
-            channelKey: event.channelKey,
-            address: event.address,
-            status: event.status,
-            displayName: event.displayName,
-            avatar: event.avatar,
-            profileUpdatedAt: event.profileUpdatedAt,
-            lastSeen: event.lastSeen || Date.now(),
-            sessionId: event.sessionId || 'default',
-          })}\n`
-        )
-      )
+      stream.write(b4a.from(JSON.stringify(frame) + '\n'))
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -2194,17 +2181,10 @@ export class MobileP2PCore {
   }
 
   #sendCurrentChannelPresence(stream) {
-    for (const presences of this.#channelPresenceSessions.values()) {
-      for (const session of presences.values()) {
-        if (!session.local) continue
-        this.#sendChannelPresence(
-          stream,
-          this.#formatChannelPresence(
-            session.channelKey,
-            session.address,
-            'online'
-          )
-        )
+    this.#pruneStaleChannelPresence()
+    for (const sessions of this.#channelPresenceSessions.values()) {
+      for (const session of sessions.values()) {
+        if (session.frame) this.#sendChannelPresence(stream, session.frame)
       }
     }
   }
@@ -2218,7 +2198,7 @@ export class MobileP2PCore {
   #normalizePresenceSessionId(sessionId) {
     const value = String(sessionId || 'default')
       .trim()
-      .slice(0, 100)
+      .slice(0, 120)
     return value || 'default'
   }
 
@@ -2382,6 +2362,7 @@ export class MobileP2PCore {
       address,
       channelKey,
       lastSeen: now,
+      frame: options.frame,
       local: options.local === true,
       sourcePeerId: String(options.sourcePeerId || '').trim(),
     }
@@ -2420,6 +2401,7 @@ export class MobileP2PCore {
         address,
       })
     }
+    existing.frame = options.frame
     existing.lastSeen = Number(options.lastSeen) || Date.now()
     sessions.set(sessionKey, existing)
     return null
@@ -2481,20 +2463,7 @@ export class MobileP2PCore {
   }
 
   #clearChannelPresenceForChannel(channelKey) {
-    const sessions = this.#channelPresenceSessions.get(channelKey)
-    if (sessions) {
-      const localAddresses = uniqueStrings(
-        [...sessions.values()]
-          .filter(session => session.local)
-          .map(session => session.address)
-      )
-      this.#channelPresenceSessions.delete(channelKey)
-      for (const address of localAddresses) {
-        this.#broadcastChannelPresence(
-          this.#formatChannelPresence(channelKey, address, 'offline')
-        )
-      }
-    }
+    this.#channelPresenceSessions.delete(channelKey)
     this.#channelPresenceProfiles.delete(channelKey)
   }
 
@@ -2573,17 +2542,10 @@ export class MobileP2PCore {
     this.#channelPresenceSweepTimer.unref?.()
   }
 
-  #clearChannelPresenceRuntime(options = {}) {
+  #clearChannelPresenceRuntime() {
     if (this.#channelPresenceSweepTimer) {
       clearInterval(this.#channelPresenceSweepTimer)
       this.#channelPresenceSweepTimer = null
-    }
-    if (options.broadcast) {
-      for (const event of this.#removeChannelPresenceSessionsBySource(
-        'local'
-      )) {
-        this.#broadcastChannelPresence(event)
-      }
     }
     this.#channelPresenceSessions.clear()
     this.#channelPresenceProfiles.clear()
@@ -2618,9 +2580,9 @@ export class MobileP2PCore {
   }
 
   #processChannelProofChallengeMessage(stream, msg) {
-    if (msg.type !== 'channel-proof-challenge') return false
+    if (msg.type !== 'channel-challenge') return false
     const record = this.#channelStreams.get(stream)
-    if (!record || msg.version !== CHANNEL_PROOF_VERSION) return true
+    if (!record) return true
 
     const challenge = normalizeChannelProofChallenge(msg.challenge)
     if (!challenge) return true
@@ -2637,7 +2599,6 @@ export class MobileP2PCore {
     const record = this.#channelStreams.get(stream)
     if (
       !record ||
-      msg.version !== CHANNEL_PROOF_VERSION ||
       normalizeChannelProofChallenge(msg.challenge) !== record.localChallenge ||
       !Array.isArray(msg.proofs) ||
       msg.proofs.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
@@ -2662,19 +2623,23 @@ export class MobileP2PCore {
       ) {
         continue
       }
-      const channelIds = topicMap.get(topic) || []
-      const valid = [...channelIds].some(channelId =>
-        verifyChannelTopicProof(
-          {
-            channelId,
-            topic,
-            challenge: record.localChallenge,
-            proverPublicKey: remotePublicKey,
-            verifierPublicKey: localPublicKey,
-          },
-          item?.proof
+      const channelKeys = topicMap.get(topic) || []
+      const valid = [...channelKeys].some(channelKey => {
+        const key = this.#channelSecretKey(channelKey)
+        return (
+          key &&
+          verifyChannelProof(
+            {
+              key,
+              topic,
+              challenge: record.localChallenge,
+              proverPublicKey: remotePublicKey,
+              verifierPublicKey: localPublicKey,
+            },
+            String(item?.proof || '')
+          )
         )
-      )
+      })
       if (!valid) continue
       record.authorizedTopics.add(topic)
       changed = true
@@ -2687,60 +2652,22 @@ export class MobileP2PCore {
     return true
   }
 
-  #processChannelPresenceMessage(stream, msg) {
-    if (msg.type !== 'channel-presence') return null
-    const peerId = String(msg.peerId || '').trim()
-    if (!peerId || peerId === this.#nodeId()) return null
-    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
-    const channelKey = buildChannelKey(channelId)
-    const localChannel = this.#channels.find(
-      channel => channel.channelKey === channelKey
+  #processChannelPresenceMessage(stream, msg, sourceId) {
+    const channel = this.#channels.find(
+      item => item.channelKey === msg.body?.channelId
     )
-    if (!localChannel) return null
-    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
-      return null
-    }
-
-    const address = normalizeChannelPresenceAddress(msg.address)
-    if (!address) return null
-
-    const status = String(msg.status || '').trim()
-    const options = {
-      address,
-      sessionId: msg.sessionId,
-      sourcePeerId: peerId,
-      local: false,
-      displayName: msg.displayName,
-      avatar: msg.avatar,
-      profileUpdatedAt: msg.profileUpdatedAt,
-      lastSeen: Number(msg.lastSeen) || Date.now(),
-    }
-    let event = null
-    let changed = false
-
-    if (status === 'online') {
-      event = this.#upsertChannelPresenceSession(localChannel, options)
-      changed = true
-    } else if (status === 'heartbeat') {
-      event = this.#touchChannelPresenceSession(localChannel, options)
-      changed = true
-    } else if (status === 'profile') {
-      event = this.#updateChannelPresenceProfile(localChannel, options)
-      changed = true
-    } else if (status === 'offline') {
-      const events = this.#removeChannelPresenceSessions(
-        localChannel.channelKey,
-        options
-      )
-      event = events[events.length - 1] || null
-      changed = true
-    }
-
-    if (changed) {
-      this.#emitChannelPresenceSnapshot(event)
-    }
-
-    return changed ? peerId : null
+    if (
+      !channel ||
+      !this.#isChannelAllowedForStream(stream, channel.channelKey)
+    )
+      return
+    if (!readSignedPresenceFrame(msg, { channelId: channel.channelKey })) return
+    const event = this.#applyPresence(
+      channel,
+      msg.body,
+      presenceSession(msg.body, sourceId)
+    )
+    this.#emitChannelPresenceSnapshot(event)
   }
 
   async #processChannelHelloMessage(stream, msg) {
@@ -2748,45 +2675,25 @@ export class MobileP2PCore {
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.#nodeId()) return null
 
-    const allowedChannelIds = this.#getAuthorizedChannelIds(stream)
-    const remoteChannels = Array.isArray(msg.channels)
-      ? msg.channels
-          .filter(channel => channel && typeof channel === 'object')
-          .map(channel => {
-            const type = String(channel.type || 'public').trim() || 'public'
-            const channelId = normalizeChannelId(channel.channelId)
-            return {
-              channelId,
-              channelKey: buildChannelKey(channelId),
-              type,
-              createdAt:
-                typeof channel.createdAt === 'string' ? channel.createdAt : '',
-              lastMessageAt:
-                typeof channel.lastMessageAt === 'string'
-                  ? channel.lastMessageAt
-                  : '',
-              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-            }
-          })
-          .filter(
-            channel =>
-              channel.channelId &&
-              channel.channelKey &&
-              isChannelAllowedForConnection(
-                channel.channelId,
-                allowedChannelIds
-              )
-          )
-      : []
+    const authorized = this.#getAuthorizedChannelIds(stream)
+    // v2: channelId on the wire is the 64-hex public channel ID.
+    const remoteChannels = (Array.isArray(msg.channels) ? msg.channels : [])
+      .filter(channel => channel && typeof channel === 'object')
+      .map(channel => ({
+        channelKey: normalizeChannelKey(channel.channelId),
+        writerCoreKeys: Array.isArray(channel.writerCoreKeys)
+          ? channel.writerCoreKeys
+          : [],
+      }))
+      .filter(
+        channel =>
+          HEX_64_REGEX.test(channel.channelKey) &&
+          authorized.has(channel.channelKey)
+      )
     if (remoteChannels.length === 0) return null
 
+    let writerKeysChanged = false
     for (const remoteChannel of remoteChannels) {
-      this.#cacheChannelCandidate({
-        ...remoteChannel,
-        local: false,
-        peerId,
-      })
-
       const localChannel = this.#channels.find(
         channel => channel.channelKey === remoteChannel.channelKey
       )
@@ -2801,11 +2708,18 @@ export class MobileP2PCore {
         })
       }
 
-      await this.#mergeChannelWriterCoreKeys(
-        localChannel,
-        remoteChannel.writerCoreKeys
-      )
+      if (
+        await this.#mergeChannelWriterCoreKeys(
+          localChannel,
+          remoteChannel.writerCoreKeys
+        )
+      ) {
+        writerKeysChanged = true
+      }
     }
+    // Pass newly learned writer cores on, so peers connected only through
+    // this node also learn them (chat.md §4).
+    if (writerKeysChanged) this.#broadcastChannelHello()
 
     this.#send('channel.status', {
       peerId,
@@ -2816,6 +2730,7 @@ export class MobileP2PCore {
 
   async #handleChannelConnection(conn, info = {}) {
     const stream = conn
+    const presenceSourceId = 'stream:' + b4a.toString(randomBytes(16), 'hex')
     let connectedPeerId = null
     let readBuffer = b4a.alloc(0)
     let closed = false
@@ -2827,7 +2742,16 @@ export class MobileP2PCore {
       proofSentTopics: new Set(),
       localChallenge: '',
       remoteChallenge: '',
+      sessionReceived: false,
+      features: new Set(),
     })
+    // envelope §4.2: the session frame goes out first, once per connection.
+    try {
+      stream.write(b4a.from(`${JSON.stringify(buildSessionFrame())}\n`))
+    } catch {
+      this.#removeChannelStream(stream)
+      return
+    }
     const handleTopic = () => {
       if (!closed) this.#sendChannelHello(stream)
     }
@@ -2854,15 +2778,26 @@ export class MobileP2PCore {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          // envelope §4.1: frames that are not v2 are dropped, not fatal.
+          if (!isV2Frame(message)) continue
+          if (isSessionFrame(message)) {
+            this.#processSessionFrame(stream, message)
+            continue
+          }
           if (this.#processChannelScopeMessage(stream, message)) continue
           if (this.#processChannelProofChallengeMessage(stream, message)) {
             continue
           }
           if (this.#processChannelProofMessage(stream, message)) continue
-          const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(stream, message)
-              : await this.#processChannelHelloMessage(stream, message)
+          if (message.type === 'channel-presence') {
+            this.#processChannelPresenceMessage(
+              stream,
+              message,
+              presenceSourceId
+            )
+            continue
+          }
+          const peerId = await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           this.#log('warn', `Failed to process channel hello: ${err.message}`)
@@ -2875,13 +2810,12 @@ export class MobileP2PCore {
       closed = true
       info?.removeListener?.('topic', handleTopic)
       this.#removeChannelStream(stream)
-      if (!connectedPeerId) return
-      for (const [, peers] of this.#channelPeers) {
-        peers.delete(connectedPeerId)
+      if (connectedPeerId) {
+        for (const peers of this.#channelPeers.values())
+          peers.delete(connectedPeerId)
       }
-      const events = this.#removeChannelPresenceSessionsBySource(
-        `peer:${connectedPeerId}`
-      )
+      const events =
+        this.#removeChannelPresenceSessionsBySource(presenceSourceId)
       if (events.length > 0) {
         this.#send('channel.presence', {
           presence: events[events.length - 1],
@@ -2936,6 +2870,188 @@ export class MobileP2PCore {
     }
   }
 
+  #getCidInfo(cid) {
+    const info = getCidInfo(cid)
+    return {
+      ...info,
+      driveName: cidDriveName(this.#cidDriveSecret, info.topic),
+    }
+  }
+
+  #attachCidDrivePeer(stream) {
+    const peer = attachCidDriveChannel(stream, {
+      onWant: (topic, proof, from) => {
+        this.#answerCidDriveWant(topic, proof, from).catch(() => {})
+      },
+      onHave: (topic, driveKey) => {
+        const topicHex = b4a.toString(topic, 'hex')
+        if (!this.#cidDriveWants.has(topicHex)) return
+        this.#cidDriveOffers.get(topicHex)?.add(b4a.toString(driveKey, 'hex'))
+        for (const wake of this.#cidDriveOfferWaiters) wake()
+      },
+      onClose: closed => this.#cidDrivePeers.delete(closed),
+    })
+    if (!peer) return
+    this.#cidDrivePeers.add(peer)
+    for (const { topic, wantKey } of this.#cidDriveWants.values()) {
+      peer.want(topic, wantKey)
+    }
+  }
+
+  // Answer only for content this node seeds (joined topic plus a holding whose
+  // /<cid> is readable from its own drive) and only to a requester whose
+  // proof shows it knows the CID digest (file-privacy §4.3).
+  async #answerCidDriveWant(topic, proof, peer) {
+    const topicHex = b4a.toString(topic, 'hex')
+    let cid = null
+    for (const [joinedCid, discovery] of this.#discoveries) {
+      if (discovery.topic === topicHex) cid = joinedCid
+    }
+    if (!cid || !this.#holdings.some(holding => holding.cid === cid)) return
+    if (!peer.verifyWant(topic, proof, this.#getCidInfo(cid).wantKey)) return
+    const drive = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    if (await this.#hasLocalCidContent(drive, `/${cid}`)) {
+      peer.have(topic, drive.key)
+    }
+  }
+
+  /**
+   * Waits for a peer that offers a drive with /<cid>. Keys in `triedKeys` are
+   * skipped, and every returned key is added to it. The caller closes the
+   * returned read-only drive.
+   */
+  async #waitForRemoteCidDrive(cid, timeout, transferId, triedKeys) {
+    const { topic, topicHex, wantKey } = this.#getCidInfo(cid)
+    // This node's own drive is only written after verification; it is tried
+    // first, is not closed by the caller, and goes through the same CID check.
+    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
+    const ownKeyHex = b4a.toString(own.key, 'hex')
+    if (
+      !triedKeys.has(ownKeyHex) &&
+      (await this.#hasLocalCidContent(own, `/${cid}`))
+    ) {
+      triedKeys.add(ownKeyHex)
+      const entry = await own.entry(`/${cid}`, { wait: false })
+      if (entry) return { drive: own, entry, keyHex: ownKeyHex, local: true }
+    }
+    const deadline = Date.now() + Math.max(0, Number(timeout) || 0)
+    const offers = this.#cidDriveOffers.get(topicHex) || new Set()
+    this.#cidDriveOffers.set(topicHex, offers)
+    const pendingWant = this.#cidDriveWants.get(topicHex) || {
+      topic,
+      wantKey,
+      count: 0,
+    }
+    pendingWant.count += 1
+    this.#cidDriveWants.set(topicHex, pendingWant)
+    let lastWantAt = 0
+    let lastLookupAt = Date.now()
+
+    try {
+      while (Date.now() < deadline) {
+        this.#assertDownloadActive(transferId)
+        if (Date.now() - lastWantAt >= DRIVE_UPDATE_INTERVAL) {
+          lastWantAt = Date.now()
+          for (const peer of this.#cidDrivePeers) peer.want(topic, wantKey)
+        }
+
+        const keyHex = [...offers].find(key => !triedKeys.has(key))
+        // Hyperswarm looks a topic up again only every 10 minutes. A seed
+        // that announced after our first lookup (e.g. a link shared right
+        // after publishing) would never be found within the timeout.
+        if (!keyHex && Date.now() - lastLookupAt >= TOPIC_LOOKUP_INTERVAL) {
+          lastLookupAt = Date.now()
+          this.#discoveries
+            .get(cid)
+            ?.discovery.refresh()
+            .catch(() => {})
+        }
+        if (!keyHex) {
+          const hasPeers = this.#peerCount() > 0
+          const elapsed = Math.round((deadline - Date.now()) / 1000)
+          this.#patchTransfer(transferId, {
+            progress: hasPeers ? 15 : 10,
+            message: hasPeers
+              ? `Waiting for seeds (${elapsed}s)`
+              : `Finding peers (${elapsed}s)`,
+          })
+          await new Promise(resolve => {
+            const wake = () => {
+              clearTimeout(timer)
+              this.#cidDriveOfferWaiters.delete(wake)
+              resolve()
+            }
+            const timer = setTimeout(wake, DOWNLOAD_POLL_INTERVAL_MIN)
+            this.#cidDriveOfferWaiters.add(wake)
+          })
+          continue
+        }
+        triedKeys.add(keyHex)
+
+        const drive = new Hyperdrive(
+          this.#store.session(),
+          b4a.from(keyHex, 'hex')
+        )
+        try {
+          await drive.ready()
+          const entry = await this.#waitForDriveEntry(
+            drive,
+            `/${cid}`,
+            Math.min(STREAM_READ_TIMEOUT, deadline - Date.now()),
+            transferId
+          )
+          if (entry) return { drive, entry, keyHex }
+        } catch (err) {
+          if (this.#cancelledDownloads.has(transferId)) {
+            await drive.close().catch(() => {})
+            throw err
+          }
+        }
+        await drive.close().catch(() => {})
+      }
+      return null
+    } finally {
+      pendingWant.count -= 1
+      if (pendingWant.count <= 0) {
+        this.#cidDriveWants.delete(topicHex)
+        this.#cidDriveOffers.delete(topicHex)
+      }
+    }
+  }
+
+  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
+  // content that recomputes to its CID is copied; anything else stays missing
+  // and reports an error.
+  async #migrateLegacyCidDrive(cid, drive) {
+    const driveKey = `/${cid}`
+    const legacy = new Hyperdrive(
+      this.#store.namespace(getCidInfo(cid).legacyDriveName)
+    )
+    try {
+      await legacy.ready()
+      if (!(await this.#hasLocalCidContent(legacy, driveKey))) return
+      const actual = await calculateCid({
+        stream: legacy.createReadStream(driveKey, { wait: false }),
+      })
+      if (actual.cid !== cid) return
+      await new Promise((resolve, reject) => {
+        const writeStream = drive.createWriteStream(driveKey)
+        writeStream.on('finish', resolve)
+        writeStream.on('error', reject)
+        legacy
+          .createReadStream(driveKey, { wait: false })
+          .on('error', reject)
+          .pipe(writeStream)
+      })
+      await legacy.clear(driveKey).catch(() => {})
+      this.#log('info', `Migrated ${cid.slice(0, 16)} to its own seed drive`)
+    } catch (err) {
+      this.#log('warn', `Failed to migrate ${cid.slice(0, 16)}: ${err.message}`)
+    } finally {
+      await legacy.close().catch(() => {})
+    }
+  }
+
   async #clearLocalCidContent(cid, driveName) {
     try {
       const drive = await this.#getOrCreateDrive(driveName)
@@ -2956,8 +3072,11 @@ export class MobileP2PCore {
   }
 
   async #restoreHolding(cid) {
-    const { driveName } = getCidInfo(cid)
+    const { driveName } = this.#getCidInfo(cid)
     const drive = await this.#getOrCreateDrive(driveName)
+    if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
+      await this.#migrateLegacyCidDrive(cid, drive)
+    }
     if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
       this.#setSeedState(cid, {
         status: 'error',
@@ -2970,7 +3089,7 @@ export class MobileP2PCore {
   }
 
   async #joinCidTopic(cid) {
-    const { topic, topicHex, driveName } = getCidInfo(cid)
+    const { topic, topicHex, driveName } = this.#getCidInfo(cid)
 
     this.#setSeedState(cid, {
       status: 'joining',
@@ -3084,7 +3203,7 @@ export class MobileP2PCore {
   }
 
   #normalizeHolding(record = {}) {
-    const { cid, topicHex, driveName } = getCidInfo(record.cid)
+    const { cid, topicHex, driveName } = this.#getCidInfo(record.cid)
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
       throw new Error('Holding size must be a non-negative number')
@@ -3093,8 +3212,8 @@ export class MobileP2PCore {
       cid,
       fileName: sanitizeFilename(record.fileName || cid),
       size,
-      topic: record.topic || topicHex,
-      driveName: record.driveName || driveName,
+      topic: topicHex,
+      driveName,
       localPath: normalizeFileUri(record.localPath || ''),
       source: record.source === 'downloaded' ? 'downloaded' : 'published',
       createdAt: record.createdAt || nowIso(),

@@ -9,18 +9,39 @@ import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hypercore from 'hypercore'
 import Hyperdrive from 'hyperdrive'
+import { CID } from 'multiformats/cid'
 import {
-  CHANNEL_PROOF_VERSION,
   CHANNELS_FILE,
-  DIAGNOSTIC_AUTHOR,
-  createChannelTopicProof,
-  generateChannelChatDiscoveryKey,
-  generateChannelDiscoveryKey,
-  generateChannelIdDiscoveryKey,
   normalizeChannelMessage,
   sortChannelMessages,
 } from './channel-protocol.mjs'
+import {
+  channelTopics,
+  channelWriterKeyPair,
+  createChannelProof,
+  resolveChannelHandle,
+} from './channel-keys-v2.mjs'
+
+// v2 topics derive from the channel key of a handle (channel-keys.md §3).
+function generateChannelChatDiscoveryKey(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).chat
+}
+
+function generateChannelDiscoveryKey(handle) {
+  return channelTopics(resolveChannelHandle(handle).key).replication
+}
 import { MobileP2PCore } from './mobile-core.mjs'
+import { Wallet } from 'ethers'
+import { buildSignedEntry } from './channel-signed-entry.mjs'
+import {
+  signMessage,
+  signedInput,
+  signPresence,
+  signProfile,
+  defaultWallet,
+} from './signed-message.test-helper.mjs'
+
+const remotePresenceWallet = Wallet.createRandom()
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 
@@ -116,14 +137,14 @@ async function proveChannelKnowledge({
   chatSwarm,
   channelIds,
 }) {
-  const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+  const challenge = parseStreamWrites(stream, 'channel-challenge').at(
     -1
   )?.challenge
   assert.match(challenge, /^[0-9a-f]{64}$/)
 
   const message = {
+    v: 2,
     type: 'channel-proof',
-    version: CHANNEL_PROOF_VERSION,
     challenge,
     proofs: channelIds.map(channelId => {
       const topic = b4a.toString(
@@ -132,13 +153,16 @@ async function proveChannelKnowledge({
       )
       return {
         topic,
-        proof: createChannelTopicProof({
-          channelId,
-          topic,
-          challenge,
-          proverPublicKey: peerInfo.publicKey,
-          verifierPublicKey: chatSwarm.keyPair.publicKey,
-        }),
+        proof: b4a.toString(
+          createChannelProof({
+            key: resolveChannelHandle(channelId).key,
+            topic,
+            challenge,
+            proverPublicKey: peerInfo.publicKey,
+            verifierPublicKey: chatSwarm.keyPair.publicKey,
+          }),
+          'hex'
+        ),
       }
     }),
   }
@@ -151,7 +175,6 @@ function expectedChannelJoinTopics(channelId) {
   return [
     b4a.toString(generateChannelDiscoveryKey(channelId), 'hex'),
     b4a.toString(generateChannelChatDiscoveryKey(channelId), 'hex'),
-    b4a.toString(generateChannelIdDiscoveryKey(channelId), 'hex'),
   ]
 }
 
@@ -602,17 +625,14 @@ describe('mobile file downloads', () => {
         return originalReadStream.call(this, name, opts)
       }
       if (cache === 'corrupt') {
-        await assert.rejects(
-          restarted.downloadLink({ link: published.transfer.link }),
-          /CID mismatch/
-        )
-        assert.equal(restarted.getSnapshot().holdings.length, 0)
-        await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
+        // The corrupt cache fails verification, is discarded, and the same
+        // source is read again from byte 0.
         const repaired = await restarted.downloadLink({
           link: published.transfer.link,
         })
         assert.equal(await fs.readFile(repaired.savedPath, 'utf8'), content)
         assert.equal(offset, 0)
+        await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
       } else {
         const result = await restarted.downloadLink({
           link: published.transfer.link,
@@ -724,8 +744,8 @@ describe('mobile file downloads', () => {
       /not available for export/
     )
     await assert.rejects(
-      core.downloadLink({ link: published.transfer.link }),
-      /timeout|timed out|stalled/i
+      core.downloadLink({ link: published.transfer.link, timeout: 1000 }),
+      /No online seed was found/
     )
     assert.equal(core.getSnapshot().transfers[0].status, 'failed')
     assert.equal(core.getSnapshot().holdings[0].status, 'error')
@@ -738,6 +758,119 @@ describe('mobile file downloads', () => {
     const available = await core.downloadLink({ link: published.transfer.link })
     assert.equal(available.alreadyExists, true)
     assert.equal(available.transfer.status, 'completed')
+  })
+
+  it('renames the pre-0.8.0 cid-drive-secret to node-secret unchanged', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-node-secret-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    // A 0.7.0 data directory: the store exists and the secret has its old
+    // name (a fresh store would wipe unknown files, so start once first).
+    await core.start()
+    await core.stop()
+    const secret = 'ab'.repeat(32)
+    await fs.rm(path.join(storagePath, 'node-secret'))
+    await fs.writeFile(path.join(storagePath, 'cid-drive-secret'), secret)
+    await core.start()
+    assert.equal(
+      (await fs.readFile(path.join(storagePath, 'node-secret'), 'utf8')).trim(),
+      secret
+    )
+    await assert.rejects(fs.access(path.join(storagePath, 'cid-drive-secret')))
+  })
+
+  it('migrates 0.5.x shared-drive holdings and joins only the v2 topic', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-legacy-drive-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    const bytes = b4a.from('content seeded by a 0.5.x node')
+    await core.start()
+    const published = await core.publishFile({
+      name: 'legacy.txt',
+      contentBase64: b4a.toString(bytes, 'base64'),
+    })
+    const { cid } = published.holding
+    await core.stop()
+
+    // Rewrite the data directory into the 0.5.x shape: content only in the
+    // shared drive-<digest>, holding record with the digest topic.
+    const holdingsPath = path.join(storagePath, 'node-holdings.json')
+    const [holding] = JSON.parse(await fs.readFile(holdingsPath, 'utf8'))
+    const v2TopicHex = holding.topic
+    const digestHex = b4a.toString(CID.parse(cid).multihash.digest, 'hex')
+    const legacyName = `drive-${digestHex}`
+    const store = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
+    const own = new Hyperdrive(store.namespace(holding.driveName))
+    const legacy = new Hyperdrive(store.namespace(legacyName))
+    try {
+      await own.ready()
+      await legacy.ready()
+      await own.clear(`/${cid}`)
+      await legacy.put(`/${cid}`, bytes)
+    } finally {
+      await own.close()
+      await legacy.close()
+      await store.close()
+    }
+    await fs.writeFile(
+      holdingsPath,
+      JSON.stringify([{ ...holding, topic: digestHex, driveName: legacyName }])
+    )
+
+    const swarmsBeforeRestart = swarms.length
+    await core.start()
+    await waitFor(
+      () => core.getSnapshot().holdings[0]?.status === 'active',
+      'migrated holding to seed again',
+      5000
+    )
+    const migrated = core.getSnapshot().holdings[0]
+    assert.equal(migrated.localAvailable, true)
+    assert.notEqual(v2TopicHex, digestHex)
+    const joined = swarms
+      .slice(swarmsBeforeRestart)
+      .flatMap(swarm => swarm.joins.map(j => j.topicHex))
+    assert.ok(joined.includes(v2TopicHex))
+    assert.ok(!joined.includes(digestHex))
+    const exported = await core.downloadLink({
+      link: published.transfer.link,
+    })
+    assert.equal(exported.alreadyExists, true)
+    await core.stop()
+
+    const check = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
+    const cleared = new Hyperdrive(check.namespace(legacyName))
+    try {
+      await cleared.ready()
+      assert.equal(await cleared.has(`/${cid}`), false)
+    } finally {
+      await cleared.close()
+      await check.close()
+    }
   })
 
   it('recognizes complete zero-byte files after restart', async t => {
@@ -1015,11 +1148,55 @@ describe('mobile channel core restart recovery', () => {
     assert.match(writerCoreKey, /^[0-9a-f]{64}$/)
     assert.deepEqual(created.writerCoreKeys, [writerCoreKey])
 
-    await firstCore.sendChannelMessage({
-      channelName: channelId,
-      authorName: 'Android',
-      content: 'before restart',
+    const at = Date.now()
+    const profile = fields => signProfile(created.channelKey, fields)
+    const writeProfile = async fields =>
+      firstCore.updateChannelMemberProfile({
+        channelName: channelId,
+        signed: await profile(fields),
+      })
+    const before = firstCore.listChannels()[0].lastMessageAt
+    await writeProfile({
+      displayName: 'Alice',
+      avatar: 'avatar',
+      tag: { default: 'Member' },
+      createdAt: at,
     })
+    await writeProfile({ avatar: '', tag: null, createdAt: at + 1 })
+    await writeProfile({ displayName: 'Old', createdAt: at - 1 })
+    const expected = [
+      {
+        address: defaultWallet.address.toLowerCase(),
+        displayName: 'Alice',
+        avatar: '',
+        profileUpdatedAt: at + 1,
+      },
+    ]
+    assert.deepEqual(
+      await firstCore.getChannelMemberProfiles({ channelName: channelId }),
+      expected
+    )
+    assert.deepEqual(
+      await firstCore.getChannelMessages({ channelName: channelId }),
+      []
+    )
+    assert.equal(firstCore.listChannels()[0].lastMessageAt, before)
+    await assert.rejects(
+      writeProfile({ displayName: ' padded ' }),
+      /invalid displayName/
+    )
+    await assert.rejects(
+      writeProfile({ createdAt: at + 600000 }),
+      /too far ahead/
+    )
+
+    await firstCore.sendChannelMessage(
+      await signedInput(firstCore, {
+        channelName: channelId,
+        authorName: 'Android',
+        content: 'before restart',
+      })
+    )
     assert.deepEqual(
       (await firstCore.getChannelMessages({ channelName: channelId })).map(
         message => message.content
@@ -1043,6 +1220,10 @@ describe('mobile channel core restart recovery', () => {
     assertJoinedChannelTopics(restartedSwarms, channelId)
 
     const [restoredChannel] = restartedCore.listChannels()
+    assert.deepEqual(
+      await restartedCore.getChannelMemberProfiles({ channelName: channelId }),
+      expected
+    )
     assert.equal(restoredChannel.channelId, channelId)
     assert.equal(restoredChannel.localWriterCoreKey, writerCoreKey)
     assert.deepEqual(restoredChannel.writerCoreKeys, [writerCoreKey])
@@ -1053,11 +1234,13 @@ describe('mobile channel core restart recovery', () => {
       ['before restart']
     )
 
-    await restartedCore.sendChannelMessage({
-      channelName: channelId,
-      authorName: 'Android',
-      content: 'after restart',
-    })
+    await restartedCore.sendChannelMessage(
+      await signedInput(restartedCore, {
+        channelName: channelId,
+        authorName: 'Android',
+        content: 'after restart',
+      })
+    )
     assert.deepEqual(
       (await restartedCore.getChannelMessages({ channelName: channelId })).map(
         message => message.content
@@ -1101,33 +1284,209 @@ describe('mobile channel presence', () => {
 
     const joined = core.joinChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
-      displayName: 'Android',
+      signed: await signPresence(channel.channelKey, 'online', {
+        sessionId: 'android-test',
+        displayName: 'Android',
+      }),
     })
     assert.equal(joined.length, 1)
-    assert.equal(joined[0].address, DIAGNOSTIC_AUTHOR)
+    assert.equal(joined[0].address, defaultWallet.address.toLowerCase())
     assert.equal(joined[0].displayName, 'Android')
     assert.equal(joined[0].online, true)
     assert.equal(joined[0].local, true)
 
     core.heartbeatChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
+      signed: await signPresence(channel.channelKey, 'heartbeat', {
+        sessionId: 'android-test',
+      }),
     })
     core.leaveChannelPresence({
       channelName: channel.channelKey,
-      sessionId: 'android-test',
+      signed: await signPresence(channel.channelKey, 'offline', {
+        sessionId: 'android-test',
+      }),
     })
 
     const presenceWrites = parseStreamWrites(stream, 'channel-presence')
     assert.deepEqual(
-      presenceWrites.map(message => message.status),
+      presenceWrites.map(message => message.body.status),
       ['online', 'heartbeat', 'offline']
     )
     assert.equal(
       core.getSnapshot().channelPresence[channel.channelKey]?.length || 0,
       0
     )
+  })
+
+  it('sends the session frame first and requires signed presence from peers that list no features', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-session-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-session-features',
+      discover: false,
+    })
+    const chatSwarm = swarms[1]
+    const presences = () =>
+      core.getSnapshot().channelPresence[channel.channelKey]?.length || 0
+    const send = (stream, frame) =>
+      stream.emit('data', b4a.from(`${JSON.stringify(frame)}\n`))
+
+    // No session frame, or one listing only other features: sig1 is never
+    // negotiated away.
+    for (const [index, features] of [null, ['e2ee1']].entries()) {
+      const stream = new RecordingStream()
+      const peerInfo = channelPeerInfo(channel.channelId, 0x70 + index)
+      chatSwarm.emit('connection', stream, peerInfo)
+      assert.deepEqual(JSON.parse(stream.writes[0]), {
+        v: 2,
+        type: 'session',
+        features: ['sig1'],
+      })
+      if (features) send(stream, { v: 2, type: 'session', features })
+      await proveChannelKnowledge({
+        stream,
+        peerInfo,
+        chatSwarm,
+        channelIds: [channel.channelId],
+      })
+      const signed = await signPresence(channel.channelKey, 'online', {
+        wallet: remotePresenceWallet,
+        sessionId: `unsigned-${index}`,
+      })
+      send(stream, { v: 2, type: 'channel-presence', body: signed.body })
+      await waitForTick()
+      assert.equal(presences(), 0)
+    }
+
+    // Control: the same frame signed is accepted from a peer without one.
+    const stream = new RecordingStream()
+    const peerInfo = channelPeerInfo(channel.channelId, 0x7f)
+    chatSwarm.emit('connection', stream, peerInfo)
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [channel.channelId],
+    })
+    send(stream, {
+      v: 2,
+      type: 'channel-presence',
+      ...(await signPresence(channel.channelKey, 'online', {
+        wallet: remotePresenceWallet,
+        sessionId: 'signed',
+      })),
+    })
+    await waitFor(() => presences() === 1, 'signed remote presence')
+  })
+
+  it('sends v2 frames with local memberAddresses and drops frames without v: 2', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-v2-frames-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const channel = await core.createChannel({
+      name: 'android-v2-frames',
+      discover: false,
+    })
+    await core.updateChannelMemberProfile({
+      channelName: channel.channelId,
+      signed: await signProfile(channel.channelKey, { displayName: 'Me' }),
+    })
+    const me = defaultWallet.address.toLowerCase()
+    const helloChannels = stream =>
+      parseStreamWrites(stream, 'channel-hello').flatMap(
+        frame => frame.channels
+      )
+
+    // The chat swarm is the second one each start creates.
+    let chatSwarmIndex = 1
+    const connect = async publicKeyByte => {
+      const chatSwarm = swarms[chatSwarmIndex]
+      const stream = new RecordingStream()
+      const peerInfo = channelPeerInfo(channel.channelId, publicKeyByte)
+      chatSwarm.emit('connection', stream, peerInfo)
+      return { stream, peerInfo, chatSwarm }
+    }
+
+    const first = await connect(0x60)
+    // A v1-shaped proof (no v, old version field) is dropped.
+    const challenge = parseStreamWrites(first.stream, 'channel-challenge')[0]
+      .challenge
+    const topic = b4a.toString(
+      generateChannelChatDiscoveryKey(channel.channelId),
+      'hex'
+    )
+    const proof = b4a.toString(
+      createChannelProof({
+        key: resolveChannelHandle(channel.channelId).key,
+        topic,
+        challenge,
+        proverPublicKey: first.peerInfo.publicKey,
+        verifierPublicKey: first.chatSwarm.keyPair.publicKey,
+      }),
+      'hex'
+    )
+    first.stream.emit(
+      'data',
+      b4a.from(
+        JSON.stringify({
+          type: 'channel-proof',
+          version: 1,
+          challenge,
+          proofs: [{ topic, proof }],
+        }) + String.fromCharCode(10)
+      )
+    )
+    await waitForTick()
+    assert.equal(helloChannels(first.stream).length, 0)
+
+    await proveChannelKnowledge({ ...first, channelIds: [channel.channelId] })
+    const [entry] = await waitFor(
+      () => helloChannels(first.stream).length && helloChannels(first.stream),
+      'hello for the proven channel'
+    )
+    assert.deepEqual(entry.memberAddresses, [me])
+    const frames = first.stream.writes
+      .join('')
+      .split(String.fromCharCode(10))
+      .filter(Boolean)
+      .map(line => JSON.parse(line))
+    assert.ok(frames.every(frame => frame.v === 2 && !('version' in frame)))
+
+    // After a restart the members come from the local writer core.
+    await core.stop()
+    chatSwarmIndex = swarms.length + 1
+    await core.start()
+    const second = await connect(0x61)
+    await proveChannelKnowledge({ ...second, channelIds: [channel.channelId] })
+    const [restored] = await waitFor(
+      () => helloChannels(second.stream).length && helloChannels(second.stream),
+      'hello after restart'
+    )
+    assert.deepEqual(restored.memberAddresses, [me])
   })
 
   it('tracks remote presence, clears it on disconnect, and expires stale sessions', async t => {
@@ -1165,17 +1524,7 @@ describe('mobile channel presence', () => {
     stream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'desktop-peer',
-          channelId: channel.channelId,
-          channelKey: channel.channelKey,
-          address: '0x0000000000000000000000000000000000000002',
-          displayName: 'Desktop',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(channel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Desktop' })) })}\n`
       )
     )
 
@@ -1211,17 +1560,7 @@ describe('mobile channel presence', () => {
     staleStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'stale-peer',
-          channelId: channel.channelId,
-          channelKey: channel.channelKey,
-          address: '0x0000000000000000000000000000000000000003',
-          displayName: 'Stale',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(channel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Stale' })) })}\n`
       )
     )
     presences = await waitFor(
@@ -1283,20 +1622,21 @@ describe('mobile channel connection scoping', () => {
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-scope',
           topics: [privateTopic],
         })}\n`
       )
     )
-    const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+    const challenge = parseStreamWrites(stream, 'channel-challenge').at(
       -1
     ).challenge
     stream.emit(
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-proof',
-          version: CHANNEL_PROOF_VERSION,
           challenge,
           proofs: [{ topic: privateTopic, proof: '0'.repeat(64) }],
         })}\n`
@@ -1314,24 +1654,28 @@ describe('mobile channel connection scoping', () => {
     const sharedHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       sharedHello.channels.map(channel => channel.channelId),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     core.joinChannelPresence({
       channelName: sharedChannel.channelKey,
-      sessionId: 'shared-session',
-      displayName: 'Android',
+      signed: await signPresence(sharedChannel.channelKey, 'online', {
+        sessionId: 'shared-session',
+        displayName: 'Android',
+      }),
     })
     core.joinChannelPresence({
       channelName: privateChannel.channelKey,
-      sessionId: 'private-session',
-      displayName: 'Android',
+      signed: await signPresence(privateChannel.channelKey, 'online', {
+        sessionId: 'private-session',
+        displayName: 'Android',
+      }),
     })
     assert.deepEqual(
       parseStreamWrites(stream, 'channel-presence').map(
-        message => message.channelId
+        message => message.body.channelId
       ),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     const unrelatedWriterKey = 'f'.repeat(64)
@@ -1339,11 +1683,12 @@ describe('mobile channel connection scoping', () => {
       'data',
       b4a.from(
         `${JSON.stringify({
+          v: 2,
           type: 'channel-hello',
           peerId: 'unrelated-peer',
           channels: [
             {
-              channelId: privateChannel.channelId,
+              channelId: privateChannel.channelKey,
               channelKey: privateChannel.channelKey,
               type: 'public',
               writerCoreKeys: [unrelatedWriterKey],
@@ -1370,7 +1715,7 @@ describe('mobile channel connection scoping', () => {
     let latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       latestHello.channels.map(channel => channel.channelId),
-      [sharedChannel.channelId]
+      [sharedChannel.channelKey]
     )
 
     const proofMessage = await proveChannelKnowledge({
@@ -1382,7 +1727,7 @@ describe('mobile channel connection scoping', () => {
     latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       latestHello.channels.map(channel => channel.channelId).sort(),
-      [privateChannel.channelId, sharedChannel.channelId].sort()
+      [privateChannel.channelKey, sharedChannel.channelKey].sort()
     )
 
     const helloCount = parseStreamWrites(stream, 'channel-hello').length
@@ -1414,8 +1759,6 @@ describe('mobile channel connection scoping', () => {
       name: 'presence-private',
       discover: false,
     })
-    const remoteAddress = '0x0000000000000000000000000000000000000002'
-    const remotePeerId = 'desktop-peer'
     const chatSwarm = swarms[1]
 
     const acceptedStream = new RecordingStream()
@@ -1430,14 +1773,7 @@ describe('mobile channel connection scoping', () => {
     acceptedStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: remotePeerId,
-          channelId: sharedChannel.channelId,
-          address: remoteAddress,
-          status: 'online',
-          sessionId: 'desktop',
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(sharedChannel.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'desktop' })) })}\n`
       )
     )
     await waitFor(
@@ -1459,14 +1795,7 @@ describe('mobile channel connection scoping', () => {
     unauthorizedStream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: remotePeerId,
-          channelId: sharedChannel.channelId,
-          address: remoteAddress,
-          status: 'offline',
-          sessionId: 'desktop',
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(sharedChannel.channelKey, 'offline', { wallet: remotePresenceWallet, sessionId: 'desktop' })) })}\n`
       )
     )
     await waitForTick()
@@ -1481,6 +1810,56 @@ describe('mobile channel connection scoping', () => {
 })
 
 describe('mobile channel metadata management', () => {
+  it('reads v1 text from local storage without advertising the old writer', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mobile-old-chat-')
+    )
+    const store = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
+    const name = 'old-chat-room'
+    const writer = store
+      .namespace('channel-' + name)
+      .get({ name: 'v1-writer', valueEncoding: 'json' })
+    await writer.append({
+      type: 'message',
+      timestamp: 123,
+      author: 'old-author',
+      content: 'offline history',
+    })
+    const key = writer.key.toString('hex')
+    await store.close()
+    await fs.writeFile(
+      path.join(storagePath, CHANNELS_FILE),
+      JSON.stringify([
+        {
+          channelId: name,
+          channelKey: name,
+          localWriterCoreKey: key,
+          writerCoreKeys: [key],
+        },
+      ])
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const [message] = await core.getChannelMessages(name)
+    assert.equal(message.type, 'legacy')
+    assert.equal(message.content, 'offline history')
+    await core.setChannelRemark({ channelName: name, remark: 'keep' })
+    const [persisted] = JSON.parse(
+      await fs.readFile(path.join(storagePath, CHANNELS_FILE), 'utf8')
+    )
+    assert.deepEqual(persisted.writerCoreKeys, [persisted.localWriterCoreKey])
+    assert.notEqual(persisted.localWriterCoreKey, key)
+  })
   it('loads earlier history without replacing the latest conversation preview', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-history-')
@@ -1499,10 +1878,12 @@ describe('mobile channel metadata management', () => {
       discover: false,
     })
     for (let index = 0; index < 105; index += 1) {
-      await core.sendChannelMessage({
-        channelName: channel.channelKey,
-        content: `message-${index}`,
-      })
+      await core.sendChannelMessage(
+        await signedInput(core, {
+          channelName: channel.channelKey,
+          content: `message-${index}`,
+        })
+      )
     }
     const recent = await core.getChannelMessages({
       channelName: channel.channelKey,
@@ -1524,10 +1905,12 @@ describe('mobile channel metadata management', () => {
       core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
       'message-104'
     )
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      content: 'message-105',
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        content: 'message-105',
+      })
+    )
     assert.equal(
       core.getSnapshot().channelMessages[channel.channelKey].at(-1).content,
       'message-105'
@@ -1584,8 +1967,10 @@ describe('mobile channel metadata management', () => {
 
     restartedCore.joinChannelPresence({
       channelName: restored.channelKey,
-      sessionId: 'android-leave-test',
-      displayName: 'Android',
+      signed: await signPresence(restored.channelKey, 'online', {
+        sessionId: 'android-leave-test',
+        displayName: 'Android',
+      }),
     })
     const chatSwarm = restartedSwarms[1]
     const stream = new RecordingStream()
@@ -1600,25 +1985,17 @@ describe('mobile channel metadata management', () => {
     stream.emit(
       'data',
       b4a.from(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: 'desktop-peer',
-          channelId: restored.channelId,
-          channelKey: restored.channelKey,
-          address: '0x0000000000000000000000000000000000000002',
-          displayName: 'Desktop',
-          status: 'online',
-          sessionId: 'web',
-          lastSeen: Date.now(),
-        })}\n`
+        `${JSON.stringify({ v: 2, type: 'channel-presence', ...(await signPresence(restored.channelKey, 'online', { wallet: remotePresenceWallet, sessionId: 'web', displayName: 'Desktop' })) })}\n`
       )
     )
     await waitForTick()
-    await restartedCore.sendChannelMessage({
-      channelName: restored.channelKey,
-      authorName: 'Android',
-      content: 'before leave',
-    })
+    await restartedCore.sendChannelMessage(
+      await signedInput(restartedCore, {
+        channelName: restored.channelKey,
+        authorName: 'Android',
+        content: 'before leave',
+      })
+    )
     await restartedCore.getChannelMessages({
       channelName: restored.channelKey,
     })
@@ -1674,24 +2051,19 @@ describe('mobile channel metadata management', () => {
       name: 'android-retry',
       discover: false,
     })
-    const input = {
+    const fields = {
       channelName: channel.channelKey,
       content: 'one logical message',
-      author: '0x2Fd13F1a54488cFF329b7a4997351CA0847C08Cc',
       authorName: 'Android',
-      clientMessageId: '550E8400-E29B-41D4-A716-446655440000',
+      id: '550e8400-e29b-41d4-a716-446655440000',
     }
+    const input = await signedInput(core, fields)
     const [first, repeated] = await Promise.all([
       core.sendChannelMessage(input),
       core.sendChannelMessage(input),
     ])
     assert.deepEqual(repeated, first)
-    assert.equal(first.clientMessageId, input.clientMessageId.toLowerCase())
-    assert.equal(
-      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
-        .clientMessageId,
-      first.clientMessageId
-    )
+    assert.equal(first.clientMessageId, fields.id)
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
@@ -1700,30 +2072,32 @@ describe('mobile channel metadata management', () => {
     await core.stop()
     core = createCore()
     await core.start()
-    const restarted = await core.sendChannelMessage({
-      ...input,
-      author: input.author.toLowerCase(),
-    })
+    const restarted = await core.sendChannelMessage(input)
     assert.deepEqual(restarted, first)
-    assert.equal(
-      (await core.getChannelMessages({ channelName: channel.channelKey }))[0]
-        .clientMessageId,
-      first.clientMessageId
-    )
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
       1
     )
     await assert.rejects(
-      core.sendChannelMessage({ ...input, content: 'different content' }),
+      core.sendChannelMessage(
+        await signedInput(core, { ...fields, content: 'different content' })
+      ),
       /already identifies another message/
     )
     await assert.rejects(
-      core.sendChannelMessage({ ...input, clientMessageId: 'invalid' }),
-      /Invalid clientMessageId/
+      core.sendChannelMessage({
+        ...input,
+        signed: {
+          ...input.signed,
+          body: { ...input.signed.body, id: 'invalid' },
+        },
+      }),
+      /invalid id/
     )
-    await core.sendChannelMessage({ ...input, author: 'different-author' })
+    await core.sendChannelMessage(
+      await signedInput(core, { ...fields, wallet: Wallet.createRandom() })
+    )
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
         .length,
@@ -1785,23 +2159,22 @@ describe('mobile channel metadata management', () => {
       await externalStore.close()
       externalStore = null
       await core.start()
-      const input = {
+      const input = await signedInput(core, {
         channelName: channel.channelKey,
         content: 'A new offline message',
-        author: 'local',
-        clientMessageId: '550e8400-e29b-41d4-a716-446655440002',
-      }
+        id: '550e8400-e29b-41d4-a716-446655440002',
+      })
       const first = await core.sendChannelMessage(input)
       const repeated = await core.sendChannelMessage(input)
       assert.deepEqual(repeated, first)
-      assert.equal(first.clientMessageId, input.clientMessageId)
+      assert.equal(first.clientMessageId, input.signed.body.id)
       assert.deepEqual(core.getSnapshot().channelMessages[channel.channelKey], [
         first,
       ])
     }
   )
 
-  it('rejects a changed attachment on retry and keeps legacy sends without ids distinct', async t => {
+  it('rejects a changed attachment on retry and keeps sends with distinct ids distinct', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-attachment-retry-')
     )
@@ -1823,10 +2196,10 @@ describe('mobile channel metadata management', () => {
     })
     const cid = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
     const link = `most://${cid}?filename=voice.m4a`
-    const input = {
+    const fields = {
       channelName: channel.channelKey,
       content: link,
-      clientMessageId: '550e8400-e29b-41d4-a716-446655440001',
+      id: '550e8400-e29b-41d4-a716-446655440001',
       attachment: {
         kind: 'audio',
         cid,
@@ -1836,21 +2209,23 @@ describe('mobile channel metadata management', () => {
         size: 123,
       },
     }
-    await core.sendChannelMessage(input)
+    await core.sendChannelMessage(await signedInput(core, fields))
     await assert.rejects(
-      core.sendChannelMessage({
-        ...input,
-        attachment: { ...input.attachment, size: 456 },
-      }),
+      core.sendChannelMessage(
+        await signedInput(core, {
+          ...fields,
+          attachment: { ...fields.attachment, size: 456 },
+        })
+      ),
       /already identifies another message/
     )
-    const legacy = {
+    const repeatedText = {
       channelName: channel.channelKey,
-      content: 'legacy repeated text',
+      content: 'repeated text',
     }
     await Promise.all([
-      core.sendChannelMessage(legacy),
-      core.sendChannelMessage(legacy),
+      core.sendChannelMessage(await signedInput(core, repeatedText)),
+      core.sendChannelMessage(await signedInput(core, repeatedText)),
     ])
     assert.equal(
       (await core.getChannelMessages({ channelName: channel.channelKey }))
@@ -1905,19 +2280,21 @@ describe('mobile channel metadata management', () => {
     const link =
       'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
 
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: link,
-      attachment: {
-        kind: 'image',
-        cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
-        fileName: 'photo.png',
-        link,
-        mimeType: 'image/png',
-        size: 12345,
-      },
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: link,
+        attachment: {
+          kind: 'image',
+          cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+          fileName: 'photo.png',
+          link,
+          mimeType: 'image/png',
+          size: 12345,
+        },
+      })
+    )
 
     const [message] = await core.getChannelMessages({
       channelName: channel.channelKey,
@@ -1952,18 +2329,20 @@ describe('mobile channel metadata management', () => {
     })
 
     await assert.rejects(
-      core.sendChannelMessage({
-        channelName: channel.channelKey,
-        authorName: 'Android',
-        content: 'photo.png',
-        attachment: {
-          kind: 'image',
-          cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
-          fileName: 'photo.png',
-          link: 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png',
-        },
-      }),
-      /attachment content must match link/
+      core.sendChannelMessage(
+        await signedInput(core, {
+          channelName: channel.channelKey,
+          authorName: 'Android',
+          content: 'photo.png',
+          attachment: {
+            kind: 'image',
+            cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+            fileName: 'photo.png',
+            link: 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png',
+          },
+        })
+      ),
+      /invalid attachment/
     )
   })
 
@@ -2005,26 +2384,40 @@ describe('mobile channel metadata management', () => {
       unsafe: true,
     })
     await externalStore.ready()
+    // The writer core key pair comes from the node secret (channel-keys.md §6.1).
+    const nodeSecret = b4a.from(
+      (await fs.readFile(path.join(storagePath, 'node-secret'), 'utf8')).trim(),
+      'hex'
+    )
+    const keyPair = channelWriterKeyPair(
+      nodeSecret,
+      channel.channelKey,
+      persistedChannel.writerGeneration
+    )
     const externalCore = externalStore
       .namespace(`channel-${channel.channelKey}`)
       .get({
-        name: `messages-${persistedChannel.writerId}`,
+        keyPair,
+        manifest: { version: 1, signers: [{ publicKey: keyPair.publicKey }] },
         valueEncoding: 'json',
       })
     await externalCore.ready()
-    await externalCore.append({
-      type: 'message',
-      author: DIAGNOSTIC_AUTHOR,
-      authorName: 'Remote',
-      content: 'bad attachment',
-      timestamp: Date.now(),
-      attachment: {
-        kind: 'image',
-        cid: '',
-        fileName: 'bad.png',
-        link: 'https://example.invalid/bad.png',
-      },
-    })
+    // Correctly signed, so it is shown; the attachment is not, as it is not
+    // in normal form.
+    await externalCore.append(
+      buildSignedEntry(
+        await signMessage(channel.channelKey, 'bad attachment', {
+          authorName: 'Remote',
+          attachment: {
+            kind: 'image',
+            cid: '',
+            fileName: 'bad.png',
+            link: 'https://example.invalid/bad.png',
+          },
+        }),
+        Date.now()
+      )
+    )
     await externalStore.close()
     externalStore = null
 
@@ -2068,8 +2461,8 @@ describe('mobile channel metadata management', () => {
     Hypercore.prototype.get = async function delayedGet(...args) {
       const entry = await originalGet.apply(this, args)
       if (
-        entry?.type === 'message' &&
-        entry.content === 'stale after leave' &&
+        entry?.type === 'signed' &&
+        entry.body?.content === 'stale after leave' &&
         !blockedOnce
       ) {
         blockedOnce = true
@@ -2085,11 +2478,13 @@ describe('mobile channel metadata management', () => {
       discover: false,
     })
 
-    const sendPromise = core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: 'stale after leave',
-    })
+    const sendPromise = core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: 'stale after leave',
+      })
+    )
     await blocked.promise
 
     await core.leaveChannel({
@@ -2131,17 +2526,19 @@ describe('mobile channel metadata management', () => {
       name: 'android-stale-history',
       discover: false,
     })
-    await core.sendChannelMessage({
-      channelName: channel.channelKey,
-      authorName: 'Android',
-      content: 'history after leave',
-    })
+    await core.sendChannelMessage(
+      await signedInput(core, {
+        channelName: channel.channelKey,
+        authorName: 'Android',
+        content: 'history after leave',
+      })
+    )
 
     Hypercore.prototype.get = async function delayedGet(...args) {
       const entry = await originalGet.apply(this, args)
       if (
-        entry?.type === 'message' &&
-        entry.content === 'history after leave' &&
+        entry?.type === 'signed' &&
+        entry.body?.content === 'history after leave' &&
         !blockedOnce
       ) {
         blockedOnce = true
@@ -2171,7 +2568,7 @@ describe('mobile channel metadata management', () => {
     assert.deepEqual(core.listChannels(), [])
   })
 
-  it('does not reuse cached local candidates after leaving a channel', async t => {
+  it('rejoins with the same deterministic writer core after leaving a channel', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-clear-candidate-')
     )
@@ -2197,11 +2594,132 @@ describe('mobile channel metadata management', () => {
       channelName: firstChannel.channelKey,
     })
 
+    // v2: this node's writer core key is derived from its node secret and the
+    // channel, so rejoining reopens the same core rather than a stale cache.
     const recreated = await core.createChannel({
       name: 'android-clear-candidate',
-      discoveryTimeout: 0,
     })
-    assert.notEqual(recreated.localWriterCoreKey, oldWriterCoreKey)
-    assert.equal(recreated.writerCoreKeys.includes(oldWriterCoreKey), false)
+    assert.equal(recreated.localWriterCoreKey, oldWriterCoreKey)
+    assert.deepEqual(recreated.writerCoreKeys, [oldWriterCoreKey])
+  })
+})
+
+describe('mobile channel cores with missing blocks', () => {
+  // Another writer's core held here only in part, with the writer offline:
+  // start and reads must not wait for the missing block, and the block must
+  // be fetched once a peer that has it connects.
+  it('starts and reads with a remote block missing, then refetches it', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-partial-core-')
+    )
+    const writerPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-partial-writer-')
+    )
+    const stores = []
+    const cores = []
+    t.after(async () => {
+      await Promise.allSettled(cores.map(core => core.stop()))
+      await Promise.allSettled(stores.map(store => store.close()))
+      await fs.rm(storagePath, { recursive: true, force: true })
+      await fs.rm(writerPath, { recursive: true, force: true })
+    })
+    const openStore = directory => {
+      const store = new Corestore(directory, {
+        primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+        unsafe: true,
+      })
+      stores.push(store)
+      return store
+    }
+    const contents = async core =>
+      (
+        await core.getChannelMessages({
+          channelName: channel.channelKey,
+          limit: 100,
+        })
+      ).map(message => message.content)
+
+    const first = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    cores.push(first)
+    await first.start()
+    const channel = await first.createChannel({
+      name: 'android-partial-core',
+      discover: false,
+    })
+    await first.stop()
+
+    // The remote writer, in its own store.
+    const writerStore = openStore(writerPath)
+    const writerCore = writerStore
+      .namespace(`channel-${channel.channelKey}`)
+      .get({ name: 'remote-writer', valueEncoding: 'json' })
+    await writerCore.ready()
+    for (const content of ['one', 'two', 'three']) {
+      await writerCore.append(
+        buildSignedEntry(
+          await signMessage(channel.channelKey, content, {
+            authorName: 'Remote',
+          }),
+          Date.now()
+        )
+      )
+    }
+    const writerKey = b4a.toString(writerCore.key, 'hex')
+
+    // Copy it into the phone's store, then drop the middle block.
+    const phoneStore = openStore(storagePath)
+    const copy = phoneStore
+      .namespace(`channel-${channel.channelKey}`)
+      .get({ key: writerCore.key, valueEncoding: 'json' })
+    await copy.ready()
+    const left = writerStore.replicate(true)
+    const right = phoneStore.replicate(false)
+    left.pipe(right).pipe(left)
+    await copy.download({ start: 0, end: 3 }).done()
+    left.destroy()
+    right.destroy()
+    await copy.clear(1)
+    assert.equal(await copy.has(1), false)
+    await phoneStore.close()
+    stores.splice(stores.indexOf(phoneStore), 1)
+
+    const channelsPath = path.join(storagePath, CHANNELS_FILE)
+    const persisted = JSON.parse(await fs.readFile(channelsPath, 'utf8'))
+    persisted[0].writerCoreKeys = [...persisted[0].writerCoreKeys, writerKey]
+    await fs.writeFile(channelsPath, JSON.stringify(persisted))
+
+    const swarms = []
+    const phone = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    cores.push(phone)
+    const timeout = label =>
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(label)), 10000)
+      )
+    await Promise.race([phone.start(), timeout('start hung')])
+    const partial = await Promise.race([contents(phone), timeout('read hung')])
+    assert.ok(partial.includes('one'))
+    assert.ok(!partial.includes('three'))
+
+    // A peer holding the writer's core connects on the file swarm.
+    const local = Hypercore.createProtocolStream(true)
+    const remote = Hypercore.createProtocolStream(false)
+    local.pipe(remote).pipe(local)
+    writerStore.replicate(local)
+    swarms[0].emit('connection', remote)
+    t.after(() => {
+      local.destroy()
+      remote.destroy()
+    })
+    const deadline = Date.now() + 10000
+    while (!(await contents(phone)).includes('three')) {
+      assert.ok(Date.now() < deadline, 'missing block was not fetched again')
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
   })
 })

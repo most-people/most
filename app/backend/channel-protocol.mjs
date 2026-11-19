@@ -7,6 +7,7 @@ import {
 import b4a from 'b4a'
 import { CID } from 'multiformats/cid'
 import { shortAddress } from '../shared/format-address.mjs'
+import { channelIdFromKey, resolveChannelHandle } from './channel-keys-v2.mjs'
 
 export const CHANNELS_FILE = 'mobile-channels.json'
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
@@ -20,7 +21,6 @@ export const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 export const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 export const MAX_CHANNEL_FRAME_BYTES = 128 * 1024
 export const MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME = 256
-export const CHANNEL_PROOF_VERSION = 1
 export const CHANNEL_PROOF_CHALLENGE_BYTES = 32
 export const MAX_CHANNEL_MESSAGE_LENGTH = 2000
 export const MAX_CHANNEL_REMARK_LENGTH = 50
@@ -477,39 +477,41 @@ export function generateChannelIdDiscoveryKey(channelId) {
     .digest()
 }
 
-export function createChannelRecord(
-  channelIdInput,
-  type = 'public',
-  options = {}
-) {
-  const channelId = assertValidChannelId(channelIdInput)
-  const channelKey = buildChannelKey(channelId)
-  const createdAt = options.createdAt || new Date().toISOString()
-
-  return normalizeChannelRecord({
-    channelId,
-    channelKey,
-    type,
-    createdAt,
+/**
+ * New v2 channel record from a resolved channel handle (channel-keys-v2.mjs
+ * resolveChannelHandle). `channelId` is the handle shown and shared locally;
+ * `channelKey` is the public channel ID used on the wire.
+ */
+export function createChannelRecord(resolved, type = 'public', options = {}) {
+  return {
+    channelId: resolved.handle,
+    channelKey: resolved.channelKey,
+    secretKey: b4a.toString(resolved.key, 'hex'),
+    kind: resolved.kind,
+    type: String(type || 'public').trim() || 'public',
+    createdAt: options.createdAt || new Date().toISOString(),
     lastMessageAt: options.lastMessageAt || '',
-    remark: options.remark || '',
+    remark: normalizeChannelRemark(options.remark),
     pinned: options.pinned === true,
-    localWriterCoreKey: options.localWriterCoreKey || '',
-    writerCoreKeys: options.writerCoreKeys || [],
-    writerId: options.writerId || createChannelWriterId(),
-  })
+    writerGeneration: 0,
+    localWriterCoreKey: '',
+    writerCoreKeys: uniqueStrings(options.writerCoreKeys || []),
+  }
 }
 
-export function normalizeChannelRecord(record = {}) {
-  const type = String(record.type || 'public').trim() || 'public'
-  const channelId = assertValidChannelId(record.channelId)
-  const channelKey = buildChannelKey(channelId)
-  const localWriterCoreKey = String(record.localWriterCoreKey || '').trim()
+const HEX_64_REGEX = /^[0-9a-f]{64}$/
 
-  return {
-    channelId,
-    channelKey,
-    type,
+/**
+ * Loads a persisted record. v2 records are checked against their secret key;
+ * v1 records (no secretKey) are migrated by resolving the old ID as a handle,
+ * keeping their writer cores readable. Returns null for invalid records.
+ */
+export function normalizeChannelRecord(record = {}) {
+  const writerCoreKeys = uniqueStrings(
+    Array.isArray(record.writerCoreKeys) ? record.writerCoreKeys : []
+  )
+  const common = {
+    type: String(record.type || 'public').trim() || 'public',
     createdAt:
       typeof record.createdAt === 'string' && record.createdAt
         ? record.createdAt
@@ -518,26 +520,43 @@ export function normalizeChannelRecord(record = {}) {
       typeof record.lastMessageAt === 'string' ? record.lastMessageAt : '',
     remark: normalizeChannelRemark(record.remark),
     pinned: normalizeBoolean(record.pinned),
-    localWriterCoreKey,
-    writerCoreKeys: uniqueStrings([
-      ...(Array.isArray(record.writerCoreKeys) ? record.writerCoreKeys : []),
-      localWriterCoreKey,
-    ]),
-    writerId: String(record.writerId || createChannelWriterId()).trim(),
   }
-}
 
-export function channelToCandidate(channel, local = false) {
+  if (
+    typeof record.secretKey === 'string' &&
+    HEX_64_REGEX.test(record.secretKey)
+  ) {
+    const channelKey = channelIdFromKey(b4a.from(record.secretKey, 'hex'))
+    const channelId = String(record.channelId || '').trim()
+    if (record.channelKey !== channelKey || !channelId) return null
+    return {
+      ...common,
+      channelId,
+      channelKey,
+      secretKey: record.secretKey,
+      kind: String(record.kind || 'private'),
+      writerGeneration: Number.isInteger(record.writerGeneration)
+        ? record.writerGeneration
+        : 0,
+      localWriterCoreKey: String(record.localWriterCoreKey || '').trim(),
+      ...(Array.isArray(record.legacyWriterCoreKeys)
+        ? { legacyWriterCoreKeys: record.legacyWriterCoreKeys }
+        : {}),
+      writerCoreKeys: uniqueStrings([
+        ...writerCoreKeys,
+        record.localWriterCoreKey,
+      ]),
+    }
+  }
+
+  const resolved = resolveChannelHandle(record.channelId)
+  if (!resolved) return null
   return {
-    channelId: channel.channelId,
-    channelKey: channel.channelKey,
-    type: channel.type,
-    createdAt: channel.createdAt,
-    lastMessageAt: channel.lastMessageAt || '',
-    remark: channel.remark || '',
-    pinned: channel.pinned === true,
-    writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-    local,
+    ...createChannelRecord(resolved, common.type, common),
+    legacyWriterCoreKeys: uniqueStrings([
+      ...writerCoreKeys,
+      record.localWriterCoreKey,
+    ]),
   }
 }
 
@@ -548,6 +567,8 @@ export function formatChannelForResponse(channel, peerCount = 0) {
     channelKey: channel.channelKey,
     key: channel.channelKey,
     type: channel.type,
+    kind: channel.kind,
+    public: channel.kind === 'public',
     createdAt: channel.createdAt,
     lastMessageAt: channel.lastMessageAt || '',
     remark: channel.remark || '',
@@ -611,11 +632,19 @@ export function sortChannelMessages(
   limit = CHANNEL_MESSAGE_LIMIT,
   offset = 0
 ) {
+  // Sort before deduping so a duplicate keeps its earliest copy, ordered by
+  // (ts, writer core key, block index) like the desktop engine (§4.5).
+  const ordered = [...messages].sort(
+    (a, b) =>
+      Number(a.timestamp) - Number(b.timestamp) ||
+      String(a._coreKey || '').localeCompare(String(b._coreKey || '')) ||
+      (Number(a._index) || 0) - (Number(b._index) || 0)
+  )
   const seen = new Set()
   const unique = []
 
-  for (const message of messages) {
-    if (!message || message.type !== 'message') continue
+  for (const message of ordered) {
+    if (!message || !['message', 'legacy'].includes(message.type)) continue
     const attachmentLink = message.attachment?.link || ''
     const author =
       normalizeChannelPresenceAddress(message.author) || message.author
@@ -626,8 +655,6 @@ export function sortChannelMessages(
     seen.add(key)
     unique.push(message)
   }
-
-  unique.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
 
   const total = unique.length
   const safeLimit = Math.max(1, Number(limit) || CHANNEL_MESSAGE_LIMIT)

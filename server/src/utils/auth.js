@@ -1,8 +1,29 @@
-import { verifyMessage } from 'ethers'
+import { HDNodeWallet, decodeBase64, encodeBase64, verifyMessage } from 'ethers'
+import nacl from 'tweetnacl'
 import { normalizeAddress } from '../core/shared.js'
-import { mostSignMessage } from './mostWallet.js'
+import { mostMnemonic } from './mostWallet.js'
+import { buildAccountMigrationMessage } from './chatIdentity.js'
 
 export const AUTH_MAX_AGE_MS = 5 * 60 * 1000
+export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+export const DEVICE_CERT_MAX_TTL_MS = 90 * 24 * 60 * 60 * 1000
+/**
+ * Validity periods a user can pick at sign-in; 30 days is the default. They
+ * limit how long this device may access a node. P2P signature checks do not
+ * look at expiry (signatures.md, D5), so a shorter period does not stop a
+ * stolen device key from signing chat messages.
+ */
+export const DEVICE_CERT_TTL_OPTIONS = Object.freeze({
+  '4h': 4 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000,
+  '30d': DEVICE_CERT_TTL_MS,
+})
+export const DEFAULT_DEVICE_CERT_TTL = '30d'
+/** Renew when this share of the validity period is left (30d -> 3 days). */
+export const DEVICE_CERT_RENEW_FRACTION = 0.1
+const DEVICE_CERT_PREFIX = 'dc1'
+const DEVICE_CERT_DOMAIN = 'most-box-device-cert-v1'
+const DEVICE_PUBLIC_KEY_HEX = /^[0-9a-f]{64}$/
 export { normalizeAddress }
 
 export function buildAuthMessage(timestamp, method, path) {
@@ -17,37 +38,259 @@ export function normalizeAuthPath(path) {
   }
 }
 
-export async function buildAuthHeaders(identity, method, path) {
-  if (!identity?.danger) return {}
-  const timestamp = Date.now().toString()
-  const message = buildAuthMessage(timestamp, method, path)
-  const { address, signature } = await mostSignMessage(identity.danger, message)
-  return {
-    Authorization: `${address},${timestamp},${signature}`,
+function toBase64Url(bytes) {
+  return encodeBase64(bytes)
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+}
+
+function fromBase64Url(value) {
+  const token = String(value || '')
+  if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) return null
+  try {
+    return decodeBase64(
+      token
+        .replaceAll('-', '+')
+        .replaceAll('_', '/')
+        .padEnd(Math.ceil(token.length / 4) * 4, '=')
+    )
+  } catch {
+    return null
   }
 }
 
-export function verifyAuthHeader(header, method, path, options = {}) {
-  const [addressRaw, timestampRaw, signature] = String(header || '').split(',')
-  const address = normalizeAddress(addressRaw)
-  const timestamp = Number(timestampRaw)
-  const now = options.now || Date.now()
+function hexToBytes(hex) {
+  return Uint8Array.from(hex.match(/../g).map(byte => parseInt(byte, 16)))
+}
 
-  if (!address || !Number.isFinite(timestamp) || !signature) {
+function bytesToHex(bytes) {
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function buildDeviceCertMessage({
+  address,
+  devicePublicKey,
+  issuedAt,
+  expiresAt,
+}) {
+  return [
+    DEVICE_CERT_DOMAIN,
+    address,
+    devicePublicKey,
+    issuedAt,
+    expiresAt,
+  ].join('\n')
+}
+
+/** 每台设备随机生成，不从种子派生，节点才能区分单台设备。 */
+export function createDeviceKey() {
+  const keyPair = nacl.sign.keyPair()
+  return {
+    publicKey: bytesToHex(keyPair.publicKey),
+    secretKey: bytesToHex(keyPair.secretKey),
+  }
+}
+
+/**
+ * 由账号签名者（地址 + signMessage）给设备公钥签发有期限的授权证书。
+ * 证书不含任何私钥，随每个请求一起发送。
+ */
+export async function issueDeviceCertWithSigner(
+  signer,
+  devicePublicKey,
+  { now = Date.now(), ttlMs = DEVICE_CERT_TTL_MS } = {}
+) {
+  if (!DEVICE_PUBLIC_KEY_HEX.test(String(devicePublicKey || ''))) {
+    throw new TypeError('Invalid device public key')
+  }
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > DEVICE_CERT_MAX_TTL_MS) {
+    throw new RangeError('Invalid device certificate ttl')
+  }
+  const address = signer.address
+  const issuedAt = Math.floor(now)
+  const expiresAt = issuedAt + Math.floor(ttlMs)
+  const signature = await signer.signMessage(
+    buildDeviceCertMessage({ address, devicePublicKey, issuedAt, expiresAt })
+  )
+  const payload = toBase64Url(
+    new TextEncoder().encode(
+      JSON.stringify({ address, devicePublicKey, issuedAt, expiresAt })
+    )
+  )
+  return `${DEVICE_CERT_PREFIX}.${payload}.${signature}`
+}
+
+/** 用账号种子签发；签发后种子即可丢弃。 */
+export function issueDeviceCert(danger, devicePublicKey, options) {
+  return issueDeviceCertWithSigner(
+    HDNodeWallet.fromPhrase(mostMnemonic(danger)),
+    devicePublicKey,
+    options
+  )
+}
+
+/**
+ * issuedAt / expiresAt of a certificate for local renewal (signature not
+ * checked; nodes decide validity), or null when it cannot be read.
+ */
+export function readDeviceCertWindow(cert) {
+  try {
+    const bytes = fromBase64Url(String(cert || '').split('.')[1])
+    const { issuedAt, expiresAt } = JSON.parse(new TextDecoder().decode(bytes))
+    if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt))
+      return null
+    if (expiresAt <= issuedAt) return null
+    return { issuedAt, expiresAt, ttlMs: expiresAt - issuedAt }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * When to renew: a tenth of the certificate's own validity before it
+ * expires, so short periods are not renewed days early. 0 when unreadable.
+ */
+export function deviceCertRenewAt(cert) {
+  const window = readDeviceCertWindow(cert)
+  if (!window) return 0
+  return Math.floor(
+    window.expiresAt - window.ttlMs * DEVICE_CERT_RENEW_FRACTION
+  )
+}
+
+/** 仅读取到期时间用于本机提前续期，不验证签名；是否有效以节点验证为准。 */
+export function readDeviceCertExpiry(cert) {
+  try {
+    const bytes = fromBase64Url(String(cert || '').split('.')[1])
+    const expiresAt = Number(
+      JSON.parse(new TextDecoder().decode(bytes)).expiresAt
+    )
+    return Number.isSafeInteger(expiresAt) ? expiresAt : 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * `checkTime: false` skips issue and expiry checks: P2P signatures are verified
+ * without trusted time and must stay valid after a certificate expires
+ * (docs/protocol/v2/signatures.md §5). The TTL bound still applies.
+ */
+export function verifyDeviceCert(
+  cert,
+  { now = Date.now(), checkTime = true } = {}
+) {
+  const [prefix, payload64, signature] = String(cert || '').split('.')
+  if (prefix !== DEVICE_CERT_PREFIX || !payload64 || !signature) {
     return { ok: false, error: 'Missing or invalid authorization' }
   }
-  if (Math.abs(now - timestamp) > (options.maxAgeMs || AUTH_MAX_AGE_MS)) {
-    return { ok: false, error: 'Authorization expired' }
-  }
-
   try {
-    const message = buildAuthMessage(timestampRaw, method, path)
-    const recovered = normalizeAddress(verifyMessage(message, signature))
+    const bytes = fromBase64Url(payload64)
+    if (!bytes) throw new Error('bad payload')
+    const payload = JSON.parse(new TextDecoder().decode(bytes))
+    const address = normalizeAddress(payload?.address)
+    const { devicePublicKey, issuedAt, expiresAt } = payload
+    if (
+      !address ||
+      !DEVICE_PUBLIC_KEY_HEX.test(String(devicePublicKey || '')) ||
+      !Number.isSafeInteger(issuedAt) ||
+      !Number.isSafeInteger(expiresAt) ||
+      expiresAt <= issuedAt ||
+      expiresAt - issuedAt > DEVICE_CERT_MAX_TTL_MS
+    ) {
+      return { ok: false, error: 'Invalid device certificate' }
+    }
+    // `stale`: rejected on time alone, before any signature check (see
+    // verifyAuthHeader).
+    if (checkTime && issuedAt > now + AUTH_MAX_AGE_MS) {
+      return { ok: false, error: 'Invalid device certificate', stale: true }
+    }
+    if (checkTime && now >= expiresAt) {
+      return { ok: false, error: 'Device certificate expired', stale: true }
+    }
+    const recovered = normalizeAddress(
+      verifyMessage(
+        buildDeviceCertMessage({
+          address: payload.address,
+          devicePublicKey,
+          issuedAt,
+          expiresAt,
+        }),
+        signature
+      )
+    )
     if (recovered !== address) {
       return { ok: false, error: 'Authorization address mismatch' }
     }
-    return { ok: true, address }
+    return { ok: true, address, devicePublicKey, expiresAt }
   } catch {
-    return { ok: false, error: 'Invalid authorization signature' }
+    return { ok: false, error: 'Invalid device certificate' }
+  }
+}
+
+/** True when `signature` is the v1 account `oldAddress` approving the move to `newAddress`. */
+export function verifyAccountMigration({ oldAddress, newAddress, signature }) {
+  const from = normalizeAddress(oldAddress)
+  const to = normalizeAddress(newAddress)
+  if (!from || !to || from === to) return false
+  try {
+    return (
+      normalizeAddress(
+        verifyMessage(buildAccountMigrationMessage(from, to), signature)
+      ) === from
+    )
+  } catch {
+    return false
+  }
+}
+
+/** device = { publicKey, secretKey, cert }；Authorization: `<cert>,<timestamp>,<signature>` */
+export function buildDeviceAuthHeader(device, method, path, now = Date.now()) {
+  const timestamp = String(now)
+  const signature = nacl.sign.detached(
+    new TextEncoder().encode(buildAuthMessage(timestamp, method, path)),
+    hexToBytes(device.secretKey)
+  )
+  return `${device.cert},${timestamp},${toBase64Url(signature)}`
+}
+
+export async function buildAuthHeaders(identity, method, path) {
+  const device = identity?.device
+  if (!device?.cert || !device?.secretKey) return {}
+  return { Authorization: buildDeviceAuthHeader(device, method, path) }
+}
+
+export function verifyAuthHeader(header, method, path, options = {}) {
+  const [cert, timestampRaw, signature] = String(header || '').split(',')
+  const timestamp = Number(timestampRaw)
+  const now = options.now || Date.now()
+
+  if (!cert || !Number.isFinite(timestamp) || !signature) {
+    return { ok: false, error: 'Missing or invalid authorization' }
+  }
+  // A stale timestamp or certificate is an honest client with an expired
+  // certificate or a wrong clock, rejected before any signature check; callers
+  // should not count it as a failed (guessed) authorization.
+  if (Math.abs(now - timestamp) > (options.maxAgeMs || AUTH_MAX_AGE_MS)) {
+    return { ok: false, error: 'Authorization expired', stale: true }
+  }
+
+  const certResult = verifyDeviceCert(cert, { now })
+  if (!certResult.ok) return certResult
+
+  const signatureBytes = fromBase64Url(signature)
+  const valid =
+    signatureBytes?.length === nacl.sign.signatureLength &&
+    nacl.sign.detached.verify(
+      new TextEncoder().encode(buildAuthMessage(timestampRaw, method, path)),
+      signatureBytes,
+      hexToBytes(certResult.devicePublicKey)
+    )
+  if (!valid) return { ok: false, error: 'Invalid authorization signature' }
+  return {
+    ok: true,
+    address: certResult.address,
+    devicePublicKey: certResult.devicePublicKey,
   }
 }

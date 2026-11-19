@@ -5,21 +5,24 @@ import {
   buildChatShareUrl,
   createRandomChannelId,
   getChannelIdFromHash,
+  isChannelCredential,
   normalizeChatChannelId,
   parseChatChannelInput,
 } from '../lib/chatRoom.js'
 
-test('creates a 26-character lowercase base32 channel ID from 16 random bytes', () => {
+test('creates a 52-character private channel credential from 32 random bytes', () => {
   let requestedLength = 0
   const id = createRandomChannelId(bytes => {
     requestedLength = bytes.length
     bytes.fill(255)
   })
 
-  assert.equal(requestedLength, 16)
-  assert.equal(id.length, 26)
-  assert.match(id, /^[a-z2-7]{26}$/)
-  assert.equal(id, `${'7'.repeat(25)}4`)
+  assert.equal(requestedLength, 32)
+  assert.equal(id.length, 52)
+  assert.equal(isChannelCredential(id), true)
+  // Matches the v2 credential encoding (docs/protocol/vectors/v2/channel.json).
+  assert.equal(id, `${'7'.repeat(51)}q`)
+  assert.equal(isChannelCredential('room_123'), false)
 })
 
 test('normalizes case when building and parsing chat share links', () => {

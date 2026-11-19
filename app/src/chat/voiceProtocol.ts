@@ -1,4 +1,6 @@
 import type { MobileIdentity } from '../mobileCore/types'
+import { createClientMessageId } from './chatProtocol'
+import { isChannelId, signChatBody } from './chatSigning'
 
 export type VoiceEventName = 'join' | 'state' | 'heartbeat' | 'leave' | 'signal'
 
@@ -68,6 +70,7 @@ export function buildVoiceEventFrame(
   channel: string,
   event: VoiceEventName,
   input: {
+    identity: MobileIdentity
     sessionId: string
     profile?: VoiceProfile
     micMuted?: boolean
@@ -80,8 +83,13 @@ export function buildVoiceEventFrame(
   if (!normalizedChannel) throw new Error('channel is required')
   if (!sessionId) throw new Error('sessionId is required')
   if (!EVENT_NAMES.has(event)) throw new Error('invalid voice event')
-  const data = {
-    channel: normalizedChannel,
+  const body = {
+    kind: 'voice',
+    channelId: normalizedChannel,
+    author: input.identity.address.toLowerCase(),
+    createdAt: Date.now(),
+    id: createClientMessageId(),
+    ...(event === 'signal' ? { transport: 'webrtc1' } : {}),
     event,
     sessionId,
     ...(input.profile?.displayName
@@ -97,7 +105,13 @@ export function buildVoiceEventFrame(
       : {}),
     ...(input.signal ? { signal: input.signal } : {}),
   }
-  return JSON.stringify({ event: `channel:voice:${event}`, data })
+  return JSON.stringify({
+    event: `channel:voice:${event}`,
+    data: {
+      channel: normalizedChannel,
+      signed: signChatBody(body, input.identity),
+    },
+  })
 }
 
 export function parseVoiceWebSocketMessage(raw: string): VoiceEvent | null {
@@ -119,6 +133,7 @@ export function parseVoiceWebSocketMessage(raw: string): VoiceEvent | null {
   const event = (string(data.event) ||
     outerEvent.slice('channel:voice:'.length)) as VoiceEventName
   const sessionId = string(data.sessionId)
+  if (event === 'signal' && data.transport !== 'webrtc1') return null
   if (!channel || !sessionId || !EVENT_NAMES.has(event)) return null
   const senderRecord = record(data.sender)
   const senderAddress = string(senderRecord.address || data.address)
@@ -271,10 +286,12 @@ export class VoiceWebSocketSession {
   #socket: VoiceSocket | null = null
   #joined = false
   #muted = false
+  #channelId = ''
   readonly sessionId: string
 
   constructor(options: VoiceWebSocketSessionOptions) {
     this.#options = options
+    if (isChannelId(options.channel)) this.#channelId = options.channel
     this.sessionId = options.sessionId || createVoiceSessionId()
   }
 
@@ -306,8 +323,25 @@ export class VoiceWebSocketSession {
         resolve()
       }
       socket.onmessage = event => {
+        if (this.#socket !== socket) return
+        try {
+          const ack = JSON.parse(String(event.data))
+          if (
+            ack.event === 'channel:subscribed' &&
+            ack.data?.channel === this.#options.channel &&
+            isChannelId(ack.data?.channelKey)
+          ) {
+            const pendingJoin = !this.#channelId && this.#joined
+            this.#channelId = ack.data.channelKey
+            if (pendingJoin) this.#send('join')
+            return
+          }
+        } catch {
+          return
+        }
         const parsed = parseVoiceWebSocketMessage(String(event.data))
-        if (parsed) this.#options.onEvent?.(parsed)
+        if (parsed && parsed.channel === this.#channelId)
+          this.#options.onEvent?.({ ...parsed, channel: this.#options.channel })
       }
       socket.onerror = () => {
         if (!settled) {
@@ -326,6 +360,7 @@ export class VoiceWebSocketSession {
   }
 
   async join() {
+    if (!this.#options.identity) throw new Error('Sign in to join a voice room')
     await this.connect()
     this.#joined = true
     this.#send('join')
@@ -361,9 +396,16 @@ export class VoiceWebSocketSession {
     event: VoiceEventName,
     extra: { targetSessionId?: string; signal?: VoiceSignal } = {}
   ) {
-    if (!this.connected || !this.#socket) return
+    if (
+      !this.connected ||
+      !this.#socket ||
+      !this.#options.identity ||
+      !this.#channelId
+    )
+      return
     this.#socket.send(
-      buildVoiceEventFrame(this.#options.channel, event, {
+      buildVoiceEventFrame(this.#channelId, event, {
+        identity: this.#options.identity,
         sessionId: this.sessionId,
         profile: this.#options.profile,
         micMuted: this.#muted,

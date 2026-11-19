@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '~server/src/utils/api'
 import {
   decryptAccountBackup,
@@ -6,14 +6,27 @@ import {
 } from '~server/src/utils/accountBackup.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
-import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
+
+/**
+ * Backups made before protocol v2 were encrypted with the v1 wallet seed;
+ * after a v2 sign-in that seed is kept in memory as `legacySeed`.
+ */
+function decryptWithKnownSeeds(text: string, seed: string) {
+  try {
+    return decryptAccountBackup(text, seed)
+  } catch (error) {
+    const legacySeed = useUserStore.getState().legacySeed
+    if (!legacySeed) throw error
+    return decryptAccountBackup(text, legacySeed)
+  }
+}
+import { isLocale, useI18n, type Locale } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 import {
   isAppearancePreference,
   type AppearancePreference,
 } from '~/lib/appearance'
 type AccountBackupAction = 'export' | 'import' | null
-type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
 type AccountBackupPreferences = AccountBackupPayload['preferences']
 type AccountBackupTheme = AppearancePreference
@@ -24,11 +37,6 @@ type RestorePayloadOptions = {
 }
 type ImportLocalBackupOptions = {
   requestConfirm?: RestoreConfirmRequest
-}
-type AccountBackupSummary = {
-  filesCount: number | null
-  channelsCount: number | null
-  loading: boolean
 }
 
 interface AccountBackupPayload {
@@ -55,19 +63,6 @@ interface AccountBackupPayload {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
-}
-
-function getStatusLabel(
-  status: AccountBackupStatus,
-  action: AccountBackupAction,
-  t: (key: MessageKey) => string
-) {
-  if (status === 'disabled') return t('profile.backup.status.disabled')
-  if (status === 'error') return t('profile.backup.status.error')
-  if (status === 'synced') return t('profile.backup.status.done')
-  if (action === 'export') return t('profile.backup.status.exporting')
-  if (action === 'import') return t('profile.backup.status.importing')
-  return t('profile.backup.status.idle')
 }
 
 function hasLocalData(payload: AccountBackupPayload) {
@@ -107,10 +102,6 @@ function hasDifferentBackupData(
     JSON.stringify(getComparablePayload(localPayload)) !==
     JSON.stringify(getComparablePayload(backupPayload))
   )
-}
-
-function countBackupItems(items: unknown[] | undefined) {
-  return Array.isArray(items) ? items.length : 0
 }
 
 async function readRestoredProfile(fallback: AccountBackupProfile) {
@@ -158,49 +149,13 @@ export function useAccountBackup() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const setAppearance = useAppStore(s => s.setAppearance)
-  const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
   const [action, setAction] = useState<AccountBackupAction>(null)
-  const [status, setStatus] = useState<AccountBackupStatus>(
-    wallet ? 'idle' : 'disabled'
-  )
-  const [backupSummary, setBackupSummary] = useState<AccountBackupSummary>({
-    filesCount: null,
-    channelsCount: null,
-    loading: false,
-  })
-  const refreshBackupSummary = useCallback(async () => {
-    const currentWallet = useUserStore.getState().wallet
-    if (!currentWallet) {
-      setBackupSummary({
-        filesCount: null,
-        channelsCount: null,
-        loading: false,
-      })
-      return
-    }
-
-    setBackupSummary(summary => ({ ...summary, loading: true }))
-    try {
-      const metadata = await api
-        .get<AccountBackupPayload>('/api/user/export')
-        .json()
-      setBackupSummary({
-        filesCount: countBackupItems(metadata.files),
-        channelsCount: countBackupItems(metadata.channels),
-        loading: false,
-      })
-    } catch {
-      setBackupSummary(summary => ({ ...summary, loading: false }))
-    }
-  }, [])
-
   const requireWallet = useCallback(() => {
     const currentWallet = useUserStore.getState().wallet
     if (currentWallet) return currentWallet
     openLoginModal()
-    setStatus('disabled')
     return null
   }, [openLoginModal])
 
@@ -301,7 +256,6 @@ export function useAccountBackup() {
           applyProfileToIdentity(currentIdentity, restoredProfile)
         )
       }
-      void refreshBackupSummary()
       return true
     },
     [
@@ -309,7 +263,6 @@ export function useAccountBackup() {
       buildPayload,
       requireBackend,
       requireWallet,
-      refreshBackupSummary,
       setUserIdentity,
       setAppearance,
       setLocale,
@@ -320,11 +273,12 @@ export function useAccountBackup() {
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()
     if (!currentWallet || !requireBackend()) return
+    const seed = await useUserStore.getState().unlockSeed()
+    if (!seed) return
     setAction('export')
-    setStatus('working')
     try {
       const payload = await buildPayload()
-      const encrypted = encryptAccountBackup(payload, currentWallet.danger)
+      const encrypted = encryptAccountBackup(payload, seed)
       const blob = new Blob([encrypted], { type: 'text/plain' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -332,10 +286,8 @@ export function useAccountBackup() {
       link.download = `${currentWallet.address.slice(-4)}-most-account-${new Date().toISOString().slice(0, 10)}.txt`
       link.click()
       URL.revokeObjectURL(url)
-      setStatus('synced')
       addToast(t('profile.backup.toast.exportedLocal'), 'success')
     } catch (err: unknown) {
-      setStatus('error')
       addToast(
         getErrorMessage(err, t('profile.backup.error.exportFailed')),
         'error'
@@ -359,24 +311,21 @@ export function useAccountBackup() {
 
         const reader = new FileReader()
         reader.onload = async () => {
+          const seed = await useUserStore.getState().unlockSeed()
+          if (!seed) return
           setAction('import')
-          setStatus('working')
           try {
-            const payload = decryptAccountBackup(
+            const payload = decryptWithKnownSeeds(
               String(reader.result || ''),
-              currentWallet.danger
+              seed
             ) as AccountBackupPayload
             const restored = await restorePayload(payload, {
               requestConfirm: options.requestConfirm,
             })
             if (restored) {
-              setStatus('synced')
               addToast(t('profile.backup.toast.restoredLocal'), 'success')
-            } else {
-              setStatus('idle')
             }
           } catch (err: unknown) {
-            setStatus('error')
             addToast(
               getErrorMessage(err, t('profile.backup.error.importFailed')),
               'error'
@@ -392,26 +341,11 @@ export function useAccountBackup() {
     [addToast, requireBackend, requireWallet, restorePayload, t]
   )
 
-  const effectiveStatus = wallet
-    ? status === 'disabled'
-      ? 'idle'
-      : status
-    : 'disabled'
-
-  const statusLabel = useMemo(
-    () => getStatusLabel(effectiveStatus, action, t),
-    [action, effectiveStatus, t]
-  )
-
   return {
     action,
     busy: action !== null,
-    status: effectiveStatus,
-    statusLabel,
     exportLocalBackup,
     importLocalBackup,
     hasBackend,
-    backupSummary,
-    refreshBackupSummary,
   }
 }

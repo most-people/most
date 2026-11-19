@@ -37,31 +37,6 @@ export const nodeMessages = {
     en: 'Background support could not start. Open the app and retry.',
   },
 
-  'node.status.idle': {
-    'zh-CN': '未启动',
-    'zh-TW': '未啟動',
-    en: 'Not started',
-  },
-  'node.status.starting': {
-    'zh-CN': '启动中',
-    'zh-TW': '啟動中',
-    en: 'Starting',
-  },
-  'node.status.ready': {
-    'zh-CN': '在线',
-    'zh-TW': '在線',
-    en: 'Online',
-  },
-  'node.status.stopping': {
-    'zh-CN': '停止中',
-    'zh-TW': '停止中',
-    en: 'Stopping',
-  },
-  'node.status.error': {
-    'zh-CN': '异常',
-    'zh-TW': '異常',
-    en: 'Error',
-  },
   'node.seed.queued': {
     'zh-CN': '队列中',
     'zh-TW': '佇列中',
@@ -173,8 +148,8 @@ export const nodeMessages = {
     en: 'Node status',
   },
   'node.metric.onlinePeers': {
-    'zh-CN': '在线 Peer',
-    'zh-TW': '在線 Peer',
+    'zh-CN': '在线节点',
+    'zh-TW': '上線節點',
     en: 'Online peers',
   },
   'node.metric.localSeeds': {
@@ -311,6 +286,33 @@ export const nodeMessages = {
     'zh-CN': '{count} 条记录',
     'zh-TW': '{count} 筆記錄',
     en: '{count} record',
+  },
+  'node.devtools.scrypt': {
+    'zh-CN': 'scrypt 基准测试',
+    'zh-TW': 'scrypt 基準測試',
+    en: 'scrypt benchmark',
+  },
+  'node.devtools.scryptNative': {
+    'zh-CN': '原生 scrypt 测量（Bare）',
+    'zh-TW': '原生 scrypt 測量（Bare）',
+    en: 'Native scrypt (Bare)',
+  },
+  'node.devtools.scryptRunning': {
+    'zh-CN': '测量中…',
+    'zh-TW': '測量中…',
+    en: 'Measuring…',
+  },
+  'node.devtools.scryptHint': {
+    'zh-CN':
+      '开发版专用：测量本机派生聊天身份所需时间（N=2^14 到 2^17，每档两次），完成后复制结果。测量期间请保持应用在前台。',
+    'zh-TW':
+      '開發版專用：測量本機衍生聊天身分所需時間（N=2^14 到 2^17，每檔兩次），完成後複製結果。測量期間請保持應用在前景。',
+    en: 'Dev builds only: measures how long this device takes to derive the chat identity (N=2^14 to 2^17, twice each). Copy the result when done and keep the app in the foreground meanwhile.',
+  },
+  'node.devtools.scryptProgress': {
+    'zh-CN': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    'zh-TW': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    en: 'N=2^{logN} run {attempt}: {percent}%',
   },
   'node.diagnostics.title': {
     'zh-CN': '诊断详情',
@@ -487,6 +489,71 @@ export const nodeMessages = {
     'zh-TW': '密碼',
     en: 'Password',
   },
+  'node.account.certTtl': {
+    'zh-CN': '设备授权有效期',
+    'zh-TW': '裝置授權有效期',
+    en: 'Device authorization period',
+  },
+  'node.account.certTtl.4h': {
+    'zh-CN': '4 小时',
+    'zh-TW': '4 小時',
+    en: '4 hours',
+  },
+  'node.account.certTtl.1d': { 'zh-CN': '1 天', 'zh-TW': '1 天', en: '1 day' },
+  'node.account.certTtl.30d': {
+    'zh-CN': '30 天',
+    'zh-TW': '30 天',
+    en: '30 days',
+  },
+  'node.account.certTtlHint': {
+    'zh-CN':
+      '限制这台设备访问节点的时长，修改时需要输入密码，到期前会提醒重新登录。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
+    'zh-TW':
+      '限制這台裝置存取節點的時長，修改時需要輸入密碼，到期前會提醒重新登入。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
+    en: 'Limits how long this device can access the node (changing it asks for your password); you are reminded to sign in again before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+  },
+  'node.account.certTtlExpires': {
+    'zh-CN': '当前授权到期时间：{time}',
+    'zh-TW': '目前授權到期時間：{time}',
+    en: 'Current authorization ends at {time}',
+  },
+  'node.account.certTtlPasswordHint': {
+    'zh-CN': '输入密码确认修改设备授权有效期。',
+    'zh-TW': '輸入密碼確認修改裝置授權有效期。',
+    en: 'Enter your password to change the device authorization period.',
+  },
+  'node.account.certTtlConfirm': {
+    'zh-CN': '确认修改',
+    'zh-TW': '確認修改',
+    en: 'Change',
+  },
+  'node.account.certTtlWrongPassword': {
+    'zh-CN': '密码不正确',
+    'zh-TW': '密碼不正確',
+    en: 'Incorrect password',
+  },
+  'node.account.certTtlFailed': {
+    'zh-CN': '未能修改设备授权有效期',
+    'zh-TW': '未能修改裝置授權有效期',
+    en: 'Could not change the device authorization period',
+  },
+  'node.account.certExpiring': {
+    'zh-CN': '这台设备访问节点的授权将于 {time} 到期，点此重新登录续期。',
+    'zh-TW': '這台裝置存取節點的授權將於 {time} 到期，點此重新登入續期。',
+    en: "This device's access to the node ends at {time}. Tap to sign in again.",
+  },
+  'node.account.certExpired': {
+    'zh-CN': '这台设备访问节点的授权已到期，点此重新登录。',
+    'zh-TW': '這台裝置存取節點的授權已到期，點此重新登入。',
+    en: "This device's access to the node has ended. Tap to sign in again.",
+  },
+  'node.account.passwordShort': {
+    'zh-CN':
+      '密码少于 18 个字符，账号可能被离线暴力破解。建议用一句诗或一句歌词作密码；你也可以忽略此提示继续使用。',
+    'zh-TW':
+      '密碼少於 18 個字元，帳號可能被離線暴力破解。建議用一句詩或一句歌詞作密碼；你也可以忽略此提示繼續使用。',
+    en: 'This password is shorter than 18 characters, so the account could be cracked offline. A line of a poem or song works well. You can ignore this warning and continue.',
+  },
   'node.account.signIn': {
     'zh-CN': '登录',
     'zh-TW': '登入',
@@ -496,6 +563,55 @@ export const nodeMessages = {
     'zh-CN': '正在登录',
     'zh-TW': '正在登入',
     en: 'Signing in',
+  },
+  'node.sync.title': {
+    'zh-CN': '账号同步',
+    'zh-TW': '帳號同步',
+    en: 'Account sync',
+  },
+  'node.sync.desc': {
+    'zh-CN':
+      '让登录同一账号的其他设备和节点同步显示名称、频道和文件记录，文件内容不会被同步。',
+    'zh-TW':
+      '讓登入同一帳號的其他裝置與節點同步顯示名稱、頻道和檔案記錄，檔案內容不會被同步。',
+    en: 'Keep your display name, channels and file records in sync across devices and nodes. File content is never synced.',
+  },
+  'node.sync.automatic': {
+    'zh-CN': '本机节点已自动开启同步。',
+    'zh-TW': '本機節點已自動開啟同步。',
+    en: 'Sync is on automatically for this local node.',
+  },
+  'node.sync.remoteOn': {
+    'zh-CN': '已在此远程节点开启同步。',
+    'zh-TW': '已在此遠端節點開啟同步。',
+    en: 'Sync is on for this remote node.',
+  },
+  'node.sync.remoteWarning': {
+    'zh-CN':
+      '开启后，此节点会持有你的同步密钥，可以读取你的频道、资料和文件记录。仅在你信任该节点时开启。',
+    'zh-TW':
+      '開啟後，此節點會持有你的同步金鑰，可以讀取你的頻道、資料和檔案記錄。僅在你信任該節點時開啟。',
+    en: 'When on, this node holds your sync key and can read your channels, profile and file records. Only enable it for a node you trust.',
+  },
+  'node.sync.devices': {
+    'zh-CN': '已发现 {count} 个设备日志',
+    'zh-TW': '已發現 {count} 個裝置日誌',
+    en: '{count} device logs found',
+  },
+  'node.sync.enable': {
+    'zh-CN': '在此节点开启同步',
+    'zh-TW': '在此節點開啟同步',
+    en: 'Turn on sync for this node',
+  },
+  'node.sync.disable': {
+    'zh-CN': '关闭并移除同步密钥',
+    'zh-TW': '關閉並移除同步金鑰',
+    en: 'Turn off and remove the sync key',
+  },
+  'node.sync.error': {
+    'zh-CN': '同步设置失败，请稍后重试',
+    'zh-TW': '同步設定失敗，請稍後重試',
+    en: 'Could not change sync settings. Try again.',
   },
   'node.account.signOut': {
     'zh-CN': '退出登录',
@@ -618,9 +734,14 @@ export const nodeMessages = {
     en: 'Open file details and actions',
   },
   'files.details.peers': {
-    'zh-CN': '{count} 个 Peer',
-    'zh-TW': '{count} 個 Peer',
+    'zh-CN': '{count} 个节点',
+    'zh-TW': '{count} 個節點',
     en: '{count} peers',
+  },
+  'files.details.peers.one': {
+    'zh-CN': '{count} 个节点',
+    'zh-TW': '{count} 個節點',
+    en: '{count} peer',
   },
   'files.details.path': {
     'zh-CN': '路径',
@@ -698,9 +819,9 @@ export const nodeMessages = {
     en: 'Cancel download',
   },
   'transfers.receivedBytes': {
-    'zh-CN': '已接收 {completed} / {total} MiB',
-    'zh-TW': '已接收 {completed} / {total} MiB',
-    en: 'Received {completed} / {total} MiB',
+    'zh-CN': '已接收 {completed} / {total}',
+    'zh-TW': '已接收 {completed} / {total}',
+    en: 'Received {completed} / {total}',
   },
   'transfers.cancelling': {
     'zh-CN': '正在取消',

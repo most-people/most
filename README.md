@@ -55,7 +55,7 @@ MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消�
 
 ### iOS / Android
 
-iOS / Android 使用共享 React Native UI 和 Bare Worklet P2P 核心。当前先开发全功能版，包含本机与远程节点、身份、频道聊天、文件传输及独立工具；海外和中国大陆 APP 商店版在全功能版稳定后按目标渠道适配。中国大陆 Android 包名确定为 `most.red`，现有历史 `inkbox` 配置尚未迁移，不能作为新包提交。开发流程见 [Android 验收](docs/mobile-android-alpha.md)与[iOS 验收](docs/mobile-ios-feasibility.md)，功能完成情况和验证限制见[验证状态](docs/validation-status.md)。
+iOS / Android 使用共享 React Native UI 和 Bare Worklet P2P 核心。当前先开发全功能版，包含本机与远程节点、身份、频道聊天、文件传输及独立工具；海外和中国大陆 APP 商店版在全功能版稳定后按目标渠道适配。中国大陆 Android 包名为 `most.people`（`inkbox` 配置），尚无正式签名与候选包，不能直接提交。开发流程见 [Android 验收](docs/mobile-android-alpha.md)与[iOS 验收](docs/mobile-ios-feasibility.md)，功能完成情况和验证限制见[验证状态](docs/validation-status.md)。
 
 移动端工程入口以 `app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 
@@ -244,7 +244,7 @@ npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.5.5
+    image: ghcr.io/most-people/most-box:0.8.1
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -351,6 +351,10 @@ mostbox.example.com {
 
 文件以 **P2P 方式** 保存在分享者和接收者的设备上。每个做种节点都持有完整文件副本；MostBox 不会把文件集中上传到云端服务器。
 
+### 双方都无法打洞时怎么办？
+
+默认不使用中继。桌面/daemon 可在节点配置的 `relayPublicKey` 中填写自己运行或信任的盲中继公钥（中继程序见 `scripts/blind-relay.js`）：只在本机 NAT 随机分配端口或打洞失败时转发双方的加密连接（之后若打洞成功会改为直连），中继看不到文件和消息内容，但能看到双方 IP、公钥、连接时间和流量。移动端暂不支持配置中继。详见[隐私政策](PRIVACY.md)。
+
 ### 如何分享文件给其他人？
 
 1. 打开 MostBox 桌面客户端，或运行 `npx most-box@latest` 后打开本机 Web 界面
@@ -424,6 +428,14 @@ npx most-box@latest
 
 Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 应设置为 `app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。若 Pages 后台仍使用旧值 `mobile`，需先改为 `app`；仓库修改不会自动同步后台配置。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
 
+### 协议 v2 切换
+
+协议 v2 首次切换需将节点与 Expo Web 安排在同一维护窗口，顺序如下：
+
+1. 记录当前节点版本和 Pages 部署，暂停写入，正常停节点，在原路径可恢复地备份完整数据目录（含节点身份、Corestore、频道及账号元数据）。先在隔离实例验证能恢复；不要把打开中的数据库当作备份。
+2. 保留旧实例及备份，用候选节点启动数据副本，限定测试账号访问。确认旧凭据登录、带标识的旧频道文本、首次登录文件列表、按 CID 下载和新签名消息双向收发，再切换节点流量。新旧客户端不能混用消息接口。
+3. 节点通过后，将**同一已验收提交**快进到 `pre`，核对 Pages 成功部署和线上 Web 到目标节点的上述操作，再恢复正常写入。如果检查失败，停止新写入，将 Pages、节点程序和升级前的数据一起恢复；切换后的新增数据单独保留，不用旧程序直接打开已迁移目录。
+
 ### Code signing policy
 
 MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md) 管理。项目正在申请 SignPath Foundation 开源代码签名；只有带有有效 Authenticode 签名的产物才会标记为已签名。Free code signing provided by SignPath.io, certificate by SignPath Foundation.
@@ -433,8 +445,10 @@ MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md)
 ```bash
 # 更新版本文件并提交后
 git tag -a vx.x.x -m "MostBox vx.x.x"
-git push origin main vx.x.x
+git push origin vx.x.x
 ```
+
+`main` 受分支保护，不能直接推送，发布只推 tag；上一条命令特意不包含 `main`。
 
 需要重建已有版本时，可在 `main` 手动运行 Release workflow，并将 `tag` 输入设为对应的发布 tag；各构建任务会检出该 tag 的源码，复用已发布的 npm 包，并补齐安装包与 R2 镜像。
 
@@ -448,6 +462,35 @@ git push origin main vx.x.x
 6. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，生成 `releases/latest.json`，并在新版本校验成功后删除旧版本安装包
 
 GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/latest.json` 并使用 R2 下载链接。
+
+### main 分支保护
+
+`main` 受一条经典分支保护规则约束，规则名（branch name pattern）为 `main`，当前只作用于 `main` 这一个分支，用于阻断误推和误合。
+
+当前生效的规则：
+
+- **Require a pull request before merging**：禁止直接 `push` 到 `main`，`git push --force` 同样被拒。
+  `Require approvals` 保持不勾选（即 0 人批准）。单人维护时作者无法批准自己的 PR，设成 1 会把维护者锁死。
+- **Require status checks to pass before merging**：合并前必须通过 `Test (24)`、`Build`、`Typecheck`、`Lint`、`Android Tests`。
+  同时勾选 `Require branches to be up to date before merging`，避免基于旧基线的绿灯。
+  `Test (24)` 是矩阵 job（`node-version: 24`）的真实检查名，`24` 不是后缀装饰，配置时必须按这个名字填。
+- **Do not allow bypassing the above settings**：规则对管理员同样生效，误推时自己也不能绕过。
+- **Allow force pushes** 关闭：不允许强推覆盖 `main` 历史。
+- **Allow deletions** 关闭：不允许删除 `main` 分支。
+
+不启用 Require linear history，合并 PR 时可按需要保留 merge commit。
+
+日常改动必须走分支和 PR：
+
+```bash
+git switch -c fix/xxx
+git push origin fix/xxx
+# 在 GitHub 开 PR，等待 CI 全绿后合并
+```
+
+误推 `main` 时服务端直接拒收（`remote rejected ... protected branch hook declined`），远程 `main` 不变，本地提交也不受影响。该保护只约束分支推送，不约束 tag：`release.yml` 与 `docker.yml` 由 `v*` tag 触发，因此发版时 `main` 保持锁定即可。
+
+需要绕过 PR 紧急修复 `main` 时，在 Settings → Branches 打开该规则，临时取消勾选 `Require a pull request before merging` 并保存，推送完成后立刻重新勾选并保存；这是唯一后门，只有仓库 admin 能改动，改动会记入仓库审计日志。希望用单开关（Enforcement status）代替逐项改勾选时，可以在同一页面点击 `Convert to ruleset` 把该规则转成 Ruleset，转换会保留现有设置。
 
 ### 配置 Secrets
 

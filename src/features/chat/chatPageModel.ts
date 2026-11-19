@@ -3,7 +3,7 @@ import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { shortAddress } from '~/lib/format'
 import { messageMentionsAddress } from '~/lib/chatMentions.js'
 import type { MemberTag } from '~/lib/localizedTag'
-import { getChannelIdFromHash } from '~/lib/chatRoom.js'
+import { getChannelIdFromHash, isChannelCredential } from '~/lib/chatRoom.js'
 
 export const CHAT_FILE_ROOT = 'chat-file'
 
@@ -55,6 +55,21 @@ export function getChannelKey(
   return channel?.channelKey || channel?.name || ''
 }
 
+// 列表以 channelKey 作为 React key；重复项会让列表渲染出多余或残留的行。
+export function dedupeChannels(channels: Channel[]) {
+  const byKey = new Map<string, Channel>()
+  for (const channel of channels) {
+    const key = getChannelKey(channel)
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, channel)
+    } else if (!existing.remark && channel.remark) {
+      byKey.set(key, { ...existing, remark: channel.remark })
+    }
+  }
+  return [...byKey.values()]
+}
+
 export function getChannelId(
   channel?: Pick<Channel, 'channelId' | 'name'> | null
 ) {
@@ -92,7 +107,10 @@ export function getSocketEventChannelKeys(data: unknown) {
 export function getChannelTitle(
   channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null
 ) {
-  return channel?.remark || getChannelId(channel)
+  const id = getChannelId(channel)
+  // A 52-character private credential is too long to read as a title.
+  const title = isChannelCredential(id) ? `${id.slice(0, 8)}…` : id
+  return channel?.remark || title
 }
 
 export function getRequestedChannelNameFromLocation() {

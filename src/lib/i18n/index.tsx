@@ -15,6 +15,7 @@ import {
   type Locale,
   type MessageKey,
 } from '~/lib/i18n/messages'
+import { formatMessageTime } from '~/lib/messageTime'
 
 type TranslationParams = Record<string, string | number>
 
@@ -37,6 +38,7 @@ interface I18nContextValue {
     value: Date | string | number,
     options?: Intl.DateTimeFormatOptions
   ) => string
+  formatMessageTime: (value: Date | string | number) => string
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string
   compareStrings: (left: string, right: string) => number
 }
@@ -183,6 +185,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         options
           ? new Intl.DateTimeFormat(locale, options).format(toDate(value))
           : dateTimeFormatter.format(toDate(value)),
+      formatMessageTime: value =>
+        formatLocalizedTime(
+          locale,
+          formatMessageTime(
+            value,
+            locale,
+            translateMessage('chat.yesterday', locale)
+          )
+        ),
       formatNumber: (value, options) =>
         options
           ? new Intl.NumberFormat(locale, options).format(value)

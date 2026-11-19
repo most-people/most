@@ -22,6 +22,8 @@ import {
   ChannelMemberGrid,
   ChatAttachmentBubble,
   ChatChannelNavItem,
+  ChatFoldedEntryItem,
+  ChatFoldedHeader,
   ChatComposer,
   ChatMessageItem,
   ChatSystemMessageItem,
@@ -66,6 +68,7 @@ import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { shortAddress } from '~/lib/format'
+import { buildProfileBody, isChannelId, signChatBody } from '~/lib/chatSigning'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
@@ -81,6 +84,12 @@ import {
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
+import { isChannelFolded, splitFoldedChannels } from '~/lib/chatFold.js'
+import {
+  createBurstDebounce,
+  METADATA_REFRESH_MAX_WAIT_MS,
+  METADATA_REFRESH_WAIT_MS,
+} from '~/lib/burstDebounce'
 import {
   completeMentionDraftFromTargets,
   finalizeMentionDraftForSend,
@@ -101,10 +110,12 @@ import {
   buildChatSharePath,
   buildChatShareUrl,
   createRandomChannelId,
+  isChannelCredential,
   parseChatChannelInput,
 } from '~/lib/chatRoom.js'
 import {
   CHAT_FILE_ROOT,
+  dedupeChannels,
   formatChannelMentionPreviewText,
   formatChannelMentionUnreadPreview,
   formatMentionCandidateLabel,
@@ -155,6 +166,9 @@ function ChatPage() {
   const [requestedChannelName, setRequestedChannelName] = useState('')
   const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
+  const [channelListView, setChannelListView] = useState<'main' | 'folded'>(
+    'main'
+  )
   const [channelInput, setChannelInput] = useState('')
   const [channelMentions, setChannelMentions] = useState<ChannelMention[]>([])
   const [composerSelection, setComposerSelection] = useState<ComposerSelection>(
@@ -206,11 +220,9 @@ function ChatPage() {
   const isInviteUser = userIdentity?.theme === 'st'
   const inviteTicketUrl =
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
-  const inviteBaseLogo = isInviteUser ? userIdentity?.logo || '' : ''
+  const inviteBaseLogo = userIdentity?.logo || ''
   const inviteDarkLogo =
-    isInviteUser && resolvedAppearance === 'dark'
-      ? userIdentity?.logo_dark || ''
-      : ''
+    resolvedAppearance === 'dark' ? userIdentity?.logo_dark || '' : ''
   const invitePreferredLogo = inviteDarkLogo || inviteBaseLogo
   const inviteFallbackLogo =
     inviteDarkLogo && inviteBaseLogo && inviteDarkLogo !== inviteBaseLogo
@@ -247,8 +259,30 @@ function ChatPage() {
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isSendingChannelMessageRef = useRef(false)
+  const refreshChannelsRef = useRef<() => Promise<void>>(async () => {})
+  // Socket events that change the channel list arrive in bursts: account sync
+  // applies hundreds of records, and the node broadcasts channel:sync:available
+  // to every open window for each remote writer core it opens (791 in 10s on
+  // a restart). Refresh once per burst, or the node's rate limit kicks in.
+  const [channelListRefresh] = useState(() =>
+    createBurstDebounce(
+      () => void refreshChannelsRef.current(),
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
+  )
+  // The same peer:online / sync:available bursts also reload the active
+  // channel's presence and member profiles.
+  const refreshActivePeersRef = useRef<() => void>(() => {})
+  const [activePeersRefresh] = useState(() =>
+    createBurstDebounce(
+      () => refreshActivePeersRef.current(),
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
+  )
   const isBackendReady = hasBackend === true
-  const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
+  const { t, compareStrings, formatDate, formatMessageTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
 
   const showApiError = useCallback(
@@ -491,13 +525,10 @@ function ChatPage() {
       case 'channel:sync:available': {
         const channelKeys = getSocketEventChannelKeys(data)
         const activeChannelKey = activeChannelNameRef.current
-        void refreshChannels()
+        channelListRefresh()
         if (channelKeys.includes(activeChannelKey)) {
           scheduleChannelHistorySync(activeChannelKey)
-          if (activeChannel) {
-            void refreshChannelPresence(activeChannel)
-            void refreshChannelMemberProfiles(activeChannel)
-          }
+          activePeersRefresh()
         }
         break
       }
@@ -526,12 +557,12 @@ function ChatPage() {
 
       case 'channel:joined':
       case 'channel:left':
-        void refreshChannels()
+        channelListRefresh()
         break
 
       case 'user:metadata:updated':
         if (data?.scope === 'channels') {
-          void refreshChannels()
+          channelListRefresh()
         }
         break
 
@@ -644,6 +675,18 @@ function ChatPage() {
   useEffect(() => {
     syncMessagesRef.current = syncMessages
   }, [syncMessages])
+
+  useEffect(() => {
+    refreshChannelsRef.current = refreshChannels
+    refreshActivePeersRef.current = () => {
+      if (!activeChannel) return
+      void refreshChannelPresence(activeChannel)
+      void refreshChannelMemberProfiles(activeChannel)
+    }
+  })
+
+  useEffect(() => () => channelListRefresh.cancel(), [channelListRefresh])
+  useEffect(() => () => activePeersRefresh.cancel(), [activePeersRefresh])
 
   useEffect(() => {
     if (!isBackendReady || !channelReadStorageKey || !userIdentity?.address) {
@@ -803,6 +846,8 @@ function ChatPage() {
     const membersByAuthor = new Map<string, DisplayedChannelMemberProfile>()
 
     channelMessages.forEach((message, index) => {
+      // Old-history snapshots share the placeholder author 'legacy'.
+      if (message.type === 'legacy') return
       const address = String(message.author || '').trim()
       if (!address) return
       const key = address.toLowerCase()
@@ -961,9 +1006,17 @@ function ChatPage() {
       stringifyMemberTag(persistedProfile?.tag) ===
         stringifyMemberTag(desiredProfile.tag)
 
-    if (persistedProfile && displayNameMatches && avatarMatches && tagMatches) {
+    // Without profileUpdatedAt the node only holds what this client sent when
+    // joining; other members learn the profile from a signed entry.
+    if (
+      persistedProfile?.profileUpdatedAt &&
+      displayNameMatches &&
+      avatarMatches &&
+      tagMatches
+    ) {
       return
     }
+    if (!isChannelId(activeChannelKey)) return
 
     const submitKey = JSON.stringify([
       activeChannelKey,
@@ -978,12 +1031,17 @@ function ChatPage() {
     lastSubmittedMemberProfileKeyRef.current = submitKey
 
     let cancelled = false
-    const profilePayload = {
-      channelName: activeChannelKey,
+    const profileBody = buildProfileBody({
+      channelId: activeChannelKey,
       author: desiredAuthor,
+      id: crypto.randomUUID(),
       displayName: desiredProfile.displayName,
       avatar: desiredProfile.avatar,
-      ...(shouldSyncTag ? { tag: desiredProfile.tag } : {}),
+      ...(shouldSyncTag ? { tag: desiredProfile.tag ?? null } : {}),
+    })
+    const profilePayload = {
+      channelName: activeChannelKey,
+      signed: signChatBody(profileBody, userIdentity.device),
     }
 
     channelApi
@@ -1322,6 +1380,7 @@ function ChatPage() {
   }, [clearChannelMessages, userIdentity?.address])
 
   function getChannelNameValidationError(name) {
+    if (isChannelCredential(name)) return ''
     if (name.length < CHANNEL_ID_MIN_LENGTH) {
       return t('chat.validation.nameMin', {
         count: CHANNEL_ID_MIN_LENGTH,
@@ -1347,7 +1406,7 @@ function ChatPage() {
       return
     }
     try {
-      const result = await channelApi.getChannels()
+      const result = dedupeChannels(await channelApi.getChannels())
       setChannels(result)
       setActiveChannel(prev => {
         if (!prev) return prev
@@ -1571,6 +1630,33 @@ function ChatPage() {
       await showApiError(
         err,
         nextPinned ? t('chat.error.pin') : t('chat.error.unpin')
+      )
+    }
+  }
+
+  async function handleToggleChannelFold(channel: Channel) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const nextFolded = !isChannelFolded(channel)
+    const channelKey = getChannelKey(channel)
+    try {
+      const result = await channelApi.setChannelFolded(channelKey, nextFolded)
+      setChannels(prev =>
+        prev.map(item =>
+          getChannelKey(item) === channelKey
+            ? { ...item, folded: result.folded }
+            : item
+        )
+      )
+      setActiveChannel(prev =>
+        prev && getChannelKey(prev) === channelKey
+          ? { ...prev, folded: result.folded }
+          : prev
+      )
+    } catch (err) {
+      await showApiError(
+        err,
+        nextFolded ? t('chat.error.fold') : t('chat.error.unfold')
       )
     }
   }
@@ -2261,6 +2347,20 @@ function ChatPage() {
     .filter(Boolean)
     .join(' ')
   const stActionMenuClassName = isInviteUser ? 'st-chat-action-menu' : undefined
+  const inviteLogoImage = inviteLogo ? (
+    <img
+      className="sidebar-toggle-static-logo-img"
+      src={inviteLogo}
+      alt=""
+      onError={() => {
+        if (inviteLogo === inviteFallbackLogo) {
+          setHasInviteFallbackLogoError(true)
+          return
+        }
+        setHasInviteLogoError(true)
+      }}
+    />
+  ) : null
 
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title" translate="no">
@@ -2317,8 +2417,40 @@ function ChatPage() {
       }),
     [channelLastReadAt, channelMentionUnread, channels, compareStrings]
   )
+  const foldedSplit = useMemo(
+    () =>
+      splitFoldedChannels(sortedChannels, {
+        activeKey: activeChannelKey,
+        view: channelListView,
+        getKey: getChannelKey,
+      }),
+    [activeChannelKey, channelListView, sortedChannels]
+  )
+  const hasFoldedChannels = foldedSplit.folded.length > 0
+  useEffect(() => {
+    if (channelListView === 'folded' && !hasFoldedChannels) {
+      setChannelListView('main')
+    }
+  }, [channelListView, hasFoldedChannels])
+  const showFoldedView =
+    channelListView === 'folded' &&
+    !channelSearchQuery &&
+    foldedSplit.folded.length > 0
+  const visibleChannels = channelSearchQuery
+    ? sortedChannels
+    : showFoldedView
+      ? foldedSplit.folded
+      : foldedSplit.main
+  const showFoldedEntry =
+    !channelSearchQuery && !showFoldedView && foldedSplit.folded.length > 0
+  const foldedUnread = foldedSplit.folded.some(channel =>
+    hasUnreadChannelMessage(channel, channelLastReadAt)
+  )
+  const foldedMentionUnread = foldedSplit.folded.some(channel =>
+    hasUnreadChannelMention(channel, channelMentionUnread)
+  )
   const filteredChannels = channelSearchQuery
-    ? sortedChannels.filter(channel => {
+    ? visibleChannels.filter(channel => {
         const displayName = getChannelTitle(channel)
         return [
           displayName,
@@ -2326,7 +2458,7 @@ function ChatPage() {
           getChannelKey(channel),
         ].some(value => value.toLowerCase().includes(channelSearchQuery))
       })
-    : sortedChannels
+    : visibleChannels
 
   return (
     <AppShell
@@ -2336,7 +2468,14 @@ function ChatPage() {
       languageTheme={isInviteUser ? 'st' : undefined}
       sidebar={({ closeSidebar }) => (
         <>
-          <AppTop onNavigate={closeSidebar} />
+          <AppTop
+            onNavigate={closeSidebar}
+            logo={
+              inviteLogoImage ? (
+                <span className="sidebar-header-logo">{inviteLogoImage}</span>
+              ) : undefined
+            }
+          />
 
           <div className="chat-channel-search">
             <div className="ui-input-control">
@@ -2353,14 +2492,27 @@ function ChatPage() {
           </div>
 
           <nav className="sidebar-nav">
+            {showFoldedView && (
+              <ChatFoldedHeader onBack={() => setChannelListView('main')} />
+            )}
+            {showFoldedEntry && (
+              <ChatFoldedEntryItem
+                count={foldedSplit.folded.length}
+                unread={foldedUnread}
+                mentionUnread={foldedMentionUnread}
+                onSelect={() => setChannelListView('folded')}
+              />
+            )}
             {channels.length === 0 ? (
               <div className="sidebar-empty-state">
                 <p>{t('chat.empty.noChannels')}</p>
               </div>
             ) : filteredChannels.length === 0 ? (
-              <div className="sidebar-empty-state">
-                <p>{t('chat.empty.noMatches')}</p>
-              </div>
+              showFoldedEntry ? null : (
+                <div className="sidebar-empty-state">
+                  <p>{t('chat.empty.noMatches')}</p>
+                </div>
+              )
             ) : (
               filteredChannels.map(channel => (
                 <ChatChannelNavItem
@@ -2369,6 +2521,7 @@ function ChatPage() {
                     getChannelKey(activeChannel) === getChannelKey(channel)
                   }
                   pinned={Boolean(channel.pinned)}
+                  folded={isChannelFolded(channel)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
                   mentionUnread={hasUnreadChannelMention(
                     channel,
@@ -2384,6 +2537,7 @@ function ChatPage() {
                     closeSidebar()
                   }}
                   onTogglePin={() => void handleToggleChannelPin(channel)}
+                  onToggleFold={() => void handleToggleChannelFold(channel)}
                   onRename={() => setChannelToRename(channel)}
                   onLeave={() => {
                     setChannelToLeave(channel)
@@ -2407,22 +2561,7 @@ function ChatPage() {
       sidebarToggleReplacement={
         isInviteUser ? (
           <span className="sidebar-toggle-static-logo" aria-hidden="true">
-            {inviteLogo ? (
-              <img
-                className="sidebar-toggle-static-logo-img"
-                src={inviteLogo}
-                alt=""
-                onError={() => {
-                  if (inviteLogo === inviteFallbackLogo) {
-                    setHasInviteFallbackLogoError(true)
-                    return
-                  }
-                  setHasInviteLogoError(true)
-                }}
-              />
-            ) : (
-              <LogoIcon size={18} />
-            )}
+            {inviteLogoImage ?? <LogoIcon size={18} />}
           </span>
         ) : undefined
       }
@@ -2470,6 +2609,21 @@ function ChatPage() {
               </div>
             ) : (
               channelMessages.map(msg => {
+                if (msg.type === 'legacy') {
+                  // Old v1 snapshot text: plain bubble, never parsed as an attachment.
+                  return (
+                    <ChatMessageItem
+                      key={msg.id}
+                      variant="other"
+                      avatarSrc={getCachedAvatar(msg.authorName)}
+                      author={msg.authorName || ''}
+                      time={formatMessageTime(msg.timestamp)}
+                      timeNote={t('chat.message.unsigned')}
+                    >
+                      <ChatTextBubble>{msg.content}</ChatTextBubble>
+                    </ChatMessageItem>
+                  )
+                }
                 if (isChannelMemberJoinedSystemMessage(msg)) {
                   const displayAuthor = getMessageDisplayAuthor(msg)
                   return (
@@ -2515,7 +2669,7 @@ function ChatPage() {
                     author={displayAuthor}
                     authorTag={displayTag}
                     mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
-                    time={formatTime(msg.timestamp)}
+                    time={formatMessageTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}
                   </ChatMessageItem>
@@ -2743,6 +2897,11 @@ function ChatPage() {
                   >
                     {getChannelId(activeChannel)}
                   </div>
+                  {activeChannel?.public && (
+                    <p className="channel-detail-public-notice">
+                      {t('chat.details.publicNotice')}
+                    </p>
+                  )}
                   <div className="channel-detail-copy-actions">
                     <CopyButton
                       text={getChannelId(activeChannel)}

@@ -1,0 +1,12 @@
+{
+  "description": "P2P Ping topic and frames (connection.md §4). Each frame is the JSON line without the trailing newline.",
+  "code": "123456",
+  "direction": "hostToJoin",
+  "nonce": "00112233445566778899aabbccddeeff",
+  "topic": "f6f2da2a5577ef2d396d941a633b0c83a7d57f898972a819e9587a2a52420acc",
+  "frames": {
+    "p2p-ping": "{\"type\":\"p2p-ping\",\"version\":2,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"e68eb0e7fd3b058ce9a2d1376472f8886183ba98d16087d28f883dfd98857111\"}",
+    "p2p-pong": "{\"type\":\"p2p-pong\",\"version\":2,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"56704b862081a3fbf39931e4fe85a66268b6c05594f810353cd8728fa86b02c9\"}",
+    "p2p-ack": "{\"type\":\"p2p-ack\",\"version\":2,\"direction\":\"hostToJoin\",\"nonce\":\"00112233445566778899aabbccddeeff\",\"proof\":\"30e0b9b777d8f01e13855798b997b846bd83e761fc749c198d058a384587046f\"}"
+  }
+}

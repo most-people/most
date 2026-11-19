@@ -1,4 +1,5 @@
 import type {
+  AccountSyncInfo,
   CancelDownloadInput,
   CancelP2PPingInput,
   CoreListener,
@@ -17,6 +18,7 @@ import type {
   MobileChannel,
   MobileChannelMessage,
   SendChannelMessageInput,
+  ChannelPresenceInput,
   RemoteNodeConfig,
   ShareFolderInput,
   StartP2PPingInput,
@@ -26,10 +28,18 @@ import { RemoteMostBoxCore } from '../remoteNode/remoteCore'
 import {
   buildNodeHistory,
   clearPreferredRemote,
+  isLoopbackNodeUrl,
   saveRemoteNode,
+  setRemoteAccountSync,
   type StoredRemoteNode,
 } from '../remoteNode/connectionHistory'
-import { createMobileIdentity } from '../remoteNode/identity'
+import {
+  createMobileIdentity,
+  deviceCertRenewAt,
+  reissueMobileDeviceCert,
+  readDeviceCertExpiry,
+  signLegacyAccountMigration,
+} from '../remoteNode/identity'
 import { resolveRemoteUrl } from '../remoteNode/protocol'
 import {
   loadMobileIdentity,
@@ -37,7 +47,7 @@ import {
   saveMobileIdentity,
   saveRemoteNodes,
 } from '../remoteNode/storage'
-import { hasActiveTransfers, startLocalOrPreferred } from './nodeSelection'
+import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 
 const LOCAL_DAEMON_CONFIG: RemoteNodeConfig = {
   url: 'http://localhost:1976',
@@ -89,7 +99,8 @@ export class MobileNodeClient implements MostBoxMobileClient {
     const preferred = this.#remoteEnabled
       ? this.#nodes.find(node => node.preferred) || null
       : null
-    const selection = await startLocalOrPreferred<MostBoxMobileCore>({
+    // 优先最后一次连接的远程节点，没有或连不上再用本机节点（Web 为本机 daemon）。
+    const selection = await startPreferredOrLocal<MostBoxMobileCore>({
       preferred,
       localConfig: this.#remoteOnly ? LOCAL_DAEMON_CONFIG : null,
       startRemote: async config => {
@@ -164,7 +175,61 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   async signIn(input: { username: string; password: string }) {
     this.#assertSwitchAllowed()
-    const identity = createMobileIdentity(input.username, input.password)
+    const identity = await createMobileIdentity(
+      input.username,
+      input.password,
+      {
+        deriveChatSeed: (username, password) =>
+          this.#local.deriveChatSeed(username, password),
+      }
+    )
+    // The approval needs the password, so it is made at sign-in: after an
+    // upgrade the user may sign in on the local node (e.g. the remote node was
+    // unreachable) before reconnecting to it (#activate sends it then). Deriving the
+    // v1 key is slow on older phones, so local-only users skip it.
+    const mayHaveRemoteData = this.#mode === 'remote' || this.#nodes.length > 0
+    if (mayHaveRemoteData) {
+      identity.legacyMigration = await signLegacyAccountMigration(
+        input.username,
+        input.password,
+        identity.address
+      ).catch(() => undefined)
+    }
+    if (this.#mode === 'remote' && this.#remoteConfig) {
+      const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
+      try {
+        await remote.start()
+      } catch (error) {
+        await remote.stop()
+        throw error
+      }
+      // Best effort: move the v1 account's data on this node to the v2 identity.
+      if (identity.legacyMigration) {
+        await remote
+          .migrateLegacyAccount(identity.legacyMigration)
+          .catch(() => {})
+      }
+      await saveMobileIdentity(identity)
+      this.#identity = identity
+      await this.#activate(remote, 'remote', this.#remoteConfig)
+    } else {
+      await saveMobileIdentity(identity)
+      this.#identity = identity
+      this.#snapshot = this.#decorateSnapshot(this.#active.getSnapshot())
+      this.#emit()
+    }
+    return identity
+  }
+
+  async changeDeviceCertTtl(input: { password: string; ttlMs: number }) {
+    const current = this.#identity
+    if (!current) throw new Error('Not signed in')
+    this.#assertSwitchAllowed()
+    const identity = await reissueMobileDeviceCert(current, input.password, {
+      deriveChatSeed: (username, password) =>
+        this.#local.deriveChatSeed(username, password),
+      ttlMs: input.ttlMs,
+    })
     if (this.#mode === 'remote' && this.#remoteConfig) {
       const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
       try {
@@ -182,11 +247,14 @@ export class MobileNodeClient implements MostBoxMobileClient {
       this.#snapshot = this.#decorateSnapshot(this.#active.getSnapshot())
       this.#emit()
     }
-    return identity
   }
 
   async signOut() {
     this.#assertSwitchAllowed()
+    // 退出登录后节点不应继续持有同步密钥（尽力而为，失败不阻止退出）。
+    await this.#remoteCore()
+      ?.unregisterAccountSync()
+      .catch(() => {})
     await saveMobileIdentity(null)
     this.#identity = null
     if (this.#mode === 'remote' && this.#remoteConfig) {
@@ -216,6 +284,57 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#identity
   }
 
+  async getAccountSync(): Promise<AccountSyncInfo> {
+    const remote = this.#remoteCore()
+    const url = this.#remoteConfig?.url || ''
+    if (!remote || !this.#identity) {
+      return { available: false, automatic: false, enabled: false, devices: 0 }
+    }
+    const automatic = isLoopbackNodeUrl(url)
+    const enabled = this.#isAccountSyncAllowed()
+    let devices = 0
+    if (enabled) {
+      try {
+        devices = (await remote.getAccountSyncStatus()).devices
+      } catch {}
+    }
+    return { available: true, automatic, enabled, devices }
+  }
+
+  /** 远程节点必须经用户明确开启才会收到同步密钥；关闭会从节点删除它。 */
+  async setAccountSync(enabled: boolean): Promise<AccountSyncInfo> {
+    const remote = this.#remoteCore()
+    const url = this.#remoteConfig?.url || ''
+    if (!remote || !this.#identity || isLoopbackNodeUrl(url)) {
+      return this.getAccountSync()
+    }
+    if (enabled) await remote.registerAccountSync()
+    else await remote.unregisterAccountSync()
+    this.#nodes = setRemoteAccountSync(this.#nodes, url, enabled)
+    await saveRemoteNodes(this.#nodes)
+    return this.getAccountSync()
+  }
+
+  #remoteCore() {
+    return this.#mode === 'remote' && this.#active instanceof RemoteMostBoxCore
+      ? this.#active
+      : null
+  }
+
+  #isAccountSyncAllowed() {
+    const url = this.#remoteConfig?.url || ''
+    return (
+      isLoopbackNodeUrl(url) ||
+      this.#nodes.some(node => node.url === url && node.accountSync)
+    )
+  }
+
+  async #registerAccountSyncIfAllowed() {
+    const remote = this.#remoteCore()
+    if (!remote || !this.#identity || !this.#isAccountSyncAllowed()) return
+    await remote.registerAccountSync().catch(() => {})
+  }
+
   async #startRemoteCore(config: RemoteNodeConfig) {
     const remote = new RemoteMostBoxCore(config, this.#identity)
     try {
@@ -229,6 +348,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   startP2PPing(input: StartP2PPingInput) {
     return this.#active.startP2PPing(input)
+  }
+
+  runNativeScryptBenchmark() {
+    return this.#local.runNativeScryptBenchmark()
   }
 
   cancelP2PPing(input: CancelP2PPingInput = {}) {
@@ -303,6 +426,22 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#active.getChannelMessages(channelName, options)
   }
 
+  getChannelMemberProfiles(channelName: string) {
+    if (!this.#active.getChannelMemberProfiles)
+      throw new Error('Member profiles unavailable')
+    return this.#active.getChannelMemberProfiles(channelName)
+  }
+
+  async updateChannelMemberProfile(input: SendChannelMessageInput) {
+    if (!this.#active.updateChannelMemberProfile)
+      throw new Error('Member profiles unavailable')
+    await this.#active.updateChannelMemberProfile(input)
+  }
+
+  async sendChannelPresence(input: ChannelPresenceInput) {
+    await this.#active.sendChannelPresence?.(input)
+  }
+
   sendChannelMessage(
     input: SendChannelMessageInput
   ): Promise<MobileChannelMessage> {
@@ -326,6 +465,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
     mode: 'local' | 'remote',
     config: RemoteNodeConfig | null
   ) {
+    const migration = this.#identity?.legacyMigration
+    if (mode === 'remote' && migration && next instanceof RemoteMostBoxCore) {
+      // Best effort and idempotent: the node moves the v1 data once. Done
+      // before the switch so screens that load channels on the new node see
+      // the migrated membership.
+      await next.migrateLegacyAccount(migration).catch(() => {})
+    }
     const previous = this.#active
     this.#activeUnsubscribe?.()
     this.#active = next
@@ -335,6 +481,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
     if (previous !== next) await previous.stop()
     this.#snapshot = this.#decorateSnapshot(next.getSnapshot())
     this.#emit()
+    void this.#registerAccountSyncIfAllowed()
   }
 
   #subscribeActive() {
@@ -356,7 +503,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
           this.#mode === 'local' ? true : snapshot.node.authenticated === true,
         userAddress: this.#identity?.address || '',
         username: this.#identity?.username || '',
-        fallbackFrom: this.#mode === 'local' ? this.#fallbackFrom : '',
+        deviceCertExpiresAt: this.#identity
+          ? readDeviceCertExpiry(this.#identity.device.cert)
+          : 0,
+        deviceCertRenewAt: this.#identity
+          ? deviceCertRenewAt(this.#identity.device.cert)
+          : 0,
+        fallbackFrom: this.#fallbackFrom,
       },
     }
   }

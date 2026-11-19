@@ -1,35 +1,69 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import {
+  IDENTITY_VERSION,
   createLoginIdentity,
+  createLoginSession,
   getDisplayName,
 } from '../../src/utils/userIdentity.js'
+import { mostWallet } from '../../src/utils/mostWallet.js'
+import {
+  verifyAccountMigration,
+  verifyDeviceCert,
+} from '../../src/utils/auth.js'
 
 describe('userIdentity', () => {
   describe('createLoginIdentity', () => {
-    it('creates a login identity with username and password', () => {
-      const identity = createLoginIdentity('alice', 'secret')
+    it('previews the v2 chat address without exposing any seed', async () => {
+      const identity = await createLoginIdentity('alice', 'secret')
       assert.strictEqual(identity.username, 'alice')
       assert.strictEqual(identity.password, undefined)
-      assert.ok(identity.address)
-      assert.ok(identity.address.startsWith('0x'))
+      assert.strictEqual(identity.danger, undefined)
+      assert.ok(/^0x[0-9a-fA-F]{40}$/.test(identity.address))
       assert.ok(identity.displayName.includes('alice'))
-      assert.ok(identity.danger)
-      assert.ok(identity.danger.startsWith('0x'))
+      // The chat identity is separate from the v1 wallet (decision D3).
+      assert.notStrictEqual(
+        identity.address,
+        mostWallet('alice', 'secret').address
+      )
     })
 
-    it('produces consistent identity for same credentials', () => {
-      const id1 = createLoginIdentity('bob', 'pass123')
-      const id2 = createLoginIdentity('bob', 'pass123')
+    it('produces consistent identity for same credentials', async () => {
+      const id1 = await createLoginIdentity('bob', 'pass123')
+      const id2 = await createLoginIdentity('bob', 'pass123')
       assert.strictEqual(id1.address, id2.address)
       assert.strictEqual(id1.displayName, id2.displayName)
-      assert.strictEqual(id1.danger, id2.danger)
     })
 
-    it('produces different identities for different usernames', () => {
-      const id1 = createLoginIdentity('alice', 'same-pass')
-      const id2 = createLoginIdentity('bob', 'same-pass')
+    it('produces different identities for different usernames', async () => {
+      const id1 = await createLoginIdentity('alice', 'same-pass')
+      const id2 = await createLoginIdentity('bob', 'same-pass')
       assert.notStrictEqual(id1.address, id2.address)
+    })
+  })
+
+  describe('createLoginSession', () => {
+    it('signs in as the v2 identity and approves moving the v1 account', async () => {
+      const session = await createLoginSession('carol', 'secret')
+      const v1 = mostWallet('carol', 'secret')
+      assert.strictEqual(session.identity.version, IDENTITY_VERSION)
+      assert.strictEqual(
+        session.identity.address,
+        (await createLoginIdentity('carol', 'secret')).address
+      )
+      assert.strictEqual(session.legacySeed, v1.danger)
+      assert.strictEqual(session.migration.oldAddress, v1.address)
+      assert.strictEqual(
+        verifyAccountMigration({
+          ...session.migration,
+          newAddress: session.identity.address,
+        }),
+        true
+      )
+      assert.strictEqual(
+        verifyDeviceCert(session.identity.device.cert).address,
+        session.identity.address.toLowerCase()
+      )
     })
   })
 

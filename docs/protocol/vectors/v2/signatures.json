@@ -1,0 +1,270 @@
+{
+  "description": "v2 signed envelopes (v2/signatures.md §4): payload = \"most/v2/chat/<kind>\" 0x00 canonical-JSON(body); ed25519 by the device key; certificate from device-cert.json. Valid envelopes verify for channelId; invalid ones must be rejected (with the given channelId if present, otherwise the body channelId).",
+  "channelId": "abababababababababababababababababababababababababababababababab",
+  "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+  "valid": [
+    {
+      "payload": "6d6f73742f76322f636861742f6d657373616765007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c22617574686f724e616d65223a22616c6963652339613262222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22636f6e74656e74223a22686920e4b8ade6968720f09f9880222c22637265617465644174223a313739353030303030303030302c226964223a2230623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a226d657373616765227d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    },
+    {
+      "payload": "6d6f73742f76322f636861742f70726f66696c65007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c22617661746172223a22222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c22646973706c61794e616d65223a22416c696365222c226964223a2231623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726f66696c65222c22746167223a7b2264656661756c74223a226d6f64227d7d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "profile",
+          "id": "1b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "displayName": "Alice",
+          "avatar": "",
+          "tag": { "default": "mod" }
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "4fXB94UhEEmR1DyBtTeKAcYFXl8OWGuTFAd_pHKLsM3IsBbKlxcJKp4z2j6yz95DjCUNLDUcEd310S5zoNtMCQ"
+      }
+    },
+    {
+      "payload": "6d6f73742f76322f636861742f70726573656e6365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226964223a2232623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a2270726573656e6365222c2273657373696f6e4964223a22776562222c22737461747573223a226f6e6c696e65227d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "presence",
+          "id": "2b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "status": "online",
+          "sessionId": "web"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "k2bD4-fPUu3beeByPf-RyxOCJ5YdSeVbZm2-3546gbPeN0KkKMKKiUZErz6FdZmGmxmBg_QwmPmIiXtJ6mJvAg"
+      }
+    },
+    {
+      "payload": "6d6f73742f76322f636861742f766f696365007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22637265617465644174223a313739353030303030303030302c226576656e74223a227369676e616c222c226964223a2233623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a22766f696365222c2273657373696f6e4964223a22766f6963652d312d616263222c227369676e616c223a7b22736470223a22763d30222c2274797065223a226f66666572227d2c2274617267657453657373696f6e4964223a22766f6963652d322d646566222c227472616e73706f7274223a2277656272746331227d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "voice",
+          "id": "3b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "event": "signal",
+          "sessionId": "voice-1-abc",
+          "targetSessionId": "voice-2-def",
+          "transport": "webrtc1",
+          "signal": { "type": "offer", "sdp": "v=0" }
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "T7ALndrTvBMmt4heP-HMCqvYsTVTmnV0Y9AajlpOjCEAZMHyPiMlPqhJLmQywCbYhoUdSjmWRpm6-GBanROuDA"
+      }
+    },
+    {
+      "payload": "6d6f73742f76322f636861742f6d657373616765007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22636f6e74656e74223a22667574757265206669656c64222c22637265617465644174223a313739353030303030303030302c226964223a2234623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a226d657373616765222c22756e6b6e6f776e4675747572654669656c64223a7b2278223a5b312c325d7d7d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "4b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "future field",
+          "unknownFutureField": { "x": [1, 2] }
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "Ujefi23hZedLFUMyXAAjRxufgZ9dkjRaZWm4Ic-j0s_I0UWgCUxuUdfvq8hiQ6tjbv7OZotma18FwigOm2_wDw"
+      }
+    },
+    {
+      "payload": "6d6f73742f76322f636861742f6d657373616765007b22617574686f72223a22307830323362313062346536393135383039363664313630666266353064636535353936613937643463222c22617574686f724e616d65223a22616c6963652339613262222c226368616e6e656c4964223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162222c22636f6e74656e74223a22686920e4b8ade6968720f09f9880222c22637265617465644174223a313739353030303030303030302c226964223a2230623961336331652d326634642d346136622d386337642d396530663161326233633464222c226b696e64223a226d657373616765227d",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxMDAwMDAwMDAwMDAwLCJleHBpcmVzQXQiOjEwMDI1OTIwMDAwMDB9.0x973a167cc9d57281c8a96d37d3cd51ed523fb9025919d61497dec47ef80afc4e396ae65efe73117779f9d1be6a0688a6f8bcf4514cecabc06fead03d8d0bbafc1c",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      },
+      "note": "expired certificate is accepted in P2P"
+    }
+  ],
+  "invalid": [
+    {
+      "reason": "body changed after signing",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi!",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    },
+    {
+      "reason": "signature made under another kind label",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "4Vtj_48mqkCgAoEDcUmbDSwxlSIZNqdwlYc7ydsK27mwXy3rWLAlW5UaNTa35NJTCPIXDisA7RXo8FHkSzl9Dg"
+      }
+    },
+    {
+      "reason": "wrong channel",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      },
+      "channelId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    {
+      "reason": "certificate for another account",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHg5YjlBM0FBZjVCZDI5NEI1QWJBNGQ1NTdjM2RjNTBDZGU2MEUwMTEzIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0x756aa493c9406e51a634f417433535b31e97504b4c87bb5d0a129cb8694692b81be9f944445da5a1f60f03aee82e2b02661e249469a7dc365060e8397f0770ef1c",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    },
+    {
+      "reason": "certificate for another device",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiN2JlMjliOThiYTA5MzdlYWRmYTFmYzFiNDc5MzFmMDVkZmNlNDlmYWVlZTg5NmMwZjQwYzI0YTc4ZDY0OWZlNiIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0x613aab883040aa7ccc8481b6103a0ec4b232713509e4de5d876fd0f5f0f0663c3fdfd4d1719471ff36d1bbe4c208ff646d4479f2671fccead84671d6c613947b1c",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    },
+    {
+      "reason": "truncated signature",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZ"
+      }
+    },
+    {
+      "reason": "author not lowercase",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023B10B4E691580966D160FBF50DCE5596A97D4C",
+          "createdAt": 1795000000000,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "Xn7XmQ4qnhL7GWVsY4YIQZdUk6S7QwbRhcts7TkhSkVsU7F9c9HOxPg8GETA6IaC8xk9ozGDb6wecR0qWV9yDQ"
+      }
+    },
+    {
+      "reason": "unknown kind",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1795000000000,
+          "kind": "poll",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    },
+    {
+      "reason": "fractional createdAt",
+      "envelope": {
+        "body": {
+          "channelId": "abababababababababababababababababababababababababababababababab",
+          "author": "0x023b10b4e691580966d160fbf50dce5596a97d4c",
+          "createdAt": 1.5,
+          "kind": "message",
+          "id": "0b9a3c1e-2f4d-4a6b-8c7d-9e0f1a2b3c4d",
+          "content": "hi 中文 😀",
+          "authorName": "alice#9a2b"
+        },
+        "device": "332ebe8d27cb7323b3a401c1c13b5dd64bccc0e10ecda1c2b5d11a03779a85e5",
+        "cert": "dc1.eyJhZGRyZXNzIjoiMHgwMjNCMTBiNGU2OTE1ODA5NjZEMTYwRmJGNTBEY2U1NTk2QTk3RDRDIiwiZGV2aWNlUHVibGljS2V5IjoiMzMyZWJlOGQyN2NiNzMyM2IzYTQwMWMxYzEzYjVkZDY0YmNjYzBlMTBlY2RhMWMyYjVkMTFhMDM3NzlhODVlNSIsImlzc3VlZEF0IjoxNzk1MDAwMDAwMDAwLCJleHBpcmVzQXQiOjE3OTc1OTIwMDAwMDB9.0xa10060ae7ee7430b19716587b22b963c45b6f4a15cac3ceb19c9446fa0ded3693e6f4f64feb541442e077713ff3c68983bfe21e10f4347d4a17f91cbc2e594b81b",
+        "sig": "geoS8jJebuPR5xi66x1LcKIgE1q8BlXO7axDDNXFmm7DY4vQ0nC3qd7V95IMEIfNf8KP9SOg277xly-OyZWXCw"
+      }
+    }
+  ]
+}

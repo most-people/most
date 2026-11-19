@@ -5,7 +5,6 @@ import { KeyRound, Lock, User, Wallet } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { AppTop } from '~/components/AppTop'
 import { useAppStore } from '~/stores/useAppStore'
-import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import { getCachedAvatar } from '~/lib/avatarCache'
 import {
@@ -46,7 +45,6 @@ function getHashView(): ViewId {
 export default function Web3Page() {
   const { t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
-  const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   const [currentView, setCurrentView] = useState<ViewId>('wallet')
   const [username, setUsername] = useState('')
@@ -132,13 +130,9 @@ export default function Web3Page() {
     setGenerating(true)
     await new Promise(resolve => setTimeout(resolve, 0))
     const result = mostWallet(username.trim(), password, parsedPbkdf2Iterations)
-    const displayName = `${result.username}#${result.address.slice(-4).toUpperCase()}`
     setWalletResult(result)
-    setUserIdentity({ ...result, displayName })
-    addToast(
-      t('login.toast.signedIn', { username: result.username }),
-      'success'
-    )
+    // Protocol v2 (decision D3): the chat identity is derived separately with
+    // scrypt, so this toolbox only shows the wallet and does not sign in.
     setMnemonicPhrase(mostMnemonic(result.danger))
     const nextKeys = most25519(result.danger)
     setKeys(nextKeys)
@@ -157,7 +151,6 @@ export default function Web3Page() {
     parsedPbkdf2Iterations,
     password,
     pbkdf2IterationsValid,
-    setUserIdentity,
     t,
     username,
   ])

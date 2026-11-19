@@ -16,9 +16,9 @@ MostBox 的 iOS / Android 全功能开发版和共享 Bare Worklet P2P 核心，
 - 文本和语音在当前页面内失败重试复用发送标识；本机和远程节点按频道、作者与标识去重。语音发送失败保留试听，已发布的录音重试时复用附件。应用重启后仍恢复草稿，但当前不持久化界面的未确认发送标识。
 - “我”中可开启新消息静音提醒，点击通知进入对应频道。提醒由本机收到的消息触发，不注册云端推送 token；应用关闭或被系统暂停时不能保证及时提醒。通知不展示消息正文或附件内容。
 - “关于 MostBox”可查看版本、当前能力边界，以及隐私政策、使用条款和问题反馈入口。
-- 语音通话入口目前只同步加入、离开和静音等信令状态，尚未接入实时音频传输；不能把参与者状态同步当作真实通话成功。
+- 移动端只同步通话的加入、离开和静音等信令，不提供原生实时通话；实时通话请用 Web 或桌面端。
 - Expo Web 使用平台专用入口连接用户已有的 MostBox daemon；浏览器不运行 Bare Worklet，本机 P2P 传输由远程 daemon 完成。
-- 原生移动端提供聊天、语音、账号身份、远程节点、文件、传输和 P2P 诊断等完整 MostBox 能力；广告、付费和公开内容目录不属于当前产品功能。
+- 原生移动端提供聊天、语音消息、账号身份、远程节点、文件、传输和 P2P 诊断等完整 MostBox 能力；广告、付费和公开内容目录不属于当前产品功能。
 - 已知应用安装包、脚本和可执行文件类型会在发布或下载前被拒绝。
 
 ## 命令
@@ -144,7 +144,7 @@ npm run build:play
 npx eas-cli@latest build --platform android --profile android-production
 ```
 
-现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 目标包名为 `most.red`，历史 `inkbox` 包名尚未修改，不应据此提交备案。
+现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 包名为 `most.people`（`inkbox` 配置），尚无正式签名与候选包，不应据此提交备案。
 
 ## 验收
 
@@ -166,6 +166,5 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 - 原生链接固定为 `most://<cid>?filename=...`。
 - CID 是唯一内容身份。
-- Hyperswarm topic 使用 `cid.multihash.digest`。
 - Hyperdrive 文件路径固定为 `/<cid>`。
 - 下载内容必须重算 UnixFS CID v1，校验通过后才保存和做种。

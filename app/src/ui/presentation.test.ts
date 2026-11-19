@@ -26,6 +26,14 @@ test('getFriendlyCoreError hides internal download failures', () => {
     '暂未发现在线种子，请稍后重试。'
   )
   assert.equal(
+    getFriendlyCoreError(
+      new Error(
+        'Expected file /bafk was not found. Connected to 1 peers but no file data was found.'
+      )
+    ),
+    '暂未发现在线种子，请稍后重试。'
+  )
+  assert.equal(
     getFriendlyCoreError(new Error('File content CID mismatch.')),
     '文件校验失败，内容与分享链接不一致。'
   )

@@ -307,7 +307,6 @@ export default function ChatJoinDemoPage() {
                 <li>{t('chatJoin.demo.guide.security.fragment')}</li>
                 <li>{t('chatJoin.demo.guide.security.capability')}</li>
                 <li>{t('chatJoin.demo.guide.security.identity')}</li>
-                <li>{t('chatJoin.demo.guide.security.legacy')}</li>
               </ul>
             </div>
           </section>

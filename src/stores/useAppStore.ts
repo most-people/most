@@ -138,9 +138,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Toast
   toasts: [],
   addToast: (message, type = 'info') => {
-    set(state => ({
-      toasts: [...state.toasts, { id: Date.now(), message, type }],
-    }))
+    // 后台刷新可能同时失败多次（如页面挂起后请求集体超时），同一条提示只显示一份。
+    set(state =>
+      state.toasts.some(t => t.message === message && t.type === type)
+        ? state
+        : { toasts: [...state.toasts, { id: Date.now(), message, type }] }
+    )
   },
   removeToast: id => {
     set(state => ({

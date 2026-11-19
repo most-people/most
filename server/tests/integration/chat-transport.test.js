@@ -10,7 +10,9 @@ import { WebSocket } from 'ws'
 import { createApp, createWebSocketServer } from '../../index.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
-import { buildAuthMessage } from '../../src/utils/auth.js'
+import { authHeaderFor } from '../helpers/deviceIdentity.js'
+import { signedMessage } from '../helpers/signedMessage.js'
+import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 
 const wallet = new Wallet('0x' + '11'.repeat(32))
 const otherWallet = new Wallet('0x' + '22'.repeat(32))
@@ -45,12 +47,29 @@ async function createFixture(t) {
   return fixture
 }
 
+// One envelope per message() object, so resending it is a true retry.
+const envelopes = new WeakMap()
+
+async function signedBody(fixture, requestPath, spec, identity) {
+  if (!envelopes.has(spec)) {
+    const name = decodeURIComponent(requestPath.split('/')[3])
+    const channelId = fixture.engine.resolveChannelKey(name, {
+      ownerAddress: identity.address.toLowerCase(),
+    })
+    const { content, ...fields } = spec.fields
+    envelopes.set(
+      spec,
+      await signedMessage(channelId, content, { signer: identity, ...fields })
+    )
+  }
+  return { signed: envelopes.get(spec) }
+}
+
 async function request(fixture, requestPath, body, identity = wallet) {
+  if (body?.fields)
+    body = await signedBody(fixture, requestPath, body, identity)
   const method = body === undefined ? 'GET' : 'POST'
-  const timestamp = String(Date.now())
-  const signature = await identity.signMessage(
-    buildAuthMessage(timestamp, method, requestPath)
-  )
+  const authorization = await authHeaderFor(identity, method, requestPath)
   return fixture.runtime.app.request(
     requestPath,
     {
@@ -59,7 +78,7 @@ async function request(fixture, requestPath, body, identity = wallet) {
         host: 'chat.example',
         origin: 'http://localhost:2020',
         'x-mostbox-invite': invite,
-        authorization: `${identity.address},${timestamp},${signature}`,
+        authorization,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -79,8 +98,16 @@ async function join(fixture, name, identity = wallet) {
   return response.json()
 }
 
+// A fixed createdAt keeps two message() calls with the same id identical.
 function message(content, options = {}) {
-  return { content, author: wallet.address, authorName: 'Tester', ...options }
+  return {
+    fields: {
+      content,
+      authorName: 'Tester',
+      createdAt: 1795000000000,
+      ...options,
+    },
+  }
 }
 
 describe('native chat transport (integration)', { timeout: 30000 }, () => {
@@ -135,7 +162,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       const response = await request(
         fixture,
         '/api/channels/concurrent-room/messages',
-        message('joined concurrently', { author: identity.address }),
+        message('joined concurrently'),
         identity
       )
       assert.equal(response.status, 200)
@@ -153,7 +180,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     const fixture = await createFixture(t)
     await join(fixture, 'retry-room')
     const route = '/api/channels/retry-room/messages'
-    const body = message('one message', { clientMessageId })
+    const body = message('one message', { id: clientMessageId })
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => request(fixture, route, body))
     )
@@ -175,7 +202,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     const conflict = await request(
       fixture,
       route,
-      message('different', { clientMessageId })
+      message('different', { id: clientMessageId })
     )
     assert.equal(conflict.status, 409)
     assert.equal((await conflict.json()).code, 'CONFLICT')
@@ -187,7 +214,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     assert.equal(afterConflict.status, 200)
   })
 
-  it('scopes deduplication to each author and preserves legacy append behavior', async t => {
+  it('scopes deduplication to each author and keeps messages with distinct ids', async t => {
     const fixture = await createFixture(t)
     await join(fixture, 'authors-room')
     await join(fixture, 'authors-room', otherWallet)
@@ -196,10 +223,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       const response = await request(
         fixture,
         route,
-        message('same id', {
-          author: identity.address,
-          clientMessageId,
-        }),
+        message('same id', { id: clientMessageId }),
         identity
       )
       assert.equal(response.status, 200)
@@ -227,20 +251,20 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     const original = await request(
       fixture,
       route,
-      message(link, { clientMessageId, attachment })
+      message(link, { id: clientMessageId, attachment })
     )
     assert.equal(original.status, 200)
     const retry = await request(
       fixture,
       route,
-      message(link, { clientMessageId, attachment })
+      message(link, { id: clientMessageId, attachment })
     )
     assert.equal(retry.status, 200)
     const changed = await request(
       fixture,
       route,
       message(link, {
-        clientMessageId,
+        id: clientMessageId,
         attachment: { ...attachment, size: 1 },
       })
     )
@@ -339,11 +363,10 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
 
   it('allows the explicit browser origins for HTTP and authenticated WebSocket access', async t => {
     const fixture = await createFixture(t)
-    const timestamp = String(Date.now())
-    const signature = await wallet.signMessage(
-      buildAuthMessage(timestamp, 'GET', '/ws')
-    )
-    const url = `/ws?${new URLSearchParams({ invite, address: wallet.address, timestamp, signature })}`
+    const [cert, timestamp, signature] = (
+      await authHeaderFor(wallet, 'GET', '/ws')
+    ).split(',')
+    const url = `/ws?${new URLSearchParams({ invite, cert, timestamp, signature })}`
     for (const origin of [
       'http://localhost:2020',
       'http://127.0.0.1:2020',
@@ -406,16 +429,10 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       await new Promise(resolve => sockets.close(resolve))
       await new Promise(resolve => server.close(resolve))
     })
-    const timestamp = String(Date.now())
-    const signature = await wallet.signMessage(
-      buildAuthMessage(timestamp, 'GET', '/ws')
-    )
-    const query = new URLSearchParams({
-      invite,
-      address: wallet.address,
-      timestamp,
-      signature,
-    })
+    const [cert, timestamp, signature] = (
+      await authHeaderFor(wallet, 'GET', '/ws')
+    ).split(',')
+    const query = new URLSearchParams({ invite, cert, timestamp, signature })
     const socket = new WebSocket(
       `ws://127.0.0.1:${server.address().port}/ws?${query}`,
       { origin: 'http://localhost:2020' }
@@ -429,13 +446,15 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
       })
     )
     const [ack] = await subscribed
+    const channelKey = resolveChannelHandle('subscribe-room').channelKey
     assert.deepEqual(JSON.parse(ack.toString()), {
       event: 'channel:subscribed',
-      data: { channel: 'subscribe-room' },
+      data: { channel: 'subscribe-room', channelKey },
     })
+    // Engine events are addressed by the public channel ID.
     const incoming = once(socket, 'message')
-    fixture.runtime.wsSendToChannel('subscribe-room', 'channel:message', {
-      channel: 'subscribe-room',
+    fixture.runtime.wsSendToChannel(channelKey, 'channel:message', {
+      channel: channelKey,
       message: { content: 'live' },
     })
     const [event] = await incoming

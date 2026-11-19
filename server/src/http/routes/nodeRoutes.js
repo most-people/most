@@ -1,6 +1,7 @@
 import { normalizeAddress } from '../../core/shared.js'
 import { evaluateStorageLimits } from '../../node/config.js'
 import { PersistenceError } from '../../utils/errors.js'
+import { verifyAccountMigration } from '../../utils/auth.js'
 import {
   isLoopbackRemoteAddress,
   isPublicListenHost,
@@ -302,6 +303,36 @@ export function registerNodeRoutes(
     }
   })
 
+  app.get('/api/user/sync', c => {
+    try {
+      return c.json(engine.getAccountSyncStatus(c.get('userAddress')))
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.put('/api/user/sync', async c => {
+    try {
+      const body = await c.req.json()
+      const status = await engine.registerAccountSync(
+        c.get('userAddress'),
+        body?.syncKey
+      )
+      return c.json({ success: true, status })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.delete('/api/user/sync', async c => {
+    try {
+      const status = await engine.unregisterAccountSync(c.get('userAddress'))
+      return c.json({ success: true, status })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
   app.get('/api/user/export', c => {
     try {
       return c.json(engine.exportUserData(c.get('userAddress')))
@@ -325,6 +356,35 @@ export function registerNodeRoutes(
         },
       })
       return c.json({ success: true, result })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  // v2 chat identity: move the data of the user's v1 address to the logged-in
+  // v2 address. The body carries the v1 account's signed approval.
+  app.post('/api/user/migrate', async c => {
+    try {
+      const body = await c.req.json()
+      const newAddress = c.get('userAddress')
+      if (
+        !verifyAccountMigration({
+          oldAddress: body?.oldAddress,
+          newAddress,
+          signature: body?.signature,
+        })
+      ) {
+        return c.json({ error: 'invalid migration approval' }, 403)
+      }
+      const result = await engine.migrateUserData(body.oldAddress, newAddress)
+      if (result) {
+        appendNodeLog({
+          event: 'node:user-data:migrated',
+          message: 'User data moved to the v2 chat identity',
+          data: { oldAddress: normalizeAddress(body.oldAddress), newAddress },
+        })
+      }
+      return c.json({ success: true, migrated: Boolean(result), result })
     } catch (err) {
       return errorJson(c, err)
     }

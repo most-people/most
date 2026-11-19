@@ -14,16 +14,20 @@ import { Copy, Share2 } from 'lucide-react-native'
 import { useI18n } from '../../i18n'
 import { BottomSheetCard, MostButton, MostTextInput } from '../../ui/components'
 import { useMostBoxTheme } from '../../ui/theme'
-import type { JoinedChannel } from './conversationModel'
+import { channelShareText, type JoinedChannel } from './conversationModel'
 
 type ChannelShareSheetProps = {
   channel: JoinedChannel
+  blockedUsers: Array<{ author: string; name: string }>
+  onUnblock: (author: string) => void
   onSaveRemark: (remark: string) => Promise<void>
   onClose: () => void
 }
 
 export function ChannelShareSheet({
   channel,
+  blockedUsers,
+  onUnblock,
   onSaveRemark,
   onClose,
 }: ChannelShareSheetProps) {
@@ -34,7 +38,7 @@ export function ChannelShareSheet({
   const [working, setWorking] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
-  const name = `#${channel.name}`
+  const name = channelShareText(channel)
   const run = async (share: boolean) => {
     if (working) return
     setWorking(true)
@@ -80,6 +84,11 @@ export function ChannelShareSheet({
               {name}
             </Text>
             <Text style={styles.hint}>{t('chat.channelShareHint')}</Text>
+            {channel.public ? (
+              <Text style={styles.publicNotice}>
+                {t('chat.details.publicNotice')}
+              </Text>
+            ) : null}
             {copied ? (
               <Text accessibilityRole="alert" style={styles.success}>
                 {t('chat.copied')}
@@ -121,6 +130,21 @@ export function ChannelShareSheet({
               >
                 {t('chat.shareChannel')}
               </MostButton>
+              {blockedUsers.length ? (
+                <>
+                  <Text style={styles.remark}>{t('chat.blockedUsers')}</Text>
+                  {blockedUsers.map(user => (
+                    <View key={user.author} style={styles.blockedRow}>
+                      <Text numberOfLines={1} style={styles.blockedName}>
+                        {user.name || user.author}
+                      </Text>
+                      <MostButton onPress={() => onUnblock(user.author)}>
+                        {t('chat.unblockUser')}
+                      </MostButton>
+                    </View>
+                  ))}
+                </>
+              ) : null}
               <MostButton variant="ghost" onPress={onClose}>
                 {t('common.close')}
               </MostButton>
@@ -145,8 +169,16 @@ function createStyles(colors: ReturnType<typeof useMostBoxTheme>['colors']) {
       marginVertical: 16,
     },
     hint: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+    publicNotice: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 8,
+    },
     success: { color: colors.accent, marginTop: 12 },
     error: { color: colors.danger, marginTop: 12 },
     actions: { gap: 12, marginTop: 20 },
+    blockedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    blockedName: { flex: 1, color: colors.text, fontSize: 15 },
   })
 }

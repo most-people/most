@@ -1,0 +1,30 @@
+{
+  "description": "v2 chat identity (v2/signatures.md §7): N=2^17, r=8, p=1, computed with Python hashlib.scrypt. The empty password is an invite identity.",
+  "logN": 17,
+  "cases": [
+    {
+      "username": "alice",
+      "password": "correct horse battery staple",
+      "salt": "436e0f169bb687662b474c6aa572a9b6eea06cccd2a180d9b40fe38956b39fa5",
+      "passwordBytes": "6d6f73742f76322f70617373776f726400636f727265637420686f727365206261747465727920737461706c65",
+      "chatSeed": "0x30b2b1ad1373e138a9679d682c71a25a0a068b3585bbffa26a344347debec8d8",
+      "syncKey": "0xa08850135311e785d7f8c3672d845e93b6f2377faf3126a19c45a38ecb91588d"
+    },
+    {
+      "username": "chatjoin-uid-123",
+      "password": "",
+      "salt": "0759754b9d75f320d97bfc98a390b9938e2517564eec0f1deedf66001d846902",
+      "passwordBytes": "6d6f73742f76322f70617373776f726400",
+      "chatSeed": "0x03a5b81bc01ab67c768db9d497bdb3409d2756229c0e89a09b19a044c0a97da0",
+      "syncKey": "0xc52adaccfabd4e85778ca09cb5b29c095a60fe40870d6c47f960596fbe5decd3"
+    },
+    {
+      "username": "张三",
+      "password": "密码 🔒 pass",
+      "salt": "c565bafa881ae7e539d4d53e3863dad8a15cf481dccf0e224bf33c4ba7da0b49",
+      "passwordBytes": "6d6f73742f76322f70617373776f726400e5af86e7a08120f09f94922070617373",
+      "chatSeed": "0x4d2634a65a87b734e953d76f3277889e464e5daf572ed2ef52752434f2d8d854",
+      "syncKey": "0x7683e43d63f7e92065f123fe18319f96d63b8ca643bef1bdaf23d72fd6819781"
+    }
+  ]
+}

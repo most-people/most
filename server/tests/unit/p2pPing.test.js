@@ -154,9 +154,9 @@ describe('P2P Ping protocol', () => {
       ),
       {
         hostToJoin:
-          '595b7f72e315d0c570af73109bcd8b33a2cbd6cb38f2f8382c3afc0d1689abab',
+          '77de90f010098e4f2e16de56465d838a267c422e98a54613db92af1161a3f066',
         joinToHost:
-          'c3c6d17566c66a652ffdba88ed5768c5a3c83dc9bf30d87565d522e0d1ec83c9',
+          '14d313d1297de73221c9df1d307c5c7ee192d0670c11ea43c8a555b3fa967c3e',
       }
     )
   })

@@ -1,3 +1,5 @@
+import { AccountSyncRow } from './AccountSyncRow'
+import { isPasswordShort } from '../../remoteNode/identity'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -28,6 +30,7 @@ import type {
 } from '../../mobileCore/types'
 import { useI18n } from '../../i18n'
 import { useFeedback } from '../../ui/feedback'
+import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
 import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import {
   BottomSheetCard,
@@ -71,7 +74,7 @@ export function NodeConnectionPanel({
   snapshot,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
-  const { alert, toast } = useFeedback()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
@@ -101,12 +104,15 @@ export function NodeConnectionPanel({
   const accountName = node.username || ''
   const accountAddress = node.userAddress || ''
 
+  const [connectionError, setConnectionError] = useState('')
+
   useEffect(() => {
     if (autoOpen) setOpen(true)
   }, [autoOpen])
 
   useEffect(() => {
     if (!open) return
+    setConnectionError('')
     setUrl(selectedRemote?.url || node.endpoint || '')
     setInvite(selectedRemote?.invite || '')
   }, [open, node.endpoint, selectedRemote?.invite, selectedRemote?.url])
@@ -117,6 +123,7 @@ export function NodeConnectionPanel({
   ) => {
     if (workingRef.current) return
     workingRef.current = true
+    setConnectionError('')
     setOperation(nextOperation)
     Keyboard.dismiss()
     try {
@@ -125,7 +132,7 @@ export function NodeConnectionPanel({
       )
       await action()
     } catch (nextError) {
-      toast(getFriendlyRemoteConnectionError(nextError, locale), 'error')
+      setConnectionError(getFriendlyRemoteConnectionError(nextError, locale))
     } finally {
       workingRef.current = false
       setOperation(null)
@@ -277,6 +284,17 @@ export function NodeConnectionPanel({
                   </IconButton>
                 </View>
 
+                <ConnectionStatusBar
+                  node={{
+                    ...node,
+                    endpoint: node.endpoint || selectedRemote?.url,
+                  }}
+                  chatConnected
+                  hasChannels={false}
+                  remote={remote}
+                  flush
+                />
+
                 {working ? (
                   <View
                     accessibilityLabel={progressMessage}
@@ -295,75 +313,11 @@ export function NodeConnectionPanel({
                   </View>
                 ) : null}
 
-                <View style={styles.formSection}>
-                  <Text style={styles.formTitle}>
-                    {t('node.account.title')}
+                {connectionError ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.warning}>
+                    {connectionError}
                   </Text>
-                  {accountName ? (
-                    <View style={styles.signedInRow}>
-                      <View style={styles.signedInText}>
-                        <Text style={styles.primaryText}>{accountName}</Text>
-                        <Text style={styles.secondaryText}>
-                          {shortAddress(accountAddress)}
-                        </Text>
-                      </View>
-                      <MostButton
-                        disabled={working}
-                        icon={
-                          operation === 'signOut' ? (
-                            <ActivityIndicator color={theme.colors.danger} />
-                          ) : (
-                            <LogOut size={16} color={theme.colors.danger} />
-                          )
-                        }
-                        onPress={confirmSignOut}
-                        variant="ghost"
-                      >
-                        {t(
-                          operation === 'signOut'
-                            ? 'node.account.signingOut'
-                            : 'node.account.signOut'
-                        )}
-                      </MostButton>
-                    </View>
-                  ) : (
-                    <View style={styles.formFields}>
-                      <MostTextInput
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!working}
-                        onChangeText={setUsername}
-                        placeholder={t('node.account.username')}
-                        value={username}
-                      />
-                      <MostTextInput
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!working}
-                        onChangeText={setPassword}
-                        placeholder={t('node.account.password')}
-                        secureTextEntry
-                        value={password}
-                      />
-                      <MostButton
-                        disabled={working || !username.trim() || !password}
-                        icon={
-                          operation === 'signIn' ? (
-                            <ActivityIndicator color={theme.colors.onAccent} />
-                          ) : (
-                            <LogIn size={16} color={theme.colors.onAccent} />
-                          )
-                        }
-                        onPress={() => void signIn()}
-                        variant="primary"
-                      >
-                        {operation === 'signIn'
-                          ? t('node.account.signingIn')
-                          : t('node.account.signIn')}
-                      </MostButton>
-                    </View>
-                  )}
-                </View>
+                ) : null}
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
@@ -472,6 +426,86 @@ export function NodeConnectionPanel({
                     </View>
                   </View>
                 ) : null}
+                <View style={styles.formSection}>
+                  <Text style={styles.formTitle}>
+                    {t('node.account.title')}
+                  </Text>
+                  {accountName ? (
+                    <View style={styles.signedInRow}>
+                      <View style={styles.signedInText}>
+                        <Text style={styles.primaryText}>{accountName}</Text>
+                        <Text style={styles.secondaryText}>
+                          {shortAddress(accountAddress)}
+                        </Text>
+                      </View>
+                      <MostButton
+                        disabled={working}
+                        icon={
+                          operation === 'signOut' ? (
+                            <ActivityIndicator color={theme.colors.danger} />
+                          ) : (
+                            <LogOut size={16} color={theme.colors.danger} />
+                          )
+                        }
+                        onPress={confirmSignOut}
+                        variant="ghost"
+                      >
+                        {t(
+                          operation === 'signOut'
+                            ? 'node.account.signingOut'
+                            : 'node.account.signOut'
+                        )}
+                      </MostButton>
+                    </View>
+                  ) : (
+                    <View style={styles.formFields}>
+                      <MostTextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!working}
+                        onChangeText={setUsername}
+                        placeholder={t('node.account.username')}
+                        value={username}
+                      />
+                      <MostTextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!working}
+                        onChangeText={setPassword}
+                        placeholder={t('node.account.password')}
+                        secureTextEntry
+                        value={password}
+                      />
+                      {isPasswordShort(password) && (
+                        <Text style={styles.passwordHint}>
+                          {t('node.account.passwordShort')}
+                        </Text>
+                      )}
+                      <MostButton
+                        disabled={working || !username.trim() || !password}
+                        icon={
+                          operation === 'signIn' ? (
+                            <ActivityIndicator color={theme.colors.onAccent} />
+                          ) : (
+                            <LogIn size={16} color={theme.colors.onAccent} />
+                          )
+                        }
+                        onPress={() => void signIn()}
+                        variant="primary"
+                      >
+                        {operation === 'signIn'
+                          ? t('node.account.signingIn')
+                          : t('node.account.signIn')}
+                      </MostButton>
+                    </View>
+                  )}
+                </View>
+                {accountName ? (
+                  <AccountSyncRow
+                    client={client}
+                    refreshKey={`${node.endpoint}|${accountAddress}`}
+                  />
+                ) : null}
               </BottomSheetCard>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -553,6 +587,14 @@ function createConnectionStyles(theme: MostBoxTheme) {
     formSection: { gap: 10 },
     formTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
     formFields: { gap: 9 },
+    passwordHint: {
+      backgroundColor: colors.warningSoft,
+      borderRadius: 8,
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      padding: 8,
+    },
     signedInRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     signedInText: { flex: 1, gap: 2, minWidth: 0 },
     primaryText: { color: colors.text, fontSize: 14, fontWeight: '600' },

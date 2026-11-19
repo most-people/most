@@ -21,15 +21,14 @@ export function FeedbackLayer({
   if (!visible || typeof document === 'undefined') return null
 
   return createPortal(
-    <View pointerEvents="box-none" style={styles.layer}>
-      {children}
-    </View>,
+    <View style={styles.layer}>{children}</View>,
     document.body
   )
 }
 
 const styles = StyleSheet.create({
   layer: {
+    pointerEvents: 'box-none',
     bottom: 0,
     left: 0,
     position: 'fixed' as never,

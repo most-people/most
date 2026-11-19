@@ -1,0 +1,29 @@
+{
+  "description": "UnixFS CID v1 golden samples (identifiers.md §1) and their file topics (discovery.md §3.1). Content is utf8 text or a pattern where byte i = i % modulo. CIDs confirmed by kubo 0.43.1 (npm run test:cid-oracle).",
+  "samples": [
+    {
+      "name": "empty",
+      "content": { "utf8": "" },
+      "cid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+      "topic": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "hello-world",
+      "content": { "utf8": "hello world" },
+      "cid": "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e",
+      "topic": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    },
+    {
+      "name": "cross-chunk",
+      "content": { "pattern": { "length": 262145, "modulo": 251 } },
+      "cid": "bafybeiexg2oqkfnj56l7fcmawswqbijt5shq4b5rg6a546uwpkqqzwjioi",
+      "topic": "97369d0515a9ef97f28980b4ad00a133ec8f0e07b13781de7a967aa10cd92872"
+    },
+    {
+      "name": "layer+1",
+      "content": { "pattern": { "length": 45613057, "modulo": 251 } },
+      "cid": "bafybeib4y7ghw2rq7bracc4xwtxrbzo7cfvagdpte2tmrkgwl6dyard3cm",
+      "topic": "3cc7cc7b6a30f862010b97b4ef10e5df116a030df326a6c8a8d65f8780447b13"
+    }
+  ]
+}

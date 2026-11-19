@@ -4,8 +4,10 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
+import SeedUnlockModal from '~/components/SeedUnlockModal'
 import ConnectModal from '~/components/ConnectModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
+import { useAccountSyncAutoRegister } from '~/features/profile/useAccountSync'
 
 export default function AppGlobals() {
   const pathname = useLocation({ select: location => location.pathname })
@@ -16,6 +18,8 @@ export default function AppGlobals() {
   const setFirstPath = useUserStore(s => s.setFirstPath)
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
+
+  useAccountSyncAutoRegister()
 
   useEffect(() => {
     initializeLocalData()
@@ -43,6 +47,8 @@ export default function AppGlobals() {
       <GlobalDownloadTasks />
 
       <UserLoginModal />
+
+      <SeedUnlockModal />
 
       <ConnectModal />
     </>

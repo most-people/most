@@ -1,4 +1,16 @@
 export const chatMessages = {
+  'chat.details.publicNotice': {
+    'zh-CN':
+      '公开频道：任何知道这个名字的人都能加入和阅读。私密聊天请新建频道，它会使用随机凭证。',
+    'zh-TW':
+      '公開頻道：任何知道這個名稱的人都能加入和閱讀。私密聊天請新建頻道，它會使用隨機憑證。',
+    en: 'Public channel: anyone who knows this name can join and read it. For a private chat, create a new channel; it uses a random credential.',
+  },
+  'chat.message.unsigned': {
+    'zh-CN': '未签名',
+    'zh-TW': '未簽署',
+    en: 'Unsigned',
+  },
   'chat.clearSearch': {
     'zh-CN': '清空搜索',
     'zh-TW': '清空搜尋',
@@ -178,6 +190,11 @@ export const chatMessages = {
     'zh-TW': '正在恢復連線並同步訊息…',
     en: 'Restoring the connection and syncing messages…',
   },
+  'chat.sendOffline': {
+    'zh-CN': '节点未连接，消息未发送。草稿已保留，连接恢复后再点发送。',
+    'zh-TW': '節點未連線，訊息未傳送。草稿已保留，連線恢復後再點傳送。',
+    en: 'Not connected, so the message was not sent. Your draft is kept; tap send again once reconnected.',
+  },
   'chat.copied': { 'zh-CN': '已复制', 'zh-TW': '已複製', en: 'Copied' },
   'chat.loadOlderMessages': {
     'zh-CN': '加载更早的消息',
@@ -214,6 +231,48 @@ export const chatMessages = {
     'zh-TW': '複製附件連結',
     en: 'Copy attachment link',
   },
+  'chat.reportMessage': {
+    'zh-CN': '举报',
+    'zh-TW': '檢舉',
+    en: 'Report',
+  },
+  'chat.reportUnavailable': {
+    'zh-CN': '无法打开邮件应用，请发送举报至 {email}',
+    'zh-TW': '無法開啟郵件應用，請將檢舉寄至 {email}',
+    en: 'Could not open an email app. Send the report to {email}.',
+  },
+  'chat.blockUser': {
+    'zh-CN': '屏蔽此用户',
+    'zh-TW': '封鎖此使用者',
+    en: 'Block user',
+  },
+  'chat.blockUserTitle': {
+    'zh-CN': '屏蔽 {name}？',
+    'zh-TW': '封鎖 {name}？',
+    en: 'Block {name}?',
+  },
+  'chat.blockUserHint': {
+    'zh-CN':
+      '屏蔽后本机将隐藏此用户在所有频道的消息和提醒，可在频道信息中解除。',
+    'zh-TW':
+      '封鎖後本機將隱藏此使用者在所有頻道的訊息和提醒，可在頻道資訊中解除。',
+    en: "This hides the user's messages and alerts in all channels on this device. You can unblock in channel info.",
+  },
+  'chat.blocked': {
+    'zh-CN': '已屏蔽 {name}',
+    'zh-TW': '已封鎖 {name}',
+    en: 'Blocked {name}',
+  },
+  'chat.blockedUsers': {
+    'zh-CN': '已屏蔽的用户',
+    'zh-TW': '已封鎖的使用者',
+    en: 'Blocked users',
+  },
+  'chat.unblockUser': {
+    'zh-CN': '解除屏蔽',
+    'zh-TW': '解除封鎖',
+    en: 'Unblock',
+  },
   'chat.messageActionsA11y': {
     'zh-CN': '{author}：{content}，长按打开消息操作',
     'zh-TW': '{author}：{content}，長按開啟訊息操作',
@@ -235,6 +294,7 @@ export const chatMessages = {
     en: 'No matching conversations',
   },
   'chat.draftLabel': { 'zh-CN': '[草稿] ', 'zh-TW': '[草稿] ', en: '[Draft] ' },
+  'chat.yesterday': { 'zh-CN': '昨天', 'zh-TW': '昨天', en: 'Yesterday' },
   'chat.unreadCount': {
     'zh-CN': '{count} 条未读消息',
     'zh-TW': '{count} 則未讀訊息',
@@ -332,6 +392,11 @@ export const chatMessages = {
     'zh-CN': '加入频道失败',
     'zh-TW': '加入頻道失敗',
     en: 'Could not join channel',
+  },
+  'chat.initialProfileFailed': {
+    'zh-CN': '已加入频道，但未能同步昵称',
+    'zh-TW': '已加入頻道，但未能同步暱稱',
+    en: 'Joined the channel, but could not sync your name',
   },
   'chat.sendFailed': {
     'zh-CN': '发送消息失败',

@@ -12,10 +12,21 @@ export type LogLevel = 'info' | 'warn' | 'error'
 
 export type NodeMode = 'local' | 'remote'
 
+/** 持久化的身份只含设备密钥和授权证书，不含账号种子。 */
 export type MobileIdentity = {
+  /** 2 = v2 chat identity; older stored identities sign in again. */
+  version: number
   username: string
   address: string
-  danger: string
+  syncKey: string
+  device: { publicKey: string; secretKey: string; cert: string }
+  /**
+   * The v1 account's signed approval to move its data on a node to this
+   * address (POST /api/user/migrate). Made at sign-in, where the password is
+   * known, and sent to every remote node this identity connects to; nodes
+   * ignore it once the data has moved. Contains no key material.
+   */
+  legacyMigration?: { oldAddress: string; signature: string }
 }
 
 export type RemoteNodeConfig = {
@@ -28,6 +39,16 @@ export type NodeHistoryItem = RemoteNodeConfig & {
   preferred: boolean
   current: boolean
   updatedAt: number
+  accountSync?: boolean
+}
+
+export type AccountSyncInfo = {
+  /** 已登录且连接着远程节点时才有账号同步可设置。 */
+  available: boolean
+  /** 本机 daemon（回环地址）自动同步，不需要授权。 */
+  automatic: boolean
+  enabled: boolean
+  devices: number
 }
 
 export type P2PPingRole = 'host' | 'join'
@@ -137,6 +158,8 @@ export type MobileChannel = {
   channelKey: string
   key: string
   type: string
+  /** Public channel (channel-keys §4). */
+  public?: boolean
   remark: string
   pinned: boolean
   createdAt: string
@@ -173,6 +196,8 @@ export type MobileChannelPresence = {
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
+  /** HyperDHT 是否能连上 P2P 网络；未知时缺省 */
+  networkOnline?: boolean
   storagePath: string
   error: string
   mode?: NodeMode
@@ -180,6 +205,9 @@ export type NodeState = {
   authenticated?: boolean
   userAddress?: string
   username?: string
+  /** Device certificate expiry and when to remind about renewal (ms). */
+  deviceCertExpiresAt?: number
+  deviceCertRenewAt?: number
   fallbackFrom?: string
 }
 
@@ -265,21 +293,26 @@ export type LeaveChannelResult = {
   channelKey: string
   snapshot: MobileCoreSnapshot
 }
+/** A message body signed by this device (docs/protocol/v2/signatures.md §4). */
 export type SendChannelMessageInput = {
-  clientMessageId?: string
   channelName: string
-  content: string
-  author?: string
-  authorName?: string
-  attachment?: MobileChannelAttachment
+  signed: {
+    body: Record<string, unknown>
+    device: string
+    cert: string
+    sig: string
+  }
 }
-export type ChannelPresenceInput = {
-  channelName: string
-  address?: string
+export type ChannelPresenceInput = SendChannelMessageInput & {
+  action: 'join' | 'leave' | 'heartbeat'
+}
+
+export type MobileMemberProfile = {
+  address: string
   displayName?: string
   avatar?: string
+  tag?: Record<string, string> | null
   profileUpdatedAt?: number
-  sessionId?: string
 }
 
 export type CoreListener = (snapshot: MobileCoreSnapshot) => void
@@ -306,6 +339,11 @@ export type MostBoxMobileCore = {
     channelName: string,
     options?: { limit?: number; offset?: number }
   ) => Promise<MobileChannelMessage[]>
+  sendChannelPresence?: (input: ChannelPresenceInput) => Promise<void>
+  getChannelMemberProfiles?: (
+    channelName: string
+  ) => Promise<MobileMemberProfile[]>
+  updateChannelMemberProfile?: (input: SendChannelMessageInput) => Promise<void>
   sendChannelMessage?: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>
@@ -319,6 +357,23 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
     username: string
     password: string
   }) => Promise<MobileIdentity>
+  /** Reissues the device certificate with a new validity period. */
+  changeDeviceCertTtl: (input: {
+    password: string
+    ttlMs: number
+  }) => Promise<void>
   signOut: () => Promise<void>
   getNodeHistory: () => NodeHistoryItem[]
+  getAccountSync: () => Promise<AccountSyncInfo>
+  setAccountSync: (enabled: boolean) => Promise<AccountSyncInfo>
+  /** Dev only: native scrypt timing in the Bare backend. */
+  runNativeScryptBenchmark?: () => Promise<NativeScryptRun[]>
+}
+
+export type NativeScryptRun = {
+  logN: number
+  memoryMiB: number
+  timesMs: number[]
+  medianMs: number | null
+  error?: string
 }

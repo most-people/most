@@ -655,6 +655,29 @@ const schemas = {
     },
     additionalProperties: true,
   },
+  AccountSyncStatus: {
+    type: 'object',
+    required: ['registered'],
+    properties: {
+      registered: { type: 'boolean' },
+      topic: { type: 'string' },
+      deviceId: { type: 'string' },
+      writerCores: { type: 'integer', minimum: 0 },
+      entries: { type: 'integer', minimum: 0 },
+    },
+  },
+  AccountSyncRegistration: {
+    type: 'object',
+    required: ['syncKey'],
+    properties: {
+      syncKey: {
+        type: 'string',
+        pattern: '^0x[0-9a-f]{64}$',
+        description:
+          'Sub-key derived from the account seed. It cannot be used to sign requests or recover the seed.',
+      },
+    },
+  },
   AccountBackup: {
     type: 'object',
     required: ['type', 'schemaVersion', 'ownerAddress'],
@@ -711,6 +734,11 @@ const schemas = {
       peerCount: { type: 'number' },
       remark: { type: 'string' },
       pinned: { type: 'boolean' },
+      folded: {
+        type: 'boolean',
+        description:
+          'Manual fold preference of the current user; absent means automatic',
+      },
     },
     additionalProperties: true,
   },
@@ -803,26 +831,78 @@ const schemas = {
   },
   ChannelMessageRequest: {
     type: 'object',
-    required: ['content', 'author', 'authorName'],
+    required: ['signed'],
     properties: {
-      content: { type: 'string' },
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      authorName: { type: 'string', maxLength: 50 },
-      avatar: { type: 'string' },
-      authorTag: ref('LocalizedTagInput'),
-      clientMessageId: { type: 'string', format: 'uuid' },
-      mentions: { type: 'array', maxItems: 20, items: ref('ChannelMention') },
-      attachment: ref('ChannelAttachment'),
+      signed: {
+        type: 'object',
+        description:
+          'A message body signed by the client device key (docs/protocol/v2/signatures.md §4). The node verifies it and never edits the body.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: [
+              'kind',
+              'channelId',
+              'author',
+              'id',
+              'createdAt',
+              'content',
+            ],
+            properties: {
+              kind: { const: 'message' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              content: { type: 'string', maxLength: 10000 },
+              authorName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              authorTag: ref('LocalizedTagInput'),
+              mentions: {
+                type: 'array',
+                maxItems: 20,
+                items: ref('ChannelMention'),
+              },
+              attachment: ref('ChannelAttachment'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelMemberProfileRequest: {
     type: 'object',
-    required: ['author'],
+    required: ['signed'],
     properties: {
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      displayName: { type: 'string' },
-      avatar: { type: 'string' },
-      tag: ref('MemberTagInput'),
+      signed: {
+        type: 'object',
+        description:
+          'A profile body signed by the client device key (docs/protocol/v2/signatures.md §4.2). Absent fields stay unchanged; tag null clears the tag. The newest createdAt wins.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: ['kind', 'channelId', 'author', 'id', 'createdAt'],
+            properties: {
+              kind: { const: 'profile' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              displayName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              tag: ref('MemberTagInput'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelRemarkRequest: {
@@ -834,6 +914,11 @@ const schemas = {
     type: 'object',
     required: ['pinned'],
     properties: { pinned: { type: 'boolean' } },
+  },
+  ChannelFoldRequest: {
+    type: 'object',
+    required: ['folded'],
+    properties: { folded: { type: 'boolean' } },
   },
 }
 
@@ -958,7 +1043,7 @@ export function createOpenApiSpec({
           in: 'header',
           name: 'Authorization',
           description:
-            'Per-request value: address,timestamp,signature. The documentation page generates it from the signed-in MostBox identity.',
+            'Per-request value: device-cert,timestamp,signature. The documentation page generates it from the signed-in MostBox identity.',
         },
         McpBearer: {
           type: 'http',
@@ -1446,6 +1531,81 @@ export function createOpenApiSpec({
           ),
         }),
       },
+      '/api/user/sync': {
+        get: operation({
+          tag: 'Users',
+          operationId: 'getAccountSyncStatus',
+          summary: 'Read cross-device account sync status',
+          security: signedSecurity,
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync status',
+                ref('AccountSyncStatus'),
+                { registered: true, writerCores: 2, entries: 8 }
+              ),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+        put: operation({
+          tag: 'Users',
+          operationId: 'registerAccountSync',
+          summary: 'Register the account sync key on this node',
+          description:
+            'Lets this node sync the account profile, channels and file metadata with the account other devices. File content is never synced.',
+          sideEffect: 'write',
+          security: signedSecurity,
+          requestBody: jsonRequest(ref('AccountSyncRegistration'), {
+            syncKey: `0x${'0'.repeat(64)}`,
+          }),
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync registered',
+                {
+                  allOf: [
+                    successSchema,
+                    {
+                      type: 'object',
+                      properties: { status: ref('AccountSyncStatus') },
+                    },
+                  ],
+                },
+                { success: true, status: { registered: true } }
+              ),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+        delete: operation({
+          tag: 'Users',
+          operationId: 'unregisterAccountSync',
+          summary: 'Stop account sync and delete the sync key on this node',
+          description:
+            'Data already synced to this node is kept; no further changes are exchanged with the accounts other devices.',
+          sideEffect: 'write',
+          security: signedSecurity,
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Account sync unregistered',
+                {
+                  allOf: [
+                    successSchema,
+                    {
+                      type: 'object',
+                      properties: { status: ref('AccountSyncStatus') },
+                    },
+                  ],
+                },
+                { success: true, status: { registered: false } }
+              ),
+            },
+            [400, 401, 403, 429, 500]
+          ),
+        }),
+      },
       '/api/user/export': {
         get: operation({
           tag: 'Users',
@@ -1490,6 +1650,46 @@ export function createOpenApiSpec({
               }),
             },
             [400, 401, 403, 409, 429, 500]
+          ),
+        }),
+      },
+      '/api/user/migrate': {
+        post: operation({
+          tag: 'Users',
+          operationId: 'migrateUserData',
+          summary: 'Move a v1 account to the authenticated v2 chat identity',
+          description:
+            'Requires the v1 account EIP-191 signature over "most-box-account-migrate-v2", the old and the new address (lowercase, newline separated). Moves profile, files and channels on this node, then clears the old address.',
+          sideEffect: 'dangerous',
+          confirmation: true,
+          security: signedSecurity,
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['oldAddress', 'signature'],
+            properties: {
+              oldAddress: { type: 'string' },
+              signature: { type: 'string' },
+            },
+          }),
+          responses: responses(
+            {
+              200: jsonResponse('Migration result', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: {
+                      migrated: { type: 'boolean' },
+                      result: {
+                        type: ['object', 'null'],
+                        additionalProperties: true,
+                      },
+                    },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 429, 500]
           ),
         }),
       },
@@ -1892,7 +2092,7 @@ export function createOpenApiSpec({
           operationId: 'sendChannelMessage',
           summary: 'Send a P2P channel message',
           description:
-            'A UUID v4 clientMessageId makes retries idempotent for one author in one channel on this node, including after restart. The same id with different content, attachment or mentions returns 409. Omit clientMessageId for legacy append behavior.',
+            'The client signs the body with its device key; the node checks the signature, the certificate and that body.author is the signed-in account. body.id (UUID v4) makes retries idempotent for one author in one channel, including after restart. The same id with a different body returns 409.',
           sideEffect: 'write',
           security: signedSecurity,
           parameters: [channelNameParameter],
@@ -2037,6 +2237,31 @@ export function createOpenApiSpec({
                   {
                     type: 'object',
                     properties: { pinned: { type: 'boolean' } },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 404, 429, 500]
+          ),
+        }),
+      },
+      '/api/channels/{name}/fold': {
+        put: operation({
+          tag: 'Channels',
+          operationId: 'updateChannelFold',
+          summary: 'Fold or unfold a channel',
+          sideEffect: 'write',
+          security: signedSecurity,
+          parameters: [channelNameParameter],
+          requestBody: jsonRequest(ref('ChannelFoldRequest')),
+          responses: responses(
+            {
+              200: jsonResponse('Updated fold state', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: { folded: { type: 'boolean' } },
                   },
                 ],
               }),

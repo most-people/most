@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  hasActiveTransfers,
-  startLocalOrPreferred,
-  startPreferredOrLocal,
-} from './nodeSelection'
+import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 import type { MobileCoreSnapshot } from './types'
 
 function snapshotWithStatus(
@@ -59,11 +55,10 @@ test('falls back for the session while retaining the failed remote URL', async (
   assert.equal(result.fallbackFrom, 'http://desktop.local:1976/base')
 })
 
-test('prefers the local node while retaining the saved remote config', async () => {
+test('without a saved remote node starts the local node', async () => {
   let remoteStarts = 0
-  const preferred = { url: 'https://node.example.com', invite: 'invite' }
-  const result = await startLocalOrPreferred({
-    preferred,
+  const result = await startPreferredOrLocal({
+    preferred: null,
     startLocal: async () => 'local-node',
     startRemote: async () => {
       remoteStarts += 1
@@ -74,36 +69,8 @@ test('prefers the local node while retaining the saved remote config', async () 
   assert.equal(result.mode, 'local')
   assert.equal(result.node, 'local-node')
   assert.equal(result.config, null)
+  assert.equal(result.fallbackFrom, '')
   assert.equal(remoteStarts, 0)
-})
-
-test('uses the saved remote node when local startup fails', async () => {
-  const preferred = { url: 'https://node.example.com', invite: 'invite' }
-  const result = await startLocalOrPreferred({
-    preferred,
-    startLocal: async () => {
-      throw new Error('local unavailable')
-    },
-    startRemote: async config => config.url,
-  })
-
-  assert.equal(result.mode, 'remote')
-  assert.equal(result.node, preferred.url)
-  assert.deepEqual(result.config, preferred)
-})
-
-test('can treat a local daemon as the preferred remote endpoint on Web', async () => {
-  const localConfig = { url: 'http://localhost:1976', invite: '' }
-  const result = await startLocalOrPreferred({
-    preferred: { url: 'https://node.example.com', invite: 'invite' },
-    localConfig,
-    startLocal: async () => 'local-daemon',
-    startRemote: async () => 'remote-node',
-  })
-
-  assert.equal(result.mode, 'remote')
-  assert.equal(result.node, 'local-daemon')
-  assert.deepEqual(result.config, localConfig)
 })
 
 test('treats queued, running and waiting transfers as switch blockers', () => {
@@ -112,4 +79,53 @@ test('treats queued, running and waiting transfers as switch blockers', () => {
   assert.equal(hasActiveTransfers(snapshotWithStatus('waitingCore')), true)
   assert.equal(hasActiveTransfers(snapshotWithStatus('completed')), false)
   assert.equal(hasActiveTransfers(snapshotWithStatus('failed')), false)
+})
+
+test('web mode uses the last selected node before the local daemon', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  let localStarts = 0
+  const result = await startPreferredOrLocal({
+    preferred: { url: 'https://node.example.com', invite: 'invite' },
+    localConfig: local,
+    startRemote: async () => 'remote-node',
+    startLocal: async () => {
+      localStarts += 1
+      return 'local-daemon'
+    },
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, 'remote-node')
+  assert.equal(result.fallbackFrom, '')
+  assert.equal(localStarts, 0)
+})
+
+test('web mode falls back to the local daemon and reports the failed node', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  const result = await startPreferredOrLocal({
+    preferred: { url: 'https://node.example.com', invite: 'invite' },
+    localConfig: local,
+    startRemote: async () => {
+      throw new Error('offline')
+    },
+    startLocal: async () => 'local-daemon',
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, 'local-daemon')
+  assert.deepEqual(result.config, local)
+  assert.equal(result.fallbackFrom, 'https://node.example.com')
+})
+
+test('web mode without a saved selection uses the local daemon', async () => {
+  const local = { url: 'http://localhost:1976', invite: '' }
+  const result = await startPreferredOrLocal({
+    preferred: null,
+    localConfig: local,
+    startRemote: async () => 'remote-node',
+    startLocal: async () => 'local-daemon',
+  })
+
+  assert.equal(result.node, 'local-daemon')
+  assert.equal(result.fallbackFrom, '')
 })

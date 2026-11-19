@@ -85,7 +85,7 @@ test('download byte counts remain visible after interruption and during verifica
         totalBytes: 2112 * 1048576,
         completedBytes: 1056 * 1048576,
       }),
-      { completed: '1056.0', total: '2112.0' }
+      { completed: '1056.0 MiB', total: '2112.0 MiB' }
     )
   }
   assert.equal(getDownloadByteProgress(transfer('running')), null)
@@ -113,7 +113,23 @@ test('download byte counts remain visible after interruption and during verifica
       totalBytes: 1048576,
       completedBytes: 2097152,
     }),
-    { completed: '1.0', total: '1.0' }
+    { completed: '1.0 MiB', total: '1.0 MiB' }
+  )
+  assert.deepEqual(
+    getDownloadByteProgress({
+      ...transfer('completed'),
+      totalBytes: 144,
+      completedBytes: 144,
+    }),
+    { completed: '144 B', total: '144 B' }
+  )
+  assert.deepEqual(
+    getDownloadByteProgress({
+      ...transfer('running'),
+      totalBytes: 131072,
+      completedBytes: 65536,
+    }),
+    { completed: '64.0 KiB', total: '128.0 KiB' }
   )
 })
 
