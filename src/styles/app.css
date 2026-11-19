@@ -80,6 +80,11 @@
       text-align: left;
     }
 
+    &.sidebar-header-static {
+      width: 100%;
+      border: 0;
+    }
+
     h1 {
       font-size: 18px;
       font-weight: 700;

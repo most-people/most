@@ -12,6 +12,10 @@ export function AppTop({ onNavigate, logo }: AppTopProps) {
   const { t } = useI18n()
   const brand = t('common.brand')
 
+  if (logo) {
+    return <div className="sidebar-header sidebar-header-static">{logo}</div>
+  }
+
   return (
     <Link
       to="/"
@@ -21,7 +25,7 @@ export function AppTop({ onNavigate, logo }: AppTopProps) {
       title={brand}
     >
       <ArrowLeft size={18} />
-      {logo ?? <h1>{brand}</h1>}
+      <h1>{brand}</h1>
     </Link>
   )
 }
