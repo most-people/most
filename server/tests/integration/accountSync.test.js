@@ -235,6 +235,39 @@ describe('engine account state sync', () => {
     assert.ok(!second.listHoldings().some(item => item.cid === published.cid))
   })
 
+  it('applies a batch of remote records with one update event, not one per record', async t => {
+    const fx = await fixture(t)
+    const first = await fx.engine()
+    const second = await fx.engine()
+    const count = 30
+    await first.registerAccountSync(ADDRESS, syncKey)
+    for (let i = 0; i < count; i++) {
+      await first.createChannel(`batch-room-${i}`, 'group', {
+        ownerAddress: ADDRESS,
+        displayName: 'Alice',
+      })
+    }
+    await second.registerAccountSync(ADDRESS, syncKey)
+    let channelUpdates = 0
+    second.on('user:metadata:updated', event => {
+      if (event.scope === 'channels') channelUpdates += 1
+    })
+    fx.connect(first, second)
+
+    await waitFor(
+      () =>
+        second
+          .listChannels({ ownerAddress: ADDRESS })
+          .filter(channel => channel.channelId.startsWith('batch-room-'))
+          .length === count,
+      'all channels to reach the second device'
+    )
+    assert.ok(
+      channelUpdates <= 3,
+      `expected a few batched updates, got ${channelUpdates}`
+    )
+  })
+
   it('settles instead of echoing changes back and forth', async t => {
     const { first, second } = await pair(t)
     const created = await first.createChannel('quiet-room', 'group', {

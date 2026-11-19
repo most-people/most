@@ -2819,65 +2819,79 @@ export class MostBoxEngine extends EventEmitter {
     if (changed) this.#accountSync.setPublished(address, published)
   }
 
+  /**
+   * 一批远端变更合并成一次导入：一次落盘、每类（资料/文件/频道）最多推送一次
+   * `user:metadata:updated`。逐条导入会让客户端为每条记录各刷新一次，几百条
+   * 记录足以触发节点限流。
+   */
   async #applyAccountSyncChange({ address, changed }) {
     const localDevice = this.#accountSync?.deviceIdFor(address)
-    const remote = changed.filter(entry => entry.deviceId !== localDevice)
-    for (const entry of remote) {
-      const key = `${entry.kind}:${entry.id}`
+    // 同一批里同一条记录可能出现多次（来自不同设备），后出现的更新。
+    const latest = new Map()
+    for (const entry of changed) {
+      if (entry.deviceId === localDevice) continue
+      latest.set(`${entry.kind}:${entry.id}`, entry)
+    }
+
+    const applied = []
+    const channels = []
+    const files = []
+    let profile = null
+    for (const [key, entry] of latest) {
       if (entry.kind === 'channel') {
-        await this.#applyAccountSyncChannel(address, entry)
+        const channel = this.#channels.find(
+          item => item.channelKey === entry.id
+        )
+        if (entry.deleted) {
+          if (channel && this.#channelHasMember(channel, address)) {
+            await this.leaveChannel(entry.id, { ownerAddress: address })
+          }
+        } else {
+          channels.push({
+            ...entry.data,
+            updatedAt: Math.max(
+              entry.updatedAt,
+              this.#getRecordUpdatedAt(channel) + 1
+            ),
+          })
+        }
       } else if (entry.kind === 'file' && !entry.deleted) {
         const existing = this.#getPublishedBucket(address).find(
           file => file.cid === entry.id
         )
-        await this.#importAccountSyncRecord(address, {
-          files: [
-            {
-              ...entry.data,
-              updatedAt: Math.max(
-                entry.updatedAt,
-                this.#getRecordUpdatedAt(existing) + 1
-              ),
-            },
-          ],
-        })
-      } else if (entry.kind === 'profile' && !entry.deleted) {
-        await this.#importAccountSyncRecord(
-          address,
-          { profile: { ...entry.data, updatedAt: entry.updatedAt } },
-          { overwriteProfile: true }
-        )
-      } else {
-        continue
-      }
-      // 记录应用后的本地内容哈希，避免把刚收到的变更再发布回去。
-      const published = this.#accountSync.getPublished(address)
-      const record = this.#toAccountSyncRecords(address).get(key)
-      if (record) published.set(key, this.#hashAccountSyncRecord(record))
-      else published.delete(key)
-      this.#accountSync.setPublished(address, published)
-    }
-  }
-
-  async #applyAccountSyncChannel(address, entry) {
-    const channel = this.#channels.find(item => item.channelKey === entry.id)
-    if (entry.deleted) {
-      if (channel && this.#channelHasMember(channel, address)) {
-        await this.leaveChannel(entry.id, { ownerAddress: address })
-      }
-      return
-    }
-    await this.#importAccountSyncRecord(address, {
-      channels: [
-        {
+        files.push({
           ...entry.data,
           updatedAt: Math.max(
             entry.updatedAt,
-            this.#getRecordUpdatedAt(channel) + 1
+            this.#getRecordUpdatedAt(existing) + 1
           ),
-        },
-      ],
-    })
+        })
+      } else if (entry.kind === 'profile' && !entry.deleted) {
+        profile = { ...entry.data, updatedAt: entry.updatedAt }
+      } else {
+        continue
+      }
+      applied.push(key)
+    }
+    if (applied.length === 0) return
+
+    if (profile || files.length > 0 || channels.length > 0) {
+      await this.#importAccountSyncRecord(
+        address,
+        { profile, files, channels },
+        { overwriteProfile: true }
+      )
+    }
+
+    // 记录应用后的本地内容哈希，避免把刚收到的变更再发布回去。
+    const published = this.#accountSync.getPublished(address)
+    const records = this.#toAccountSyncRecords(address)
+    for (const key of applied) {
+      const record = records.get(key)
+      if (record) published.set(key, this.#hashAccountSyncRecord(record))
+      else published.delete(key)
+    }
+    this.#accountSync.setPublished(address, published)
   }
 
   #importAccountSyncRecord(address, parts, options = {}) {
