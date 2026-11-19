@@ -22,6 +22,7 @@ import { mostWallet } from '~server/src/utils/mostWallet.js'
 import { api } from '~server/src/utils/api'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
+import { clearRecentCustomAvatar } from '~/lib/recentCustomAvatar'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
 type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
@@ -358,6 +359,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   logoutUser: () => {
     clearIdentity()
+    clearRecentCustomAvatar()
     settleUnlock(null)
     set({
       identity: null,

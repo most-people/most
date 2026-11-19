@@ -36,6 +36,10 @@ import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceS
 import { ProfileAccountSyncPanel } from '~/features/profile/ProfileAccountSyncPanel'
 import { ProfileDeviceCertPanel } from '~/features/profile/ProfileDeviceCertPanel'
 import { getCachedAvatar } from '~/lib/avatarCache'
+import {
+  loadRecentCustomAvatar,
+  saveRecentCustomAvatar,
+} from '~/lib/recentCustomAvatar'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   getDefaultAvatarValue,
@@ -124,6 +128,9 @@ export default function ProfilePage() {
   const [tagError, setTagError] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
+  // Last custom avatar URL (localStorage, cleared on logout), so picking a
+  // built-in avatar keeps the "custom" option to switch back.
+  const [recentCustomAvatar, setRecentCustomAvatar] = useState('')
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [backupConfirm, setBackupConfirm] = useState<BackupConfirm | null>(null)
   const header = <MarketingHeader />
@@ -136,10 +143,23 @@ export default function ProfilePage() {
       return
     }
     setDisplayNameDraft(identity.displayName || identity.username)
-    setAvatarUrlDraft(
+    const avatar =
       normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
-    )
+    setAvatarUrlDraft(avatar)
     setAvatarUrlError('')
+    if (avatar && !isDefaultAvatarValue(avatar)) {
+      saveRecentCustomAvatar(avatar)
+      setRecentCustomAvatar(avatar)
+    } else {
+      const stored = loadRecentCustomAvatar()
+      setRecentCustomAvatar(
+        stored &&
+          !isDefaultAvatarValue(stored) &&
+          isSupportedAvatarValue(stored)
+          ? stored
+          : ''
+      )
+    }
   }, [identity])
 
   useEffect(() => {
@@ -190,7 +210,9 @@ export default function ProfilePage() {
     normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
   const address = identity.address.toLowerCase()
   const customAvatarValue =
-    activeAvatar && !isDefaultAvatarValue(activeAvatar) ? activeAvatar : ''
+    activeAvatar && !isDefaultAvatarValue(activeAvatar)
+      ? activeAvatar
+      : recentCustomAvatar
   const customAvatarOption = {
     value: customAvatarValue,
     labelKey: 'profile.avatar.custom' as MessageKey,
