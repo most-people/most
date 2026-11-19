@@ -1,21 +1,14 @@
-import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
-  CheckCircle2,
-  CircleAlert,
+  ChevronRight,
   Download,
   ExternalLink,
-  Fingerprint,
-  KeyRound,
   Loader,
   LogOut,
-  Save,
-  ShieldCheck,
   Upload,
   User,
-  WalletCards,
   X,
 } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
@@ -33,6 +26,7 @@ import {
 } from '~/lib/localizedTag'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
+import { ProfileCollapsible } from '~/features/profile/ProfileCollapsible'
 import { ProfileAccountSyncPanel } from '~/features/profile/ProfileAccountSyncPanel'
 import { ProfileDeviceCertPanel } from '~/features/profile/ProfileDeviceCertPanel'
 import { getCachedAvatar } from '~/lib/avatarCache'
@@ -91,31 +85,8 @@ function isSupportedAvatarValue(value: string) {
   }
 }
 
-function getBackupStatusClass(status: string) {
-  if (status === 'disabled') return 'is-disabled'
-  if (status === 'working') return 'is-working'
-  if (status === 'synced') return 'is-synced'
-  if (status === 'error') return 'is-error'
-  return 'is-idle'
-}
-
-function AccountBackupStatusIcon({
-  status,
-  busy,
-}: {
-  status: string
-  busy: boolean
-}) {
-  if (busy || status === 'working') {
-    return <Loader size={16} className="ui-spinner" />
-  }
-  if (status === 'synced') return <CheckCircle2 size={16} />
-  if (status === 'error') return <CircleAlert size={16} />
-  return <ShieldCheck size={16} />
-}
-
 export default function ProfilePage() {
-  const { formatNumber, locale, localeName, t } = useI18n()
+  const { locale, localeName, t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const identity = useUserStore(s => s.identity)
@@ -166,11 +137,6 @@ export default function ProfilePage() {
     setTagDraft(selectExactLocalizedTag(identity?.tag, locale))
     setTagError('')
   }, [identity?.tag, locale])
-
-  useEffect(() => {
-    if (!identity) return
-    void accountBackup.refreshBackupSummary()
-  }, [accountBackup.refreshBackupSummary, hasBackend, identity])
 
   const keys = identity?.publicKeys
     ? {
@@ -224,22 +190,15 @@ export default function ProfilePage() {
   ]
   const avatarSrc = getCachedAvatar(identity.address, identity.avatar)
   const displayTag = selectLocalizedTag(identity.tag, locale)
+  const shortAddress = `${address.slice(0, 6)}…${address.slice(-4)}`
+  const savedDisplayName = identity.displayName || identity.username
+  const savedTag = selectExactLocalizedTag(identity.tag, locale)
+  const profileDirty =
+    displayNameDraft.trim() !== savedDisplayName || tagDraft.trim() !== savedTag
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
-  const backupStatusClass = getBackupStatusClass(accountBackup.status)
   const exportWorking = accountBackup.action === 'export'
   const importWorking = accountBackup.action === 'import'
-  const backupSummaryItems = [
-    {
-      key: 'files',
-      label: t('profile.backup.summary.files'),
-      value: accountBackup.backupSummary.filesCount,
-    },
-    {
-      key: 'channels',
-      label: t('profile.backup.summary.channels'),
-      value: accountBackup.backupSummary.channelsCount,
-    },
-  ]
+  const backupDisabled = accountBackup.busy || accountBackup.hasBackend !== true
 
   function requestImportBackupConfirm() {
     return new Promise<boolean>(resolve => {
@@ -262,42 +221,6 @@ export default function ProfilePage() {
       requestConfirm: requestImportBackupConfirm,
     })
   }
-
-  const backupActions = [
-    {
-      key: 'export-local',
-      tone: 'export-local',
-      label: exportWorking
-        ? t('profile.backup.status.exporting')
-        : t('profile.backup.action.exportLocal'),
-      icon: exportWorking ? (
-        <Loader size={16} className="ui-spinner" />
-      ) : (
-        <Download size={16} />
-      ),
-      onClick: accountBackup.exportLocalBackup,
-    },
-    {
-      key: 'import-local',
-      tone: 'import-local',
-      label: importWorking
-        ? t('profile.backup.status.importing')
-        : t('profile.backup.action.importLocal'),
-      icon: importWorking ? (
-        <Loader size={16} className="ui-spinner" />
-      ) : (
-        <Upload size={16} />
-      ),
-      onClick: handleImportLocalBackup,
-    },
-  ]
-  const backupActionGroups = [
-    {
-      key: 'local',
-      label: t('profile.backup.group.local'),
-      actions: backupActions,
-    },
-  ]
 
   async function saveBackendProfile(nextIdentity) {
     if (hasBackend !== true) return
@@ -336,22 +259,9 @@ export default function ProfilePage() {
     addToast(t('profile.toast.avatarUpdated'), 'success')
   }
 
-  function handleSaveDisplayName() {
+  function handleSaveProfile() {
     if (!identity) return
     const displayName = displayNameDraft.trim() || identity.username
-    const nextIdentity = {
-      ...identity,
-      displayName,
-      profileUpdatedAt: Date.now(),
-    }
-    setUserIdentity(nextIdentity)
-    void saveBackendProfile(nextIdentity)
-    setDisplayNameDraft(displayName)
-    addToast(t('profile.toast.saved'), 'success')
-  }
-
-  function handleSaveTag() {
-    if (!identity) return
     const normalizedDraft = normalizeLocalizedTag(tagDraft)
     if (tagDraft.trim() && !normalizedDraft?.default) {
       setTagError(t('profile.tag.invalid'))
@@ -368,13 +278,15 @@ export default function ProfilePage() {
     }
     const nextIdentity = {
       ...identity,
+      displayName,
       tag: normalizeLocalizedTag(nextTagValues) || null,
       profileUpdatedAt: Date.now(),
     }
     setUserIdentity(nextIdentity)
     void saveBackendProfile(nextIdentity)
+    setDisplayNameDraft(displayName)
     setTagError('')
-    addToast(t('profile.toast.tagUpdated'), 'success')
+    addToast(t('profile.toast.saved'), 'success')
   }
 
   function handleSaveAvatarUrl() {
@@ -399,146 +311,137 @@ export default function ProfilePage() {
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
-          <ProfileAccountSyncPanel />
-          <ProfileDeviceCertPanel />
-          <section className="profile-panel profile-backup-card ui-glass-surface">
-            <div className="profile-panel-header profile-backup-header">
-              <div>
-                <h2>{t('profile.section.backup')}</h2>
-                <p>{t('profile.section.backup.desc')}</p>
-              </div>
-              <span className={`profile-backup-status ${backupStatusClass}`}>
-                <AccountBackupStatusIcon
-                  status={accountBackup.status}
-                  busy={accountBackup.busy}
-                />
-                {accountBackup.statusLabel}
-              </span>
-            </div>
-            <div
-              className="profile-backup-summary"
-              aria-label={t('profile.backup.summary.label')}
-            >
-              {backupSummaryItems.map(item => (
-                <div key={item.key} className="profile-backup-stat">
-                  <span className="profile-backup-stat-value">
-                    {item.value === null
-                      ? accountBackup.backupSummary.loading
-                        ? '...'
-                        : '-'
-                      : formatNumber(item.value)}
-                  </span>
-                  <span className="profile-backup-stat-label">
-                    {item.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="profile-backup-actions">
-              {backupActionGroups.map(group => (
-                <section
-                  key={group.key}
-                  className="profile-backup-action-group"
-                  aria-label={group.label}
-                >
-                  <h3 className="profile-backup-action-group-title">
-                    {group.label}
-                  </h3>
-                  <div className="profile-backup-action-list">
-                    {group.actions.map(action => (
-                      <button
-                        key={action.key}
-                        type="button"
-                        className={[
-                          'btn',
-                          'profile-backup-action',
-                          `is-${action.tone}`,
-                        ].join(' ')}
-                        disabled={accountBackup.busy}
-                        onClick={action.onClick}
-                      >
-                        {action.icon}
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </section>
-
-          <header className="profile-header ui-glass-surface">
+          <header className="profile-hero">
             <SafeImage
-              className="profile-avatar-large"
+              className="profile-hero-avatar"
               src={avatarSrc}
               alt=""
               referrerPolicy="no-referrer"
             />
-            <div className="profile-heading">
-              <p className="profile-kicker">{t('profile.kicker')}</p>
-              <div className="profile-name-line">
-                <h1>{identity.displayName || identity.username}</h1>
+            <div className="profile-hero-main">
+              <div className="profile-hero-name">
+                <h1>{savedDisplayName}</h1>
                 {displayTag && (
                   <span className="profile-user-tag" translate="no">
                     {displayTag}
                   </span>
                 )}
               </div>
-              <div className="profile-address-line">
-                <code translate="no">{address}</code>
-                <CopyButton text={address} />
+              <div className="profile-hero-address">
+                <code translate="no" title={address}>
+                  {shortAddress}
+                </code>
+                <CopyButton text={address} className="profile-hero-action" />
                 <a
                   href={`https://debank.com/profile/${identity.address}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-secondary btn-sm"
+                  className="profile-hero-action"
                 >
-                  <ExternalLink size={14} />
                   {t('web3.action.view')}
+                  <ExternalLink size={12} />
                 </a>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn btn-danger profile-logout-btn"
-              onClick={() => setShowLogoutConfirm(true)}
-            >
-              <LogOut size={16} />
-              {t('account.logout')}
-            </button>
           </header>
 
-          <div className="profile-grid">
-            <section className="profile-panel ui-glass-surface">
-              <div className="profile-panel-header">
-                <div>
-                  <h2>{t('profile.section.account')}</h2>
-                  <p>{t('profile.section.account.desc')}</p>
+          <ProfileCollapsible title={t('profile.section.profile')}>
+            <form
+              onSubmit={event => {
+                event.preventDefault()
+                handleSaveProfile()
+              }}
+            >
+              <div className="profile-row is-field">
+                <span className="profile-row-label">
+                  {t('profile.section.avatar')}
+                </span>
+                <div className="profile-field-stack">
+                  <div className="profile-avatar-grid" role="list">
+                    {displayedAvatarOptions.map(option => {
+                      const selected = activeAvatar === option.value
+                      return (
+                        <button
+                          key={option.value || 'address'}
+                          type="button"
+                          className={[
+                            'profile-avatar-option',
+                            selected ? 'selected' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          onClick={() => updateAvatar(option.value)}
+                          aria-pressed={selected}
+                          aria-label={t(option.labelKey)}
+                          title={t(option.labelKey)}
+                        >
+                          <SafeImage
+                            src={getCachedAvatar(
+                              identity.address,
+                              option.value
+                            )}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                          />
+                          {selected && (
+                            <span className="profile-avatar-check">
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="profile-inline-field">
+                    <input
+                      id="profile-avatar-url"
+                      className="input"
+                      value={avatarUrlDraft}
+                      onChange={event => {
+                        setAvatarUrlDraft(event.target.value)
+                        setAvatarUrlError('')
+                      }}
+                      onKeyDown={event => {
+                        if (event.key !== 'Enter') return
+                        event.preventDefault()
+                        if (canSaveAvatarUrl) handleSaveAvatarUrl()
+                      }}
+                      placeholder={t('profile.label.customAvatar')}
+                      aria-label={t('profile.label.customAvatar')}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleSaveAvatarUrl}
+                      disabled={!canSaveAvatarUrl}
+                    >
+                      {t('profile.action.save')}
+                    </button>
+                  </div>
+                  {avatarUrlError && (
+                    <p className="profile-error">{avatarUrlError}</p>
+                  )}
                 </div>
               </div>
-              <label className="profile-field">
-                <span>{t('profile.label.displayName')}</span>
-                <div className="profile-field-row">
-                  <input
-                    className="input"
-                    value={displayNameDraft}
-                    onChange={event => setDisplayNameDraft(event.target.value)}
-                    placeholder={t('nav.displayNamePlaceholder')}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleSaveDisplayName}
-                  >
-                    <Save size={16} />
-                    {t('profile.action.save')}
-                  </button>
-                </div>
+
+              <label className="profile-row is-field">
+                <span className="profile-row-label">
+                  {t('profile.label.displayName')}
+                </span>
+                <input
+                  className="input"
+                  value={displayNameDraft}
+                  onChange={event => setDisplayNameDraft(event.target.value)}
+                  placeholder={t('nav.displayNamePlaceholder')}
+                />
               </label>
-              <label className="profile-field profile-tag-field">
-                <span>{t('profile.label.tag', { locale: localeName })}</span>
-                <div className="profile-field-row">
-                  <div className="profile-tag-input-control">
+
+              <label className="profile-row is-field">
+                <span className="profile-row-label">
+                  {t('profile.label.tag', { locale: localeName })}
+                </span>
+                <span className="profile-field-stack">
+                  <span className="profile-tag-input-control">
                     <input
                       className="input"
                       value={tagDraft}
@@ -563,133 +466,122 @@ export default function ProfilePage() {
                         aria-label={t('profile.action.clearTagInput')}
                         title={t('profile.action.clearTagInput')}
                       >
-                        <X size={16} />
+                        <X size={14} />
                       </button>
                     )}
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleSaveTag}
-                  >
-                    <Save size={16} />
-                    {t('profile.action.save')}
-                  </button>
-                </div>
-                {tagError && (
-                  <span id="profile-tag-error" className="profile-error">
-                    {tagError}
                   </span>
-                )}
+                  {tagError && (
+                    <span id="profile-tag-error" className="profile-error">
+                      {tagError}
+                    </span>
+                  )}
+                </span>
               </label>
-              <div className="profile-facts">
-                <ProfileFact
-                  label={t('profile.label.username')}
-                  value={identity.username}
-                />
-              </div>
-            </section>
 
-            <section className="profile-panel ui-glass-surface">
-              <div className="profile-panel-header">
-                <div>
-                  <h2>{t('profile.section.avatar')}</h2>
-                  <p>{t('profile.section.avatar.desc')}</p>
-                </div>
+              <div className="profile-row is-field">
+                <span className="profile-row-label">
+                  {t('profile.label.username')}
+                </span>
+                <code className="profile-row-value" translate="no">
+                  {identity.username}
+                </code>
               </div>
-              <div className="profile-avatar-grid" role="list">
-                {displayedAvatarOptions.map(option => {
-                  const selected = activeAvatar === option.value
-                  return (
-                    <button
-                      key={option.value || 'address'}
-                      type="button"
-                      className={[
-                        'profile-avatar-option',
-                        selected ? 'selected' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      onClick={() => updateAvatar(option.value)}
-                      aria-pressed={selected}
-                      title={t(option.labelKey)}
-                    >
-                      <SafeImage
-                        src={getCachedAvatar(identity.address, option.value)}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                      />
-                      <span>{t(option.labelKey)}</span>
-                      {selected && (
-                        <span className="profile-avatar-check">
-                          <Check size={14} />
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
+
+              <div className="profile-card-footer">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!profileDirty}
+                >
+                  {t('profile.action.save')}
+                </button>
               </div>
-              <div className="profile-avatar-url">
-                <label className="profile-field" htmlFor="profile-avatar-url">
-                  <span>{t('profile.label.customAvatar')}</span>
-                  <div className="profile-field-row">
-                    <input
-                      id="profile-avatar-url"
-                      className="input"
-                      value={avatarUrlDraft}
-                      onChange={event => {
-                        setAvatarUrlDraft(event.target.value)
-                        setAvatarUrlError('')
-                      }}
-                      placeholder={t('nav.avatarUrlPlaceholder')}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={handleSaveAvatarUrl}
-                      disabled={!canSaveAvatarUrl}
-                    >
-                      <Save size={16} />
-                      {t('profile.action.save')}
-                    </button>
-                  </div>
-                </label>
-                {avatarUrlError && (
-                  <p className="profile-error">{avatarUrlError}</p>
+            </form>
+          </ProfileCollapsible>
+
+          <ProfileCollapsible title={t('profile.section.accountGroup')}>
+            <ProfileAccountSyncPanel />
+            <ProfileDeviceCertPanel />
+            <div className="profile-row">
+              <div className="profile-row-text">
+                <h3>{t('profile.section.backup')}</h3>
+                <p>{t('profile.section.backup.desc')}</p>
+                {accountBackup.hasBackend === false && (
+                  <p className="profile-row-note">
+                    {t('profile.backup.needsNode')}
+                  </p>
                 )}
               </div>
-            </section>
-          </div>
-
-          <section className="profile-panel profile-identity-panel ui-glass-surface">
-            <div className="profile-panel-header">
-              <div>
-                <h2>{t('profile.section.identity')}</h2>
-                <p>{t('profile.section.identity.desc')}</p>
+              <div className="profile-row-control">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={backupDisabled}
+                  onClick={() => void accountBackup.exportLocalBackup()}
+                >
+                  {exportWorking ? (
+                    <Loader size={15} className="ui-spinner" />
+                  ) : (
+                    <Download size={15} />
+                  )}
+                  {exportWorking
+                    ? t('profile.backup.status.exporting')
+                    : t('profile.backup.action.exportLocal')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={backupDisabled}
+                  onClick={handleImportLocalBackup}
+                >
+                  {importWorking ? (
+                    <Loader size={15} className="ui-spinner" />
+                  ) : (
+                    <Upload size={15} />
+                  )}
+                  {importWorking
+                    ? t('profile.backup.status.importing')
+                    : t('profile.backup.action.importLocal')}
+                </button>
               </div>
-              <Link to="/web3/" hash="wallet" className="btn btn-secondary">
-                <WalletCards size={16} />
-                {t('profile.action.openWallet')}
-              </Link>
             </div>
-            <div className="profile-key-grid">
-              {keys && (
-                <>
-                  <ProfileKeyCard
-                    title={t('web3.label.ed25519Public')}
-                    icon={<Fingerprint size={18} />}
-                    value={keys.ed_public_key}
-                  />
-                  <ProfileKeyCard
-                    title={t('web3.label.x25519Public')}
-                    icon={<KeyRound size={18} />}
-                    value={keys.public_key}
-                  />
-                </>
-              )}
-            </div>
-          </section>
+          </ProfileCollapsible>
+
           <ProfileAppearanceSettings />
+
+          <ProfileCollapsible title={t('profile.section.advanced')}>
+            {keys && (
+              <>
+                <ProfileKeyRow
+                  title={t('web3.label.ed25519Public')}
+                  value={keys.ed_public_key}
+                />
+                <ProfileKeyRow
+                  title={t('web3.label.x25519Public')}
+                  value={keys.public_key}
+                />
+              </>
+            )}
+            <Link
+              to="/web3/"
+              hash="wallet"
+              className="profile-row profile-row-link"
+            >
+              <div className="profile-row-text">
+                <h3>{t('profile.action.openWallet')}</h3>
+              </div>
+              <ChevronRight size={16} className="profile-row-chevron" />
+            </Link>
+          </ProfileCollapsible>
+
+          <button
+            type="button"
+            className="btn profile-logout ui-glass-surface"
+            onClick={() => setShowLogoutConfirm(true)}
+          >
+            <LogOut size={16} />
+            {t('account.logoutTitle')}
+          </button>
         </div>
       </section>
       {backupConfirm && (
@@ -761,47 +653,16 @@ export default function ProfilePage() {
   )
 }
 
-function ProfileFact({
-  label,
-  value,
-  copy = false,
-}: {
-  label: string
-  value: string
-  copy?: boolean
-}) {
+function ProfileKeyRow({ title, value }: { title: string; value: string }) {
   return (
-    <div className="profile-fact">
-      <span>{label}</span>
-      <div className="profile-fact-value">
-        <code translate="no">{value}</code>
-        {copy && <CopyButton text={value} />}
-      </div>
-    </div>
-  )
-}
-
-function ProfileKeyCard({
-  title,
-  icon,
-  value,
-}: {
-  title: string
-  icon: ReactNode
-  value: string
-}) {
-  return (
-    <div className="profile-key-card">
-      <div className="profile-key-card-header">
-        <span className="profile-key-card-icon">{icon}</span>
-        <span>{title}</span>
-      </div>
-      <div className="mono-row">
-        <code className="mono" translate="no">
+    <div className="profile-row">
+      <div className="profile-row-text">
+        <h3>{title}</h3>
+        <code className="profile-row-value" translate="no">
           {value}
         </code>
-        <CopyButton text={value} />
       </div>
+      <CopyButton text={value} />
     </div>
   )
 }

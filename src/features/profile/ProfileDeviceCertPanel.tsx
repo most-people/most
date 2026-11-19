@@ -37,44 +37,44 @@ export function ProfileDeviceCertPanel() {
   }
 
   return (
-    <section className="profile-panel profile-cert-card ui-glass-surface">
-      <div className="profile-panel-header">
-        <div>
-          <h2>{t('profile.certTtl.label')}</h2>
-          <p>{t('profile.certTtl.hint')}</p>
-        </div>
+    <div className="profile-row">
+      <div className="profile-row-text">
+        <h3>{t('profile.certTtl.label')}</h3>
+        <p>{t('profile.certTtl.hint')}</p>
+        {certWindow && (
+          <p className="profile-row-note">
+            {t('profile.certTtl.expires', {
+              time: formatDateTime(certWindow.expiresAt),
+            })}
+          </p>
+        )}
+        {failed && (
+          <p className="profile-row-note is-error">
+            {t('profile.certTtl.failed')}
+          </p>
+        )}
       </div>
       <div
-        className="profile-cert-ttl"
+        className="profile-segmented"
         role="radiogroup"
         aria-label={t('profile.certTtl.label')}
       >
         {DEVICE_CERT_TTL_CHOICES.map(ttl => (
-          <label key={ttl} className="profile-cert-ttl-option">
-            <input
-              type="radio"
-              name="device-cert-ttl"
-              value={ttl}
-              checked={ttl === current}
-              disabled={busy}
-              onChange={() => void handleChange(ttl)}
-            />
-            <span>{t(`profile.certTtl.${ttl}`)}</span>
-          </label>
+          <button
+            key={ttl}
+            type="button"
+            role="radio"
+            className="profile-segmented-option"
+            aria-checked={ttl === current}
+            disabled={busy}
+            onClick={() => {
+              if (ttl !== current) void handleChange(ttl)
+            }}
+          >
+            {t(`profile.certTtl.${ttl}`)}
+          </button>
         ))}
       </div>
-      {certWindow && (
-        <p className="profile-sync-note">
-          {t('profile.certTtl.expires', {
-            time: formatDateTime(certWindow.expiresAt),
-          })}
-        </p>
-      )}
-      {failed && (
-        <p className="profile-sync-note profile-sync-error">
-          {t('profile.certTtl.failed')}
-        </p>
-      )}
-    </section>
+    </div>
   )
 }

@@ -18,16 +18,15 @@ export const zhCNIdentityMessages = {
   'unlock.submit': '解锁',
   'unlock.error.passwordRequired': '请输入密码',
   'unlock.error.wrongPassword': '密码不正确',
-  'profile.certTtl.label': '设备授权有效期',
+  'profile.certTtl.label': '保持登录',
   'profile.certTtl.4h': '4 小时',
   'profile.certTtl.1d': '1 天',
   'profile.certTtl.30d': '30 天',
   'profile.certTtl.hint':
-    '限制这台设备访问节点的时长，修改时可能需要再次输入密码；到期前会提示输入密码续期。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
-  'profile.certTtl.expires': '当前授权到期时间：{time}',
-  'profile.certTtl.failed': '未能修改设备授权有效期',
-  'unlock.renewTip':
-    '这台设备访问节点的授权即将到期。输入密码续期，否则到期后需要重新登录。',
+    '到期前会提醒你输入密码续期，否则需要重新登录。这只控制保持登录多久，不能用来防止设备丢失后被冒用。',
+  'profile.certTtl.expires': '将于 {time} 退出登录',
+  'profile.certTtl.failed': '修改失败，请重试',
+  'unlock.renewTip': '登录即将过期，输入密码继续使用。',
 } as const
 
 export const zhTWIdentityMessages = {
@@ -50,16 +49,15 @@ export const zhTWIdentityMessages = {
   'unlock.submit': '解鎖',
   'unlock.error.passwordRequired': '請輸入密碼',
   'unlock.error.wrongPassword': '密碼不正確',
-  'profile.certTtl.label': '裝置授權有效期',
+  'profile.certTtl.label': '保持登入',
   'profile.certTtl.4h': '4 小時',
   'profile.certTtl.1d': '1 天',
   'profile.certTtl.30d': '30 天',
   'profile.certTtl.hint':
-    '限制這台裝置存取節點的時長，修改時可能需要再次輸入密碼；到期前會提示輸入密碼續期。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
-  'profile.certTtl.expires': '目前授權到期時間：{time}',
-  'profile.certTtl.failed': '未能修改裝置授權有效期',
-  'unlock.renewTip':
-    '這台裝置存取節點的授權即將到期。輸入密碼續期，否則到期後需要重新登入。',
+    '到期前會提醒你輸入密碼續期，否則需要重新登入。這只控制保持登入多久，不能用來防止裝置遺失後被冒用。',
+  'profile.certTtl.expires': '將於 {time} 登出',
+  'profile.certTtl.failed': '修改失敗，請重試',
+  'unlock.renewTip': '登入即將過期，輸入密碼繼續使用。',
 } as const
 
 export const enIdentityMessages = {
@@ -82,14 +80,14 @@ export const enIdentityMessages = {
   'unlock.submit': 'Unlock',
   'unlock.error.passwordRequired': 'Enter your password',
   'unlock.error.wrongPassword': 'Incorrect password',
-  'profile.certTtl.label': 'Device authorization period',
+  'profile.certTtl.label': 'Stay signed in',
   'profile.certTtl.4h': '4 hours',
   'profile.certTtl.1d': '1 day',
   'profile.certTtl.30d': '30 days',
   'profile.certTtl.hint':
-    'Limits how long this device can access the node (changing it may ask for your password again); you are asked for your password to renew before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
-  'profile.certTtl.expires': 'Current authorization ends at {time}',
-  'profile.certTtl.failed': 'Could not change the device authorization period',
+    "You'll be asked for your password before it ends; otherwise you'll need to sign in again. This only sets how long you stay signed in. It can't stop someone misusing a lost device.",
+  'profile.certTtl.expires': "You'll be signed out at {time}",
+  'profile.certTtl.failed': "Couldn't change it. Try again.",
   'unlock.renewTip':
-    "This device's access to the node is about to expire. Enter your password to renew it, or sign in again after it expires.",
+    'Your sign-in is about to expire. Enter your password to keep using MostBox.',
 } as const
