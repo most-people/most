@@ -244,7 +244,7 @@ npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.8.1
+    image: ghcr.io/most-people/most-box:0.8.2
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -312,7 +312,7 @@ mostbox.example.com {
 }
 ```
 
-开放到公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。
+开放到公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。节点本身不做请求限流，邀请码请使用长随机串（如 `openssl rand -hex 16`），防刷交给前面的反向代理或 CDN。
 
 ## 核心功能
 
