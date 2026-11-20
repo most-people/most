@@ -4,6 +4,14 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-20
+
+Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in place, and 0.5.x nodes upgrade directly to 0.8.2 (`docs/upgrade-0.8.0.md`).
+
+### Removed
+
+- The node no longer rate limits requests. Behind a CDN or gateway every visitor reaches the node from the same address, so any per-address limit throttled all users together: twenty failed signatures or wrong invites from anyone returned 429 to every signed-in user for five minutes, and the 600 per minute global budget was shared by all visitors. Auth, MCP token, invite, global, upload/download and admin limits are all gone; failed requests still return 401 or 403. Use long random invite codes, and put flood protection on the gateway or CDN in front of the node.
+
 ## [0.8.1] - 2026-11-19
 
 0.8.0 was not published on its own; 0.8.1 is the first published 0.8 release and includes everything listed under 0.8.0. The protocol is unchanged from 0.8.0, and the upgrade path stays 0.5.x to 0.8.1 directly (`docs/upgrade-0.8.0.md`).

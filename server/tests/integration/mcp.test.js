@@ -402,6 +402,34 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
     assert.strictEqual(revokedTransport.status, 401)
   })
 
+  it('never rate limits wrong tokens', async () => {
+    const requestMcp = token =>
+      appRuntime.app.request(
+        '/mcp',
+        {
+          method: 'POST',
+          headers: {
+            host: `localhost:${testPort}`,
+            accept: 'application/json, text/event-stream',
+            'content-type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: '{}',
+        },
+        LOCAL_CONTEXT
+      )
+
+    const statuses = []
+    for (let i = 0; i < 30; i += 1) {
+      statuses.push((await requestMcp('mbx_mcp_wrong')).status)
+    }
+    const valid = await requestMcp(fullToken)
+
+    assert.deepStrictEqual(statuses, Array(30).fill(401))
+    assert.notStrictEqual(valid.status, 401)
+    assert.notStrictEqual(valid.status, 429)
+  })
+
   it('serves the same scoped tools through the CLI stdio bridge', async () => {
     const repoRoot = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),

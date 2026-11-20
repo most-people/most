@@ -10,7 +10,7 @@ import { calculateCid } from '../../src/core/cid.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
-import { buildAuthHeaders, issueDeviceCert } from '../../src/utils/auth.js'
+import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginSession } from '../../src/utils/userIdentity.js'
 import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
 import { signedMessage, signedProfile } from '../helpers/signedMessage.js'
@@ -2692,17 +2692,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'INVALID_INVITE')
     })
 
-    it('rate limits repeated forged signatures without charging valid ones', async () => {
+    // Behind a gateway or CDN every visitor can share one address: failed
+    // requests must never throttle anyone, including the valid users.
+    it('never rate limits failed signatures', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 21,
         configStore,
         nodeLogger,
-        rateLimit: {
-          policies: {
-            global: { windowMs: 60_000, maxRequests: 100 },
-            authFailure: { windowMs: 60_000, maxRequests: 2 },
-          },
-        },
       })
       const forged = async () => {
         const { Authorization } = await buildAuthHeaders(
@@ -2724,123 +2720,49 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         )
       }
 
-      const authenticated = await requestAsWithContext(
-        TEST_IDENTITY,
-        app,
-        '/api/files'
-      )
-      const first = await forged()
-      const second = await forged()
-      const blocked = await forged()
-      const blockedData = await blocked.json()
-
-      assert.strictEqual(authenticated.status, 200)
-      assert.strictEqual(first.status, 401)
-      assert.strictEqual(second.status, 401)
-      assert.strictEqual(blocked.status, 429)
-      assert.strictEqual(blockedData.code, 'RATE_LIMITED')
-      assert.strictEqual(blockedData.policy, 'authFailure')
-      assert.ok(Number(blocked.headers.get('retry-after')) >= 1)
-    })
-
-    // Behind a reverse proxy every user shares one IP: an expired
-    // certificate, a wrong clock or a signed-out page must not lock them out.
-    it('does not count expired certificates, stale clocks or missing logins', async () => {
-      const { app } = createApp(engine, {
-        port: TEST_PORT + 23,
-        configStore,
-        nodeLogger,
-        rateLimit: {
-          policies: {
-            global: { windowMs: 60_000, maxRequests: 100 },
-            authFailure: { windowMs: 60_000, maxRequests: 2 },
-          },
-        },
-      })
-      const expiredIdentity = {
-        ...TEST_IDENTITY,
-        device: {
-          ...TEST_IDENTITY.device,
-          cert: await issueDeviceCert(
-            TEST_SESSION.danger,
-            TEST_IDENTITY.device.publicKey,
-            { now: Date.now() - 31 * 24 * 60 * 60 * 1000 }
-          ),
-        },
-      }
-      const staleClock = async () => {
-        const { Authorization } = await buildAuthHeaders(
-          TEST_IDENTITY,
-          'GET',
-          '/api/files'
-        )
-        const [cert, , signature] = Authorization.split(',')
-        const timestamp = Date.now() - 10 * 60 * 1000
-        return app.request(
-          '/api/files',
-          {
-            headers: {
-              host: 'localhost:1976',
-              authorization: `${cert},${timestamp},${signature}`,
-            },
-          },
-          LOCAL_REQUEST_CONTEXT
-        )
-      }
-
       const statuses = []
-      for (let i = 0; i < 3; i += 1) {
-        const expired = await requestAsWithContext(
-          expiredIdentity,
-          app,
-          '/api/files'
-        )
-        statuses.push(expired.status, (await staleClock()).status)
-        const signedOut = await app.request(
-          '/api/files',
-          { headers: { host: 'localhost:1976' } },
-          LOCAL_REQUEST_CONTEXT
-        )
-        statuses.push(signedOut.status)
-      }
+      for (let i = 0; i < 30; i += 1) statuses.push((await forged()).status)
       const authenticated = await requestAsWithContext(
         TEST_IDENTITY,
         app,
         '/api/files'
       )
 
-      assert.deepStrictEqual(statuses, Array(9).fill(401))
+      assert.deepStrictEqual(statuses, Array(30).fill(401))
       assert.strictEqual(authenticated.status, 200)
     })
 
-    it('rate limits repeated invalid remote invites', async () => {
+    it('never rate limits wrong or missing remote invites', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 22,
         host: '127.0.0.1',
         configStore,
         nodeLogger,
-        remoteInvites: [],
-        rateLimit: {
-          policies: {
-            global: { windowMs: 60_000, maxRequests: 100 },
-            inviteFailure: { windowMs: 60_000, maxRequests: 2 },
-          },
-        },
+        remoteInvites: ['invite-ok'],
       })
       const context = {
         incoming: { socket: { remoteAddress: '203.0.113.25' } },
       }
-      const requestInit = { headers: { host: 'mostbox.example.com' } }
+      const withInvite = invite => ({
+        headers: { host: 'mostbox.example.com', 'x-mostbox-invite': invite },
+      })
 
-      const first = await app.request('/api/node-id', requestInit, context)
-      const second = await app.request('/api/node-id', requestInit, context)
-      const blocked = await app.request('/api/node-id', requestInit, context)
-      const blockedData = await blocked.json()
+      const statuses = []
+      for (let i = 0; i < 30; i += 1) {
+        const invite = i % 2 ? 'guess' : ''
+        statuses.push(
+          (await app.request('/api/node-id', withInvite(invite), context))
+            .status
+        )
+      }
+      const valid = await app.request(
+        '/api/node-id',
+        withInvite('invite-ok'),
+        context
+      )
 
-      assert.strictEqual(first.status, 403)
-      assert.strictEqual(second.status, 403)
-      assert.strictEqual(blocked.status, 429)
-      assert.strictEqual(blockedData.policy, 'inviteFailure')
+      assert.deepStrictEqual(statuses, Array(30).fill(403))
+      assert.strictEqual(valid.status, 200)
     })
 
     it('does not trust LAN host headers by themselves', async () => {
