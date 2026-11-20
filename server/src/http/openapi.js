@@ -46,7 +46,6 @@ function responses(success, errorStatuses = [400, 401, 403, 500]) {
         404: 'Requested resource was not found',
         409: 'Request conflicts with current state',
         413: 'Payload exceeds the configured limit',
-        429: 'Too many requests',
         500: 'Daemon operation failed',
       }[status] || 'Request failed'
     )
@@ -1075,7 +1074,7 @@ export function createOpenApiSpec({
                 ref('AdministrationAccess')
               ),
             },
-            [403, 429]
+            [403]
           ),
         }),
         post: operation({
@@ -1094,7 +1093,7 @@ export function createOpenApiSpec({
                 ref('AdministrationAccess')
               ),
             },
-            [401, 403, 409, 429, 500]
+            [401, 403, 409, 500]
           ),
         }),
       },
@@ -1108,7 +1107,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('MCP client list', ref('McpClientList')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1130,7 +1129,7 @@ export function createOpenApiSpec({
                 ref('McpCredential')
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1168,7 +1167,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
       },
@@ -1182,7 +1181,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('MCP client principal', ref('McpPrincipal')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
       },
@@ -1201,7 +1200,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1214,7 +1213,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Node status', ref('NodeStatus')),
             },
-            [403, 429, 500]
+            [403, 500]
           ),
         }),
       },
@@ -1228,7 +1227,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Node configuration', ref('NodeConfig')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1245,7 +1244,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('NodeConfig')],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1260,7 +1259,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Storage limits', ref('NodePolicy')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1276,7 +1275,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('NodePolicy')],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1303,7 +1302,7 @@ export function createOpenApiSpec({
                 ref('StoragePolicyDecision')
               ),
             },
-            [400, 401, 403, 429]
+            [400, 401, 403]
           ),
         }),
       },
@@ -1320,7 +1319,7 @@ export function createOpenApiSpec({
                 items: ref('NodeHolding'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         post: operation({
@@ -1342,7 +1341,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1382,7 +1381,7 @@ export function createOpenApiSpec({
                 },
               }),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         delete: operation({
@@ -1406,7 +1405,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1432,7 +1431,7 @@ export function createOpenApiSpec({
                 },
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1448,7 +1447,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Pull task result', ref('DownloadResult')),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1466,7 +1465,7 @@ export function createOpenApiSpec({
             {
               202: jsonResponse('P2P Ping accepted', ref('P2PPingResponse')),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
           ),
         }),
       },
@@ -1479,7 +1478,7 @@ export function createOpenApiSpec({
           parameters: [pathParameter('id', 'P2P Ping identifier.')],
           responses: responses(
             { 200: jsonResponse('P2P Ping status', ref('P2PPingResponse')) },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
         delete: operation({
@@ -1491,7 +1490,7 @@ export function createOpenApiSpec({
           parameters: [pathParameter('id', 'P2P Ping identifier.')],
           responses: responses(
             { 200: jsonResponse('P2P Ping cancelled', ref('P2PPingResponse')) },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
       },
@@ -1505,7 +1504,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Profile metadata', ref('UserProfile')),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         put: operation({
@@ -1527,7 +1526,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1545,7 +1544,7 @@ export function createOpenApiSpec({
                 { registered: true, writerCores: 2, entries: 8 }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
         put: operation({
@@ -1575,7 +1574,7 @@ export function createOpenApiSpec({
                 { success: true, status: { registered: true } }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
         delete: operation({
@@ -1602,7 +1601,7 @@ export function createOpenApiSpec({
                 { success: true, status: { registered: false } }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1620,7 +1619,7 @@ export function createOpenApiSpec({
                 ref('AccountBackup')
               ),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1649,7 +1648,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
           ),
         }),
       },
@@ -1689,7 +1688,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1706,7 +1705,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1725,7 +1724,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1742,7 +1741,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Cache pull result', ref('DownloadResult')),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1773,7 +1772,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1796,7 +1795,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1813,7 +1812,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1831,7 +1830,7 @@ export function createOpenApiSpec({
                 ref('Collection')
               ),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1854,7 +1853,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1875,7 +1874,7 @@ export function createOpenApiSpec({
                 ref('DownloadResult')
               ),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1892,7 +1891,7 @@ export function createOpenApiSpec({
                 items: ref('DownloadTask'),
               }),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
       },
@@ -1912,7 +1911,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Cancellation result', ref('SuccessResponse')),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1957,7 +1956,7 @@ export function createOpenApiSpec({
               },
               416: { description: 'Requested range is not satisfiable' },
             },
-            [400, 404, 429]
+            [400, 404]
           ),
         }),
       },
@@ -1981,7 +1980,7 @@ export function createOpenApiSpec({
                 items: ref('Channel'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         post: operation({
@@ -1997,7 +1996,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('Channel')],
               }),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
           ),
         }),
         delete: operation({
@@ -2022,7 +2021,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2054,7 +2053,7 @@ export function createOpenApiSpec({
                 ref('ChannelHistoryPage')
               ),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2084,7 +2083,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelMessage'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
         post: operation({
@@ -2109,7 +2108,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 409, 429, 500]
+            [400, 401, 403, 404, 409, 500]
           ),
         }),
       },
@@ -2127,7 +2126,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelMemberProfile'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2155,7 +2154,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2173,7 +2172,7 @@ export function createOpenApiSpec({
                 items: { type: 'object', additionalProperties: true },
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2191,7 +2190,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelPresence'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2216,7 +2215,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2241,7 +2240,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2266,7 +2265,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },

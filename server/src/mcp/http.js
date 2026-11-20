@@ -38,7 +38,6 @@ function errorResponse(status, error, code, headers = {}) {
 export function createMostBoxMcpHttpHandler({
   appPort,
   mcpClientStore,
-  rateLimitGuard,
   appendNodeLog,
   fetchImpl,
 }) {
@@ -89,16 +88,12 @@ export function createMostBoxMcpHttpHandler({
       )
     }
 
-    const blocked = rateLimitGuard.rejectIfBlocked(c, ['authFailure'])
-    if (blocked) return blocked
     const tokenMatch = String(c.req.header('authorization') || '').match(
       /^Bearer\s+(.+)$/i
     )
     const token = tokenMatch?.[1]?.trim() || ''
     const principal = token ? mcpClientStore.authenticate(token) : null
     if (!principal) {
-      const limited = rateLimitGuard.enforce(c, ['authFailure'])
-      if (limited) return limited
       return errorResponse(
         401,
         'Valid MCP Bearer token required',
