@@ -1,7 +1,5 @@
 # 连接
 
-> **0.8.0 起被 v2 取代的部分**：§4 P2P Ping 的 topic、证明与帧版本 → [v2/envelope.md](v2/envelope.md) §6（帧 `version: 3`）。§1–3 不变。
-
 本文定义节点密钥、连接建立后每类 swarm 连接上跑什么协议，以及 MostBox 自定义的 P2P Ping 帧。swarm 与 topic 见 [discovery.md](discovery.md)。
 
 范围：Holepunch 上游协议（HyperDHT 握手、加密流、Protomux、Hypercore 复制）只写协议名、版本与上游链接，不在本仓库逐字节重述；MostBox 自己定义的格式逐字节写出。
@@ -20,7 +18,7 @@
 | 存储与命名 | Corestore                                                          | 7.13.0   | 7.12.0   | https://github.com/holepunchto/corestore                |
 | 文件系统   | Hyperdrive                                                         | 13.3.4   | 13.3.3   | https://github.com/holepunchto/hyperdrive               |
 
-版本取自 `node_modules/<包>/package.json` 与 `app/node_modules/<包>/package.json`（2026-11-18）。两端版本不同；桌面引擎 ↔ 移动核心的双向下载由 `npm run test:cross-core`（Node 宿主、本地 DHT testnet）覆盖，见 `docs/validation-status.md`。本仓库用到的 compact-encoding 编码（`fixed32`、`fixed64`）在 2.x 与 3.x 中都是不带长度前缀的原始字节。
+版本取自 `node_modules/<包>/package.json` 与 `app/node_modules/<包>/package.json`（2026-11-18）。两端版本不同；桌面引擎 ↔ 移动核心的双向下载由 `npm run test:cross-core`（Node 宿主、本地 DHT testnet）覆盖，见 [验证状态](../../validation-status.md)。本仓库用到的 compact-encoding 编码（`fixed32`、`fixed64`）在 2.x 与 3.x 中都是不带长度前缀的原始字节。
 
 连接建立后，`conn.remotePublicKey` 是对端在该 swarm 中的 32 字节 ed25519 公钥，由 Noise 握手认证。频道持有证明（`chat.md`）把双方的这个公钥绑进 HMAC。
 
@@ -51,7 +49,7 @@ HyperDHT `keyPair(seed)`：`node_modules/hyperdht/index.js` `static keyPair`、`
 peerId = hex(文件 swarm 公钥)      // 64 个小写十六进制字符
 ```
 
-peerId 在 `channel-hello` 与 `channel-presence` 帧中上线（`chat.md`），hello 中的 `authorName` 为 peerId 前 4 个字符。
+peerId 在 `channel-hello` 中上线，hello 的 `authorName` 为 peerId 前 4 个字符。它标识节点连接，不是用户账号；用户身份由设备证书和内容签名验证。
 
 注意：peerId 是**文件 swarm** 公钥，而它所在的帧走**聊天 swarm**；接收方不能用聊天连接的 `remotePublicKey` 校验 peerId。
 
@@ -64,7 +62,7 @@ peerId 在 `channel-hello` 与 `channel-presence` 帧中上线（`chat.md`），
 
 | swarm      | 连接上的内容                                                                                                     | 定义                                                 |
 | ---------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 文件 swarm | Protomux：`hypercore/alpha`（Corestore 复制，含 CID drive、频道 writer core、账号同步 core）+ `most-cid-drive/2` | [file-transfer.md](file-transfer.md) §2–3、`chat.md` |
+| 文件 swarm | Protomux：`hypercore/alpha`（Corestore 复制，含 CID drive、频道 writer core、账号同步 core）+ `most-cid-drive/3` | [file-transfer.md](file-transfer.md) §2–3、`chat.md` |
 | 聊天 swarm | 不用 Protomux：加密流上直接传换行分隔的 UTF-8 JSON 帧，单帧上限 128 KiB                                          | `chat.md`                                            |
 | Ping swarm | 不用 Protomux：换行分隔的 UTF-8 JSON 帧，缓冲上限 4096 字节                                                      | §4                                                   |
 
@@ -81,7 +79,7 @@ peerId 在 `channel-hello` 与 `channel-presence` 帧中上线（`chat.md`），
 2. 双方各为两个方向开一个临时 swarm，加入 topic（discovery §3.5）：
 
    ```
-   topic = sha256("most-box-p2p-ping-v2" ‖ 0x00 ‖ code ‖ 0x00 ‖ direction)
+   topic = H("p2p-ping/topic", UTF8(code) ‖ 0x00 ‖ UTF8(direction) ‖ 0x00)
    ```
 
    | direction    | 发起方（client） | 应答方（server） |
@@ -100,7 +98,7 @@ peerId 在 `channel-hello` 与 `channel-presence` 帧中上线（`chat.md`），
 ```json
 {
   "type": "p2p-ping",
-  "version": 2,
+  "version": 3,
   "direction": "hostToJoin",
   "nonce": "<32 位十六进制>",
   "proof": "<64 位十六进制>"
@@ -108,9 +106,9 @@ peerId 在 `channel-hello` 与 `channel-presence` 帧中上线（`chat.md`），
 ```
 
 ```
-proofKey = sha256("most-box-p2p-ping-proof-key-v2" ‖ 0x00 ‖ code)
-proof    = hex(HMAC-SHA256(proofKey,
-             "most-box-p2p-ping-proof-v2" ‖ 0x00 ‖ direction ‖ 0x00 ‖ type ‖ 0x00 ‖ nonce))
+proofKey = H("p2p-ping/proof-key", UTF8(code) ‖ 0x00)
+proof    = hex(MAC(proofKey, "p2p-ping/proof",
+               UTF8(direction) ‖ 0x00 ‖ UTF8(type) ‖ 0x00 ‖ UTF8(nonce) ‖ 0x00))
 ```
 
 `code`、`direction`、`type`、`nonce` 都按 UTF-8 字符串参与哈希（`nonce` 是十六进制字符串本身，不是解码后的字节）。
@@ -118,7 +116,7 @@ proof    = hex(HMAC-SHA256(proofKey,
 交换（每条连接）：
 
 1. 发起方连上后生成 16 字节随机 `nonce`（32 位小写十六进制），发 `p2p-ping`。
-2. 应答方校验 `direction` 与本方向一致、`nonce` 匹配 `^[0-9a-f]{32}$`、`version === 2`、`proof` 正确，回 `p2p-pong`（同一 nonce）。
+2. 应答方校验 `direction` 与本方向一致、`nonce` 匹配 `^[0-9a-f]{32}$`、`version === 3`、`proof` 正确，回 `p2p-pong`（同一 nonce）。
 3. 发起方校验 `p2p-pong` 后发 `p2p-ack`，该方向成功。
 4. 应答方校验 `p2p-ack` 后该方向成功。
 
@@ -126,20 +124,20 @@ proof    = hex(HMAC-SHA256(proofKey,
 
 桌面：`server/src/core/p2pPing.js:67-107`（证明与校验）、`159-190`（编解码）、`410-560`（交换）。
 
-### 4.3 示例
+### 4.3 向量
 
-`code = "123456"`、`direction = "hostToJoin"`、`nonce = "00112233445566778899aabbccddeeff"`：
+`code = "123456"`、`direction = "hostToJoin"` 时，topic 为：
 
-```
-topic  f6f2da2a5577ef2d396d941a633b0c83a7d57f898972a819e9587a2a52420acc
-
-{"type":"p2p-ping","version":2,"direction":"hostToJoin","nonce":"00112233445566778899aabbccddeeff","proof":"e68eb0e7fd3b058ce9a2d1376472f8886183ba98d16087d28f883dfd98857111"}
-{"type":"p2p-pong","version":2,"direction":"hostToJoin","nonce":"00112233445566778899aabbccddeeff","proof":"56704b862081a3fbf39931e4fe85a66268b6c05594f810353cd8728fa86b02c9"}
-{"type":"p2p-ack","version":2,"direction":"hostToJoin","nonce":"00112233445566778899aabbccddeeff","proof":"30e0b9b777d8f01e13855798b997b846bd83e761fc749c198d058a384587046f"}
+```text
+797182b27b933fc78fa74dd3e6ed440adce67cc2779cbf4acab28c6c56fefb1c
 ```
 
-JSON 键顺序为 `type, version, direction, nonce, proof`；接收方不依赖键顺序。这些值将移入 `vectors/`（待写）。
+固定 nonce 的完整三帧、证明密钥及两个方向的 topic 见 [Ping 向量](../vectors/v2/p2p-ping.json)。发送方 JSON 键顺序为 `type, version, direction, nonce, proof`；接收方不依赖键顺序。
 
-## 5. 待补
+## 5. 互通检查
 
-- 向量见 [vectors/](vectors/README.md)（`node.json`、`p2p-ping.json`）。
+原语见 [版本与信封](envelope.md) §3。节点种子向量是 `../vectors/node.json`，现行 Ping 向量是 `../vectors/v2/p2p-ping.json`；旧 Ping 向量不用于新连接。上游版本表是 2026-11-18 的核对快照，不代表以后安装的版本已通过同样验证。
+
+---
+
+[目录](README.md) · 上一篇：[标识符与链接](identifiers.md) · 下一篇：[发现](discovery.md)

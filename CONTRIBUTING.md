@@ -32,7 +32,7 @@ npm run server
 npm start
 ```
 
-前端默认运行在 `http://localhost:3000`，daemon 默认运行在 `http://localhost:1976`。
+前端默认运行在 `http://localhost:2020`，daemon 默认运行在 `http://localhost:1976`。
 
 Android 子包建议使用 Node.js >= 24，并在 `app/` 目录中执行安装、测试和构建命令。
 

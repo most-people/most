@@ -133,69 +133,7 @@ MOSTBOX_ALLOWED_ORIGINS='https://web.example.com,https://admin.example.com' npm 
 
 ## MCP（AI 客户端）
 
-公开使用指南见 [MCP 文档](https://most.box/docs/mcp/)，交互式接口参考见
-[OpenAPI 文档](https://most.box/docs/api/)。
-
-先启动 MostBox daemon，在 `/admin/` 的“MCP 客户端”中创建凭证。每个凭证绑定当前
-MostBox 身份、独立 scope、过期时间和允许发布的目录；token 只显示一次。Streamable HTTP
-端点固定为 `http://127.0.0.1:1976/mcp`，只接受本机回环请求。
-
-Codex 使用 Streamable HTTP：
-
-```bash
-export MOSTBOX_MCP_TOKEN='<管理台创建的 token>'
-codex mcp add mostbox \
-  --url http://127.0.0.1:1976/mcp \
-  --bearer-token-env-var MOSTBOX_MCP_TOKEN
-codex mcp list
-```
-
-Claude Desktop 使用 stdio，在 `claude_desktop_config.json` 的 `mcpServers` 中加入：
-
-```json
-{
-  "mcpServers": {
-    "mostbox": {
-      "command": "npx",
-      "args": ["-y", "most-box@latest", "mcp"],
-      "env": {
-        "MOSTBOX_URL": "http://127.0.0.1:1976",
-        "MOSTBOX_MCP_TOKEN": "<管理台创建的 token>"
-      }
-    }
-  }
-}
-```
-
-VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，避免把 token 提交到仓库：
-
-```json
-{
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "mostbox-token",
-      "description": "MostBox MCP token",
-      "password": true
-    }
-  ],
-  "servers": {
-    "mostbox": {
-      "type": "http",
-      "url": "http://127.0.0.1:1976/mcp",
-      "headers": {
-        "Authorization": "Bearer ${input:mostbox-token}"
-      }
-    }
-  }
-}
-```
-
-源码运行 stdio 时，可将 `command` 改为 Node.js，`args` 设为 MostBox 仓库绝对路径下的
-`server/cli.js` 和 `mcp`。完整 scope、工具合同、安全边界与验收矩阵见
-[MCP 方案](docs/mcp.md)。客户端格式参考 [Codex MCP 配置](https://developers.openai.com/codex/mcp/)、
-[VS Code MCP 配置](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) 和
-[Anthropic MCP 文档](https://docs.anthropic.com/en/docs/mcp)。
+启动 daemon 后，在 `/admin/` 的“MCP 客户端”中创建凭证，再连接本机回环端点 `http://127.0.0.1:1976/mcp`。客户端配置、scope、授权目录与安全边界统一见 [MCP 文档](docs/mcp.md#使用入口)。
 
 ## 项目结构
 

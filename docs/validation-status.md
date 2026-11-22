@@ -332,3 +332,19 @@ x.most.red 用新数据目录与邀请码部署 `v0.5.5` 节点并由它托管 `
 - 双机最终内部 APK 的历史 SHA-256：`d548d6ca3bf5cf1841ac6e74536ab8519129990a7150ed01a5ac228ed068861e`；版本 `0.5.3 / 503`。`app/dist/mostbox-android-0.5.3-release.apk` 会被后续构建覆盖，应核对实际文件，不按文件名认定是同一包。
 
 原分批日志中的自动化检查曾通过，测试数量随开发变化；当前应使用[验收指南](acceptance.md)中的命令重新执行，而不是沿用历史数量。新的验证结果更新本页并标注候选提交、日期、设备、网络与证据，不再建立重复的夜间流水账文档。
+
+## 2026-11-18 scrypt 参数测量记录
+
+以下记录从原协议提案移入，保留失败结果与参数取值依据。它们是当时的测量摘要，未补造提交号、原始日志或包哈希，不能替代完整真机验收证据。
+
+测量方法（2026-11-18 起可用）：
+
+- 真机：安装开发版（`npx expo run:android`），打开「节点 → 诊断详情」，点「scrypt 基准测试」。依次测 N=2^14 至 2^17，每档两次，取中位数；单次超过 15 秒或出错（例如内存不足）即停止加档。结果可选中复制。
+- 桌面基线：在 `app/` 下运行 `npm run benchmark:scrypt`。2026-11-18 在 i5-12490F、Node 26 上：2^14 约 45 ms，2^15 约 81 ms，2^16 约 165 ms，2^17 约 325 ms。ethers 的 scrypt 是纯 JS，手机上的 Hermes 会慢很多，所以只能参考，不能用来定参数。
+- 2026-11-18 真机实测（小米 MIX 2S，骁龙 845，6 GB，Android 10；release 构建、Hermes、ethers 纯 JS scrypt）：2^14 约 4.7 s，2^15 约 9.4 s，2^16 约 18.6 s；2^16 超过 15 秒后停止，2^17 未测。**没有任何一档能在 3 秒内完成**，比桌面慢约 100 倍。另外，计算期间 JS 线程被占满，界面完全不刷新、不响应点击。
+- 当时失败结论：Hermes 纯 JS 路径无法满足 3 秒目标，后续改用 Bare 原生路径，结果如下。
+- 2026-11-18 同一台手机改用 Bare 后端里的原生 libsodium（选项 A）：2^14 约 72 ms，2^15 约 123 ms，2^16 约 251 ms，2^17 约 524 ms，2^18 约 1078 ms（每档两次，中位数）。比 Hermes 纯 JS 快约 35 倍；计算在 Bare 线程里进行，界面不卡。
+- libsodium 高层接口 `crypto_pwhash_scryptsalsa208sha256` 取 `opslimit = 32·N`、`memlimit = 2048·N` 时，结果与标准 scrypt(N, r=8, p=1) 逐字节一致（桌面 Node 上对 2^13–2^18 逐档比对，`opslimit` 少 1 即降一档），实现见 `app/backend/scrypt-native.mjs` 及其测试。
+- 同一台手机的浏览器（Web 版的实际路径：ethers 纯 JS，由 `app/scripts/scrypt-benchmark-web.mjs` 打包同一测量模块，手机经 `adb reverse` 访问）：Chrome 151 为 2^14 约 168 ms、2^15 约 262 ms、2^16 约 511 ms、2^17 约 1033 ms；MIUI 浏览器 20.29（Chromium 135）为 180 / 256 / 532 / 1076 ms。V8 有 JIT，比 Hermes 快约 18 倍。计算期间页面不响应约 1 秒。
+- 取值：**N = 2^17**。最慢的路径（手机浏览器）约 1.1 s、128 MiB，在 3 秒目标内并为更弱的手机留出余量；2^18 在手机 App 原生路径约 1.1 s，但浏览器预计约 2.1 s、要 256 MiB，余量不足。
+- 实现：`app/src/devtools/scryptBenchmark.ts`（测量逻辑，手机与桌面共用）、`app/src/devtools/ScryptBenchmarkPanel.tsx`（仅 `__DEV__` 构建显示）。

@@ -1,21 +1,17 @@
-# 2.5 语音信令
+# 语音信令
 
-状态：已确认（2026-11-18）。现行格式见 [../voice.md](../voice.md)，签名见 [signatures.md](signatures.md)。
+语音只在 Web 与桌面端提供，客户端以 WebRTC 传输音频；节点存取并转发已签名信令，不中转媒体。频道授权见 [聊天](chat.md) §3，签名见 [用户签名](signatures.md)。
 
-## 1. 问题（v1 现状）
+## 1. 路径
 
-- `channel-voice` 帧无版本、无签名：`sender.address` 可冒充；伪造的 `offer` / `answer` 可替换 DTLS 指纹，冒充他人加入通话（voice §5）。
-- `signal`（含 SDP 与 ICE 候选中的 IP 地址）广播给频道所有已授权连接，而不只发给目标会话。
-- 节点逐字段校验 `signal`（只认 `offer` / `answer` / `candidate`），以后换音频传输方式必须同时升级所有节点。
+```text
+客户端 ──WebSocket── 节点 ──聊天 swarm── 对端节点 ──WebSocket── 对端客户端
+客户端 ◀──────────────── WebRTC 音频 ──────────────────▶ 对端客户端
+```
 
-## 2. 目标
+## 2. 范围
 
-- 格式纳入 v2 信封，按当前版本定义与验收。
-- 每个语音事件由发起者设备密钥签名。
-- `signal` 只送达目标会话所在的连接。
-- 节点不解析 `signal` 内容，换传输方式只需客户端升级。
-
-范围：按 2026-11-16 决定，语音只做 Web 与桌面端；移动核心继续忽略语音帧。
+每个事件必须由发起者设备签名。加入等状态按频道广播一跳，signal 仅按目标会话转发；节点不解析 signal 的媒体协议字段，客户端用 transport 识别。移动核心忽略语音帧，移动 App 不发起或加入通话。
 
 ## 3. 帧
 
@@ -48,38 +44,56 @@
 sig = Ed25519.sign(deviceSecretKey, label("chat/voice") ‖ canonical(body))
 ```
 
-| 字段              | 规则                                                                           |
-| ----------------- | ------------------------------------------------------------------------------ |
-| `event`           | 当前为 `join`、`state`、`heartbeat`、`leave`、`signal`                         |
-| `sessionId`       | `^[a-zA-Z0-9_-]{3,80}$`（不变）                                                |
-| `targetSessionId` | `signal` 必填                                                                  |
-| `transport`       | `signal` 必填；当前唯一值 `webrtc1`。客户端忽略不认识的 transport              |
-| `signal`          | 对象，节点**不解析**，只限制整帧 ≤ 64 KiB；`webrtc1` 下的格式同 v1（voice §3） |
-| `createdAt`       | 与验证方本机时间相差超过 2 分钟则丢弃（防重放）                                |
+| 字段              | 规则                                                                      |
+| ----------------- | ------------------------------------------------------------------------- |
+| `event`           | 当前为 `join`、`state`、`heartbeat`、`leave`、`signal`                    |
+| `sessionId`       | `^[a-zA-Z0-9_-]{3,80}$`                                                   |
+| `targetSessionId` | `signal` 必填                                                             |
+| `transport`       | `signal` 必填非空字符串；当前客户端使用 `webrtc1`，忽略不认识的 transport |
+| `signal`          | 非数组对象，节点不解析内部字段；整帧 ≤ 64 KiB，客户端格式见 §5            |
+| `createdAt`       | 与验证方本机时间相差超过 2 分钟则丢弃（防重放）                           |
 
-验证同 signatures §4.4。节点不再「规范化」语音事件（v1 会改写 `displayName` 等字段），签名覆盖的 `body` 原样转发。
+验证同 signatures §4.4。节点不得改写签名覆盖的 body。非 signal 事件不得携带 signal 字段；targetSessionId 使用与 sessionId 相同的格式。
 
 ## 4. 转发
 
 节点收到本机客户端或对端的已验证语音帧后：
 
-1. 记录 `(channelId, sessionId) → 来源`：来源是某条聊天 swarm 连接，或本机的 WebSocket 客户端。记录随 `leave`、45 秒无事件或连接关闭清除。
-2. `event !== "signal"`：与 v1 相同，发给本频道所有已授权连接与本机订阅者（一跳，不再转发）。
+1. 记录 `(channelId, sessionId) → 来源`：来源是某条聊天 swarm 连接，或本机的 WebSocket 客户端。记录随 leave、45 秒无事件或来源连接关闭清除。活动会话只能由原来源连接、同一账号和同一签名设备更新，不能被另一条连接或设备抢占。
+2. `event !== "signal"`：本机客户端发起时送给本频道已授权连接和本机订阅者；来自 peer 时只送本机订阅者，不继续转给其他 peer。
 3. `event === "signal"`：只发给 `targetSessionId` 的记录来源；没有记录时丢弃，不广播。
 
-客户端流程保证目标会话在收到 `signal` 前已发过 `join` 或 `state`（voice §4），因此丢弃未知目标不影响建立连接。
+客户端先交换 join/state，让目标路由可知，再建立媒体连接。
 
-语音只在 Web 与桌面端提供（负责人决定）。移动核心不实现转发：收到 `channel-voice` 帧直接丢弃，不记录来源、不回应，也不影响同一连接上的其他帧；移动 App 不发起或加入通话。桌面节点因此不会从移动核心收到语音帧，移动端用户也不会出现在通话成员中。
+移动核心收到 channel-voice 时不记录来源、不回应，也不影响同一连接上的其他帧。
 
-## 5. 当前客户端约定
+## 5. `webrtc1` 客户端约定
 
-voice §4 的会话 ID 形式、`join` → 对方回 `state`、15 秒心跳、45 秒超时、`sessionId` 较小者发 `offer`、ICE 候选缓存，作为当前 `webrtc1` 约定。本节不承诺未来历史兼容，后续变更按 [envelope §7](envelope.md#7-协议演进规则)管理版本。STUN/TURN 配置不属于协议（长期方案阶段 3 处理）。
+| signal.type    | 对象                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| offer / answer | `{type, sdp}`，sdp 为非空字符串                                                                         |
+| candidate      | `{type, candidate: {candidate, sdpMid, sdpMLineIndex, usernameFragment?}}`，即 RTCIceCandidate.toJSON() |
+
+以上由客户端校验，节点只验完整签名、路由条件与大小，不逐字段校验 SDP/ICE。
+
+- 会话 ID 为 `voice-<毫秒>-<随机 base36>`，当前 Web 页面创建时生成。
+- 发 join 加入，micMuted 初始为 false；已加入者收到他人 join 后回 state。静音变化发送 state。
+- 每 15 秒 heartbeat；45 秒无事件则视为离开并关闭媒体连接。主动离开签发 leave。
+- 两个 sessionId 按 JavaScript 字符串比较，较小者创建 offer，另一方收到后回 answer。
+- 每个本地 ICE 候选定向发给对端；setRemoteDescription 之前收到的候选先缓存。
+- 当前 Web 使用 `stun:stun.l.google.com:19302`，没有 TURN；这是客户端配置，不是协议必需。对称 NAT 之间媒体可能失败，不能用聊天连通代替语音可用性验收。
+
+客户端见 `src/hooks/useVoiceRoom.ts`；节点验签与路由见 `server/src/core/channelSignedVoice.js`。HTTP/WebSocket 输出可以采用 UI 投影，聊天 swarm 始终传原签名 body。
 
 ## 6. 剩余可见信息
 
 - `join` / `state` / `heartbeat` / `leave` 仍对频道所有成员可见（谁在通话、何时）。
-- `signal` 只对目标会话的节点与客户端可见；目标客户端从 ICE 候选中能看到发起方的 IP（WebRTC 固有）。
+- signal 的客户端与经手源端、目标端节点均可见正文；目标客户端可从 ICE 候选看到发起方 IP。盲中继只转加密连接，不能与这些节点混同。
 
 ## 7. 测试向量
 
-`vectors/v2/voice.json`：给定设备密钥与证书的各事件签名样例；篡改、过期 `createdAt`、证书地址不符的反例；转发表用例（已知目标只发一处、未知目标丢弃）。
+`../vectors/v2/voice.json`：给定设备密钥与证书的各事件签名样例；篡改、过期 `createdAt`、证书地址不符的反例；转发表用例（已知目标只发一处、未知目标丢弃）。
+
+---
+
+[目录](README.md) · 上一篇：[文件传输](file-transfer.md)

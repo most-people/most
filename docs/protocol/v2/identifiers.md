@@ -1,7 +1,5 @@
 # 标识符
 
-> **0.8.0 起被 v2 取代的部分**：§3 频道 ID 与 key → [v2/channel-keys.md](v2/channel-keys.md) §3–4、§7；§4.1 账号派生、§4.4 账号同步密钥 → [v2/signatures.md](v2/signatures.md) §7；§4.2 P2P 上的作者身份 → [v2/signatures.md](v2/signatures.md) §4–5。§1 CID、§2 `most://` 链接不变。
-
 本文定义 CID、`most://` 链接、频道 ID 和账号相关标识符。由它们派生的 DHT topic 见 [discovery.md](discovery.md)；文件传输见 [file-transfer.md](file-transfer.md)。
 
 ## 1. CID
@@ -39,7 +37,7 @@
 | `cross-chunk` | 262145 字节，第 i 字节 = `i % 251`           | `bafybeiexg2oqkfnj56l7fcmawswqbijt5shq4b5rg6a546uwpkqqzwjioi` |
 | `layer+1`     | 174 × 262144 + 1 字节，第 i 字节 = `i % 251` | `bafybeib4y7ghw2rq7bracc4xwtxrbzo7cfvagdpte2tmrkgwl6dyard3cm` |
 
-桌面：`server/tests/integration/cid.test.js:84-110`；移动：`app/src/mobileCore/cid.test.ts:28-63`。这些样本将移入 `vectors/`（待写），由两端测试共同读取。
+桌面：`server/tests/integration/cid.test.js:84-110`；移动：`app/src/mobileCore/cid.test.ts:28-63`。共享样本见 `../vectors/cid.json`，由两端测试读取。
 
 ### 1.3 目录 CID（仅桌面）
 
@@ -105,70 +103,24 @@ most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=hell
 
 ### 2.3 聊天附件链接（严格）
 
-聊天消息中附件的 `link` 走严格解析：必须是 `most:` 协议、路径为空或 `/`、只允许 `filename`、CID 合法，且与附件的 `cid` 字段一致。规则与字段限制在 `chat.md`（待写）描述。
+移动聊天附件的 `link` 走严格解析：必须是 `most:` 协议、路径为空或 `/`、只允许 `filename`、CID 合法，且与附件的 `cid` 字段一致。规则与字段限制见 [聊天](chat.md) §6.4。桌面附件目前使用宽松解析，差异同节列明。
 
 移动：`app/backend/channel-protocol.mjs:326-389`。
 
-## 3. 频道 ID 与频道 key
+## 3. 频道标识
 
-- 频道 ID：用户可见、可分享的频道名。规范化为「去首尾空白 + 转小写」。
-- 手动创建时必须满足：只含 `[a-z0-9_-]`，长度 3–30，不得含 `.`（点号保留给系统频道）。
-- 随机频道 ID：16 字节安全随机数，按 RFC 4648 base32 小写字母表 `a-z2-7` 编码、无填充，得 26 个字符。
-- 频道 key：当前等于规范化后的频道 ID。所有 topic 与 Corestore namespace 都由频道 key 派生（见 `discovery.md`、`chat.md`）。
-- 知道频道 ID 即可加入频道（与「CID 即权限」相同）。
+产品只向用户提供一个 `channelId`，作为群标识与加入值。现行代码把这个输入称为 `handle`；线上 JSON 的 `channelId` 则是 `H("channel/id", K)` 的 64 位小写十六进制字符串，不能用它替代加入值。随机、公开短名和旧输入的完整识别顺序见 [频道密钥](channel-keys.md) §3–4。
 
-桌面：`server/src/config.js:51-53`、`server/src/core/channelIdentity.js:21-37`、`server/src/index.js:3862-3878`；前端随机 ID `src/lib/chatRoom.js:32-43`。移动：`app/backend/channel-protocol.mjs:122-133`、`437-457`、`app/backend/protocol.mjs:23-27`。
+用户分享 `<origin>/chat/#<handle>`。群内不设管理员，知道加入值即可尝试加入、读到仍可取得的历史并发言；节点访问控制是另一层，见 [群聊模型](../../chat-model.md)。
 
-分享地址（Web）：`<origin>/chat/#<encodeURIComponent(频道 ID)>`，解析时只接受路径 `/chat`。`src/lib/chatRoom.js:45-83`。
+## 4. 账号与设备
 
-两端差异：新建频道的默认 `type`，桌面为 `personal`，移动为 `public`。`type` 在 hello 中上线（`chat.md`）。
+账号标识是 secp256k1 地址，签名正文中的 `author` 使用小写 `0x` 加 40 位十六进制。设备使用独立 Ed25519 密钥，由账号签发 `dc1` 设备证书；每条用户内容均带可验证的设备签名。格式、证书验证、用户名密码派生与账号同步密钥统一见 [签名与账号](signatures.md)。任意能签发有效证书的 secp256k1 身份均可接入，用户名密码登录不是互通前提。
 
-## 4. 账号
+## 5. 向量与限制
 
-### 4.1 用户名 + 密码派生
+CID 和链接向量见 [向量索引](../vectors/README.md)。§1.4 的 CID 字符串差异、§2.2 的链接边缘差异是已知实现限制；新版本修改时须同步规范与向量，不把现有差异写成已解决。
 
-账号是一个 secp256k1 以太坊地址，由用户名和密码确定性派生：
+---
 
-```
-kdf     = PBKDF2-HMAC-SHA512(password, "/most.box/" ‖ username, 50000 次, 32 字节)
-seed    = SHA-256(kdf)                        // 32 字节，代码中称 danger
-phrase  = BIP-39 助记词(entropy = seed)       // 24 词
-wallet  = HDNodeWallet.fromPhrase(phrase)     // ethers 默认路径 m/44'/60'/0'/0/0
-address = wallet.address                      // EIP-55 校验和格式
-```
-
-字符串均按 UTF-8 编码。显示名为 `<username>#<地址末 4 位大写>`。
-
-桌面：`server/src/utils/mostWallet.js:14-52`、`server/src/utils/userIdentity.js:6-14`；移动：`app/src/remoteNode/identity.ts:16-72`。
-
-这是客户端约定，不是协议要求：任何 secp256k1 身份都能签发设备证书（`docs/native-chat-protocol.md`）。
-
-### 4.2 P2P 上的作者身份
-
-聊天消息的 `author` 字段是账号地址，**不带签名**。P2P 上不传递设备证书，对端无法验证 `author` 是否属于发送者；能证明的只有「这条消息由某个 writer core 的私钥写入」。见 `chat.md`。
-
-桌面：`server/src/index.js:4412-4440`（消息字段，无签名）。
-
-### 4.3 设备证书（仅客户端 ↔ 节点 HTTP）
-
-设备证书 `dc1.<base64url(payload)>.<EIP-191 签名>` 用于远程客户端向节点的 HTTP/WebSocket 请求认证，不在 P2P 上出现。格式、有效期（签发 30 天，节点接受最长 90 天）与请求签名见 [原生聊天协议](../native-chat-protocol.md)。
-
-桌面：`server/src/utils/auth.js:7-10`、`84-106`、`131` 起；移动：`app/src/remoteNode/identity.ts:74-109`。
-
-两端差异（本地）：桌面设备密钥随机生成；移动由 `HMAC-SHA256(seed, "most-box-device-key-v1:" ‖ label)` 派生。不影响互通。
-
-### 4.4 账号同步密钥
-
-```
-syncKey   = HMAC-SHA256(key = seed, msg = "most-box-account-sync-key-v1")
-syncTopic = HMAC-SHA256(key = syncKey, msg = "most-box-account-sync-topic-v1")
-```
-
-节点只保存 `syncKey`，不保存 `seed`。`syncTopic` 不含公开地址，外人无法由地址推出。同步条目格式（`ma://1` 信封）与线上用法在 `chat.md` 描述。
-
-桌面：`server/src/utils/accountSync.js:10-31`；移动：`app/src/remoteNode/identity.ts:23`、`104`（只派生 `syncKey`）。
-
-## 5. 待补
-
-- 向量见 [vectors/](vectors/README.md)（`cid.json`、`links.json`、`channels.json`、`account.json`）。
-- CID 字符串的 base32 规范化问题见 §1.4；本篇记录现有行为，后续提案按 [v2/envelope.md](v2/envelope.md) §7 明确目标版本与变更范围，不默认增加历史兼容层。
+[目录](README.md) · 上一篇：[版本、原语与信封](envelope.md) · 下一篇：[连接](connection.md)
