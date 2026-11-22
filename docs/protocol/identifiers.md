@@ -2,7 +2,7 @@
 
 > **0.8.0 起被 v2 取代的部分**：§3 频道 ID 与 key → [v2/channel-keys.md](v2/channel-keys.md) §3–4、§7；§4.1 账号派生、§4.4 账号同步密钥 → [v2/signatures.md](v2/signatures.md) §7；§4.2 P2P 上的作者身份 → [v2/signatures.md](v2/signatures.md) §4–5。§1 CID、§2 `most://` 链接不变。
 
-本文定义 CID、`most://` 链接、频道 ID 和账号相关标识符。由它们派生的 DHT topic 见 `discovery.md`（待写）；文件传输见 [file-transfer.md](file-transfer.md)。
+本文定义 CID、`most://` 链接、频道 ID 和账号相关标识符。由它们派生的 DHT topic 见 [discovery.md](discovery.md)；文件传输见 [file-transfer.md](file-transfer.md)。
 
 ## 1. CID
 
@@ -171,4 +171,4 @@ syncTopic = HMAC-SHA256(key = syncKey, msg = "most-box-account-sync-topic-v1")
 ## 5. 待补
 
 - 向量见 [vectors/](vectors/README.md)（`cid.json`、`links.json`、`channels.json`、`account.json`）。
-- 是否把 CID 字符串规范为 base32（§1.4 已知问题）：属于协议变更，留给阶段 2 决定。
+- CID 字符串的 base32 规范化问题见 §1.4；本篇记录现有行为，后续提案按 [v2/envelope.md](v2/envelope.md) §7 明确目标版本与变更范围，不默认增加历史兼容层。

@@ -10,7 +10,7 @@
 
 ## 2. 目标
 
-- 格式纳入 v2 信封，随协议冻结。
+- 格式纳入 v2 信封，按当前版本定义与验收。
 - 每个语音事件由发起者设备密钥签名。
 - `signal` 只送达目标会话所在的连接。
 - 节点不解析 `signal` 内容，换传输方式只需客户端升级。
@@ -50,7 +50,7 @@ sig = Ed25519.sign(deviceSecretKey, label("chat/voice") ‖ canonical(body))
 
 | 字段              | 规则                                                                           |
 | ----------------- | ------------------------------------------------------------------------------ |
-| `event`           | `join`、`state`、`heartbeat`、`leave`、`signal`；以后只增不改                  |
+| `event`           | 当前为 `join`、`state`、`heartbeat`、`leave`、`signal`                         |
 | `sessionId`       | `^[a-zA-Z0-9_-]{3,80}$`（不变）                                                |
 | `targetSessionId` | `signal` 必填                                                                  |
 | `transport`       | `signal` 必填；当前唯一值 `webrtc1`。客户端忽略不认识的 transport              |
@@ -71,9 +71,9 @@ sig = Ed25519.sign(deviceSecretKey, label("chat/voice") ‖ canonical(body))
 
 语音只在 Web 与桌面端提供（负责人决定）。移动核心不实现转发：收到 `channel-voice` 帧直接丢弃，不记录来源、不回应，也不影响同一连接上的其他帧；移动 App 不发起或加入通话。桌面节点因此不会从移动核心收到语音帧，移动端用户也不会出现在通话成员中。
 
-## 5. 客户端约定（冻结）
+## 5. 当前客户端约定
 
-voice §4 的会话 ID 形式、`join` → 对方回 `state`、15 秒心跳、45 秒超时、`sessionId` 较小者发 `offer`、ICE 候选缓存，作为 `webrtc1` 的约定写入规范并冻结。STUN/TURN 配置不属于协议（长期方案阶段 3 处理）。
+voice §4 的会话 ID 形式、`join` → 对方回 `state`、15 秒心跳、45 秒超时、`sessionId` 较小者发 `offer`、ICE 候选缓存，作为当前 `webrtc1` 约定。本节不承诺未来历史兼容，后续变更按 [envelope §7](envelope.md#7-协议演进规则)管理版本。STUN/TURN 配置不属于协议（长期方案阶段 3 处理）。
 
 ## 6. 剩余可见信息
 

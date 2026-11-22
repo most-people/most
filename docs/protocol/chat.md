@@ -158,7 +158,7 @@ Corestore 主密钥是固定公开值：32 字节，用 ASCII 字符串 `most-bo
 | 桌面 | 8 字节 CSPRNG，16 位十六进制                              | 64 位                       |
 | 移动 | `Math.random()` 的 8 位十六进制 ‖ `Date.now()` 的十六进制 | 约 32 位非密码学随机 + 时间 |
 
-`writerId` 不上线，但移动端的取值空间小到可以离线穷举：猜中后即可为该 writer core 签名，冒充其写入消息。这是现状记录，修复属于阶段 2（Corestore 主密钥）。
+`writerId` 不上线，但 v1 移动端的取值空间小到可以离线穷举：猜中后即可为该 writer core 签名，冒充其写入消息。这是 v1 历史记录；现行 writer core 密钥规则见 [v2/channel-keys.md](v2/channel-keys.md) §6。
 
 桌面：`server/src/index.js:594-596`、`server/src/config.js:13`、`4569-4590`、`4679-4740`、`server/src/core/channelIdentity.js:8`、`27-29`；移动：`app/backend/mobile-core.mjs:70`、`602-606`、`1600-1612`、`app/backend/channel-protocol.mjs:433-435`；Corestore：`node_modules/corestore/index.js` `deriveSeed`、`createKeyPair`。
 
@@ -346,7 +346,7 @@ envelope = "ma://1" ‖ "." ‖ base64(nonce) ‖ "." ‖ base64(secretbox(JSON(
 
 桌面：`server/src/node/accountSync.js:16`、`192-225`、`233-247`、`410-440`。
 
-## 9. 待补
+## 9. 向量与历史问题
 
-- 向量见 [vectors/](vectors/README.md)（`channels.json`、`chat.json`、`account-sync.json`）；成员资料事件尚无向量。
-- 已知问题汇总（移动 writerId 熵、时间戳无未来上限、`author` 无签名、两端排序与去重差异）留给阶段 2 统一处理。
+- v1 向量见 [vectors/](vectors/README.md)（`channels.json`、`chat.json`、`account-sync.json`）；现行签名消息与成员资料等向量按 [v2 规范](v2/README.md)读取。
+- 本文中的 v1 问题记录不作为未来升级任务；现行 writer 密钥、作者签名和时间校验以 [channel-keys](v2/channel-keys.md) 与 [signatures](v2/signatures.md) 为准，未覆盖的验证见[验证状态](../validation-status.md)。
