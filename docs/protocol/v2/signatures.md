@@ -1,23 +1,14 @@
-# 2.3 聊天签名与账号
+# 用户签名与账号
 
-状态：已确认（2026-11-18；D3 选 B，D4 不采纳）。原语与标签见 [envelope.md](envelope.md) §3，频道 ID 见 [channel-keys.md](channel-keys.md) §3。
+原语见 [版本与信封](envelope.md) §3，频道公开 ID 见 [频道密钥](channel-keys.md) §3。
 
-## 1. 问题（v1 现状）
+## 1. 信任边界
 
-- 消息、成员资料、在线状态、语音事件中的 `author` / `address` 都是自填字段，没有签名（chat §6.3、§7，voice §5）。任何能写入频道的节点都能冒充任何人。
-- 设备证书（`dc1.…`）只用于客户端到节点的 HTTP 认证，P2P 上不出现（identifiers §4.3）。
-- 节点会以用户名义自动写入系统事件（加入、资料变更），这些事件没有用户参与。
-- 远端条目的时间戳没有上限，会拉高本机之后所有消息的时间戳（chat §6.2）。
-- 两端去重与排序规则不同（chat §6.7）。
-- 账号密钥由用户名 + 密码派生，PBKDF2 50000 次，可离线穷举（identifiers §4.1）。签名生效后，破解密码即可冒充他人。
+设备私钥由客户端保管，账号私钥用于签发设备证书。消息、成员资料、在线状态与语音事件均由客户端签名，节点验证后存储或转发，不能代用户签名。多用户节点可为多个账号写入同一节点自己的 writer core。
 
-## 2. 目标
+## 2. 验证层次
 
-- 每条用户内容（消息、成员资料、在线状态、语音事件）都由该用户的**设备密钥**签名，接收端能验证到账号地址。
-- 签名在**客户端**完成。节点不持有用户私钥：设备私钥在 Web 前端（`src/stores/userStore.ts`）、移动 App、原生客户端里，节点只校验和写入。
-- 规范化序列化有精确定义，桌面与移动逐字节一致。
-- 两端排序、去重一致；远端时间戳不能拖动本机时间。
-- 降低弱密码被离线穷举后冒充的风险，并如实写明剩余限制。
+Hypercore 签名证明块来自该 writer；设备签名证明正文由证书授权的账号设备签出。授权与签名不加密内容，也不防止节点拒绝服务。当前没有设备撤销机制，泄露风险见 §5。
 
 ## 3. 规范化 JSON
 
@@ -63,17 +54,17 @@ sig = Ed25519.sign(deviceSecretKey, label("chat/" ‖ body.kind) ‖ canonical(b
 
 公共字段（全部必填）：
 
-| 字段        | 说明                                                          |
-| ----------- | ------------------------------------------------------------- |
-| `kind`      | `message` 或 `profile`                                        |
-| `channelId` | 频道公开 ID（64 hex），把签名绑定到该频道，不能转贴到别的频道 |
-| `author`    | 账号地址，小写 `0x` + 40 hex                                  |
-| `id`        | UUID v4 小写；`(author, id)` 全局唯一，用于去重               |
-| `createdAt` | 客户端创建时间，毫秒整数                                      |
+| 字段        | 说明                                                                 |
+| ----------- | -------------------------------------------------------------------- |
+| `kind`      | writer 条目为 `message` 或 `profile`；实时帧为 `presence` 或 `voice` |
+| `channelId` | 频道公开 ID（64 hex），把签名绑定到该频道，不能转贴到别的频道        |
+| `author`    | 账号地址，小写 `0x` + 40 hex                                         |
+| `id`        | UUID v4 小写；`(author, id)` 全局唯一，用于去重                      |
+| `createdAt` | 客户端创建时间，非负安全毫秒整数                                     |
 
-`message` 另有：`content`（必填，≤ 10000 字符）、`authorName`、`avatar`、`authorTag`、`attachment`、`mentions`（可选，含义与 v1 相同，chat §6）。移动端上限由 2000 统一为 10000。
+`message` 另有 `content`（非空字符串，最多 10000 个 UTF-16 代码单元）与可选 `authorName`、`avatar`、`authorTag`、`attachment`、`mentions`，详见 [聊天](chat.md) §6。
 
-`profile` 另有：`displayName`、`avatar`、`tag`（含义与 v1 资料事件相同，chat §6.6）；按 `createdAt` 取最新，`createdAt` 超过验证方本机时间 5 分钟的忽略。
+`profile` 另有：`displayName`、`avatar`、`tag`（规则见 [聊天](chat.md) §6.6；缺省字段不修改，`tag: null` 清除标签）；按 `createdAt` 取最新，`createdAt` 超过验证方本机时间 5 分钟的忽略。
 
 ### 4.3 聊天 swarm 帧
 
@@ -102,19 +93,19 @@ sig = Ed25519.sign(deviceSecretKey, label("chat/" ‖ body.kind) ‖ canonical(b
 
 presence 的 `createdAt` 与验证方本机时间相差超过 2 分钟的丢弃（防止重放旧的「在线」）。
 
-节点不替用户发 presence 或语音事件，因为它没有用户私钥（2026-11-18 确定）。客户端异常断开（关闭页面、断网、被系统清理）时，本节点只通知自己的 WebSocket 客户端；其他节点在 45 秒没有心跳后判定离线（voice §4 的超时）。主动离开（退出频道、正常关闭）时，由客户端签名并发出 `leave`。代价：异常断开后，其他节点最多晚 45 秒才看到离线。
+节点不替用户发 presence 或语音事件，因为它没有用户私钥（2026-11-18 确定）。客户端异常断开（关闭页面、断网、被系统清理）时，本节点只通知自己的 WebSocket 客户端；其他节点在 45 秒没有心跳后判定离线（voice §4 的超时）。主动离开时，客户端签名发送 presence 的 `status: "offline"` 或语音的 `event: "leave"`。代价：异常断开后，其他节点最多晚 45 秒才看到离线。
 
 ### 4.4 验证
 
-条目或帧被接受，当且仅当：
+共用验签必须满足以下条件；writer 条目的 ts、正文 kind 及各业务字段还须满足本篇与相应章节的限制：
 
 1. `body` 在 §3 取值范围内，且 `body.channelId` 等于本频道公开 ID；
 2. `sig` 用 `device` 公钥验证通过；
 3. `cert` 解析成功，其 `devicePublicKey === device`，且 EIP-191 签名恢复出的地址（小写）等于 `body.author`；
-4. 不检查证书有效期（§5）。
-5. `message` 的 `content` 为非空字符串且不超过 10000 字符（`readableBodyError`，两端共享同一实现）。
+4. 证书字段与签发时长合法；P2P 不与当前时间比较签发或到期时间（§5）。
+5. `message` 的 content 必须是 trim 后非空的字符串，最多 10000 个 UTF-16 代码单元；公共字段须符合 §4.2（`readableBodyError`，两端共享同一规则）。
 
-是否显示一条条目只取决于以上规则，两端结果必须一致，否则分区恢复后无法收敛。节点接受客户端写入时另要求 `body` 已是规范形式（`content` 已去首尾空白；`authorName`、`avatar`、`authorTag`、`attachment`、`mentions` 规范化后不变），不符合的拒绝写入；读取远端条目时，不符合规范形式的可选字段只是不显示，不影响条目本身。
+合法签名文本是否显示按共同的必需字段校验，两端结果必须一致；可选显示字段允许存在明确列出的实现差异。节点接受客户端写入时另要求 `body` 已是规范形式（`content` 已去首尾空白；`authorName`、`avatar`、`authorTag`、`attachment`、`mentions` 规范化后不变），不符合的拒绝写入；读取远端条目时，不符合规范形式的可选字段只是不显示，不影响条目本身。
 
 未通过的条目不显示、不计入去重与时间戳，只计入诊断计数。证书验证结果按 `cert` 字符串缓存。
 
@@ -122,77 +113,88 @@ writer core 本身的 Hypercore 签名证明「这一块由该节点写入」，
 
 ### 4.5 排序与去重（两端统一）
 
-- 去重键：`(body.author, body.id)`。同一键出现多次时保留排序最前的一条。
-- 排序键：`(ts, writer core key hex, 块序号)` 升序（即 v1 桌面规则，移动端改为一致）。
+- writer 条目必须有正安全整数 `ts`，否则不进入历史。去重键：`(body.author, body.id)`。同一键出现多次时保留排序最前的一条。
+- 排序键：`(ts, writer core key hex, 块序号)` 升序（两端相同）。
 - 本机分配 `ts = max(本机时间, 已见最大 ts + 1)`，其中「已见」**只统计 `ts ≤ 本机时间 + 5 分钟` 的条目**：远端未来时间戳仍按其 `ts` 显示，但不再拖动本机时间。
 
 ### 4.6 写入路径
 
-1. 客户端构造 `body`，签名，把 `{body, device, cert, sig}` 发给节点（HTTP / WebSocket，API 形式实现时定）。
+1. 客户端构造 `body`，签名，把 `{body, device, cert, sig}` 发给节点（HTTP / WebSocket 的 `signed` 参数，见 [客户端接口](../../native-chat-protocol.md)）。
 2. 节点按 §4.4 验证（另要求 `body.author` 等于该请求认证的账号），分配 `ts`，追加到本节点 writer core。
 3. 节点**不得**修改 `body`。
 
-## 5. 证书与设备（D5）
+## 5. 设备证书与撤销边界
 
-- 证书格式不变（`docs/native-chat-protocol.md`）。HTTP 认证仍检查有效期（30 天签发、最长 90 天）。
-- **P2P 验证不检查有效期**（推荐）：P2P 没有可信时间，且旧消息必须在证书过期后仍可验证；若检查过期，设备每 30 天换证会让历史消息变成无效。
-- 换设备：新设备有新设备密钥和新证书，之后的消息用新证书；旧消息仍用旧证书验证。无需任何迁移。
-- **撤销：v2 不提供**。设备私钥泄露后，持有者可以一直以该账号签名。写入已知限制。以后可作为能力新增「账号签名的撤销条目」，但其时间判断同样受 `createdAt` 可伪造的限制。
+设备公钥为 32 字节 Ed25519 key；签名为 64 字节，`sig` 用无填充 base64url，`device` 用 64 位小写十六进制。设备证书格式为：
 
-## 6. 节点自动写入的事件（D6）
+```text
+dc1.<base64url(UTF8(JSON(payload)))>.<accountSignature>
+payload = {address, devicePublicKey, issuedAt, expiresAt}
+```
 
-| v1 事件                                      | v2                                                                                   |
-| -------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `channel.member.joined`（节点写入）          | **取消**。成员列表由已验证的消息、资料、在线状态与 hello 中的 `memberAddresses` 得出 |
-| `channel.member.profile.updated`（节点写入） | 改为客户端签名的 `profile` 条目（§4.2）                                              |
+账号使用 secp256k1 的 EIP-191 `signMessage` 签署以下五行 UTF-8 字符串，无末尾换行：
 
-v2 中 writer core 只包含 `type: "signed"` 条目。
+```text
+most-box-device-cert-v1
+<address>
+<devicePublicKey>
+<issuedAt>
+<expiresAt>
+```
 
-## 7. 账号派生（D3、D4）
+签名使用 payload 中地址的原文本；恢复出的地址与 payload 地址、`body.author` 按规范化小写比较。`accountSignature` 是以 `0x` 开头的 EIP-191 签名文本，不是 Ed25519 签名。JSON 编码顺序不决定签名，签名覆盖上述字段组成的五行字符串。
 
-### 7.1 风险
+`issuedAt`、`expiresAt` 必须是安全整数，`expiresAt > issuedAt`，时长不超过 90 天；设备 key 必须合法且与 `device` 相等。P2P 使用 `checkTime: false`，跳过“当前是否过期”和“是否未来签发”两项时间判断，使历史在证书过期后仍可验证；不能跳过字段、时长和账号签名验证。HTTP 认证仍检查有效期及未来签发窗口，默认签发 30 天，客户端还可选更短时长，接口详见 [客户端协议](../../native-chat-protocol.md)。
 
-地址 = PBKDF2-SHA512(password, "/most.box/" ‖ username, 50000) 的确定性函数；`username` 公开（显示名 `name#XXXX`）。攻击者可离线逐个尝试密码，每次只需一次 PBKDF2 与一次地址计算，无需联网，节点无法限速。签名生效后，破解即可冒充。v1 中同一派生还给出钱包私钥。
+换设备使用新 key 和新证书，旧消息仍用原证书验证。**v2 没有撤销机制**：设备私钥泄露后，持有者可持续签出 P2P 消息；证书到期只限制访问实行到期检查的节点接口，不能撤销 P2P 签名资格。
 
-### 7.2 选项
+## 6. 资料与系统事件
 
-| 选项          | 内容                                                                                                                                                                                                                                                                                                       | 代价                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| A             | 维持 v1 派生                                                                                                                                                                                                                                                                                               | 无迁移；离线穷举成本最低                                        |
-| B（**采纳**） | 聊天身份与钱包分离：`chatSeed = scrypt(label("password") ‖ password, H("identity", username), N, r=8, p=1, 32)`（盐固定 32 字节、密码输入加域标签以保证非空：libsodium 的接口要求如此，邀请身份的密码为空），聊天地址由 `chatSeed` 按 v1 方式（BIP-39 → m/44'/60'/0'/0/0）得出；钱包地址仍用 v1 派生，不变 | 所有用户的**聊天地址改变**，需迁移（§7.4）；scrypt 在手机上较慢 |
-| C（未采纳）   | 在 B 基础上提供「随机身份」：生成 24 词助记词作为 `chatSeed`，不依赖密码；需要用户自行备份                                                                                                                                                                                                                 | 多一种登录方式；丢失助记词即丢失身份                            |
+writer core 只写入 `type: "signed"` 的消息和资料条目。节点不自动写“成员加入”事件；资料变更必须来自客户端签名的 `profile`。成员信息可从已验证消息、资料和在线状态取得；hello 的 `memberAddresses` 只是未签名提示，不能替代身份证明。HTTP/UI 的 system 投影不构成额外线上条目类型。
 
-scrypt 两端都有现成实现（ethers `scrypt`，已核实桌面 `node_modules/ethers/lib.esm/crypto/scrypt.js` 与移动 `app/node_modules/ethers/lib.esm/crypto/scrypt.js` 都存在）。**`N = 2^17`**（r = 8，p = 1，输出 32 字节；2026-11-18 按下方实测确定）。各端实现：桌面与浏览器用 ethers `scrypt`；手机 App 用 Bare 后端的原生 libsodium（`app/backend/scrypt-native.mjs`），不在 Hermes 里计算。
+## 7. 账号派生与同步密钥
 
-测量方法（2026-11-18 起可用）：
+### 7.1 适用范围
 
-- 真机：安装开发版（`npx expo run:android`），打开「节点 → 诊断详情」，点「scrypt 基准测试」。依次测 N=2^14 至 2^17，每档两次，取中位数；单次超过 15 秒或出错（例如内存不足）即停止加档。结果可选中复制。
-- 桌面基线：在 `app/` 下运行 `npm run benchmark:scrypt`。2026-11-18 在 i5-12490F、Node 26 上：2^14 约 45 ms，2^15 约 81 ms，2^16 约 165 ms，2^17 约 325 ms。ethers 的 scrypt 是纯 JS，手机上的 Hermes 会慢很多，所以只能参考，不能用来定参数。
-- 2026-11-18 真机实测（小米 MIX 2S，骁龙 845，6 GB，Android 10；release 构建、Hermes、ethers 纯 JS scrypt）：2^14 约 4.7 s，2^15 约 9.4 s，2^16 约 18.6 s；2^16 超过 15 秒后停止，2^17 未测。**没有任何一档能在 3 秒内完成**，比桌面慢约 100 倍。另外，计算期间 JS 线程被占满，界面完全不刷新、不响应点击。
-- 结论：手机上不能在 Hermes 里用纯 JS 派生。可行方向是交给 Bare 后端里的原生 libsodium（`sodium-native` 5.1.0 提供 `crypto_pwhash_scryptsalsa208sha256`），【待核实】其输出与标准 scrypt(N, r=8, p=1) 一致，以及在该机上的耗时；或改用 Argon2id。待负责人决定。
-- 2026-11-18 同一台手机改用 Bare 后端里的原生 libsodium（选项 A）：2^14 约 72 ms，2^15 约 123 ms，2^16 约 251 ms，2^17 约 524 ms，2^18 约 1078 ms（每档两次，中位数）。比 Hermes 纯 JS 快约 35 倍；计算在 Bare 线程里进行，界面不卡。
-- libsodium 高层接口 `crypto_pwhash_scryptsalsa208sha256` 取 `opslimit = 32·N`、`memlimit = 2048·N` 时，结果与标准 scrypt(N, r=8, p=1) 逐字节一致（桌面 Node 上对 2^13–2^18 逐档比对，`opslimit` 少 1 即降一档），实现见 `app/backend/scrypt-native.mjs` 及其测试。
-- 同一台手机的浏览器（Web 版的实际路径：ethers 纯 JS，由 `app/scripts/scrypt-benchmark-web.mjs` 打包同一测量模块，手机经 `adb reverse` 访问）：Chrome 151 为 2^14 约 168 ms、2^15 约 262 ms、2^16 约 511 ms、2^17 约 1033 ms；MIUI 浏览器 20.29（Chromium 135）为 180 / 256 / 532 / 1076 ms。V8 有 JIT，比 Hermes 快约 18 倍。计算期间页面不响应约 1 秒。
-- 取值：**N = 2^17**。最慢的路径（手机浏览器）约 1.1 s、128 MiB，在 3 秒目标内并为更弱的手机留出余量；2^18 在手机 App 原生路径约 1.1 s，但浏览器预计约 2.1 s、要 256 MiB，余量不足。
-- 实现：`app/src/devtools/scryptBenchmark.ts`（测量逻辑，手机与桌面共用）、`app/src/devtools/ScryptBenchmarkPanel.tsx`（仅 `__DEV__` 构建显示）。
+用户名密码派生是参考客户端的登录约定；任意 secp256k1 身份均可签发有效设备证书。显示名为 `<username>#<地址末四位大写>`。字符串按 UTF-8 编码，不自行增加 trim、大小写转换或 Unicode 规范化。
 
-### 7.3 密码强度（D4）
+### 7.2 当前派生
 
-决定：**不强制**最低密码强度，维持现状——少于 18 个字符时只提示、不拦截（`app/src/remoteNode/identity.ts` `isPasswordShort`）。
+```text
+chatSeed = scrypt(label("password") ‖ UTF8(password), H("identity", UTF8(username)),
+                  N=2^17, r=8, p=1, dkLen=32)
+phrase   = BIP39(entropy=chatSeed)
+account  = HDNodeWallet.fromPhrase(phrase)   // m/44'/60'/0'/0/0
+syncKey  = KDF(chatSeed, "account/sync-key")
+```
 
-剩余限制（写入文档与界面）：任何由密码派生的密钥都可被离线穷举，弱密码的账号可被冒充；scrypt（§7.2 B）只提高每次尝试的成本，不能代替强密码。
+邀请身份可使用空密码，域标签确保 scrypt 密码输入非空。桌面与浏览器使用 ethers scrypt；移动 App 使用 Bare 后端原生 libsodium，`opslimit = 32*N`、`memlimit = 2048*N`，与上述标准 scrypt 参数逐字节相同，不在 Hermes JS 线程计算。
 
-### 7.4 账号同步与迁移
+Web3 独立工具箱仍用原钱包派生：`PBKDF2-HMAC-SHA512(UTF8(password), UTF8("/most.box/" ‖ username), 50000, 32)` 后再 SHA-256，按相同 BIP39/HD 路径得到钱包。它不是聊天身份派生，也不是聊天和文件的前置条件。
 
-- `syncKey = KDF(chatSeed, "account/sync-key")`；`syncTopic = H("topic/account-sync", syncKey)`；hello topic `H("topic/account-sync-chat", syncKey)`（取代 v1 中对带 `0x` 字符串求哈希的写法，discovery §3.3）。
-- 本地数据迁移：节点上按地址保存的记录（`published-files.json` 的 owner、频道成员、账号同步）需要从旧地址迁到新地址。用户用密码登录时客户端能同时算出旧、新两个身份，向节点同时证明两者（两份设备证书），节点据此一次性迁移。
-- 第三方接入（ST 邀请、原生客户端）使用的地址随之改变，实现时同步 `docs/native-chat-protocol.md`。
+手机 Hermes 纯 JS 曾出现 4.7–18.6 秒耗时与 UI 阻塞；改用 Bare 的结果及 N=2^17 的测量依据保存在 [验证状态](../../validation-status.md#2026-11-18-scrypt-参数测量记录)。本篇只定义已选择的参数。
+
+### 7.3 密码强度
+
+不强制最低强度；少于 18 字符时提示而不拦截。密码派生身份可被离线穷举，弱密码被破解后可冒充账号；scrypt 只增加尝试成本，不能替代强密码和恢复材料保管。
+
+### 7.4 账号同步与已有迁移
+
+```text
+syncTopic      = H("topic/account-sync", syncKey)
+syncHelloTopic = H("topic/account-sync-chat", syncKey)
+```
+
+两者以原始 32 字节 `syncKey` 参与计算；同步日志及信封见 [聊天](chat.md) §8。
+
+已实现的旧身份迁移使用新账号认证调用 `POST /api/user/migrate`，提交 `{oldAddress, signature}`。旧账号按 EIP-191 签署 `most-box-account-migrate-v2\n<oldAddress 小写>\n<newAddress 小写>`，节点验证旧账号授权和当前认证的新账号，迁移按地址保存的 owner、群成员及账号同步记录。仅适用于对应升级路径，不是未来兼容承诺。旧身份与新身份不能混作同一签名账号；第三方接入使用当前聊天地址。
 
 ## 8. 测试向量
 
-`vectors/v2/signatures.json`：
+`../vectors/v2/signatures.json` 包含给定设备密钥与证书的消息、资料、在线状态签名，以及篡改、换频道和身份不符的反例。
 
-- 规范化：键排序（含非 ASCII 键）、字符串转义（控制字符、U+2028、emoji）、整数边界、非法值（小数、`-0`、孤立代理项）。
-- 给定设备私钥与证书的 `message`、`profile`、`presence` 条目，含 `sig`；篡改 `body` 任一字段、换频道、证书地址不符的反例。
-- 去重与排序：跨 core 同 `(author, id)`、未来 `ts` 不拖动本机时间。
-- 账号：给定用户名与密码（及确定后的 `N`）的 `chatSeed`、聊天地址、`syncKey`、两个 topic。
+同目录 `canonical-json.json` 覆盖规范化正反例，`device-cert.json` 覆盖证书，`presence.json` 覆盖在线状态，`chat-identity.json` 覆盖账号派生。排序、跨 core 去重与未来时间戳还需相应历史/签名集成测试，不能只凭签名向量认定通过；见 [向量索引](../vectors/README.md)。
+
+---
+
+[目录](README.md) · 上一篇：[频道密钥与授权](channel-keys.md) · 下一篇：[聊天与账号同步](chat.md)

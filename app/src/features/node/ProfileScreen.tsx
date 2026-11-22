@@ -11,10 +11,12 @@ import { IconButton, MostButton } from '../../ui/components'
 import { useMostBoxTheme } from '../../ui/theme'
 import type { MostBoxMobileClient } from '../../mobileCore/types'
 import { DeviceCertTtlSection } from './DeviceCertTtlSection'
+import { PRODUCT_PROFILE } from '../../product/productProfile'
 
 type ProfileScreenProps = {
   visible: boolean
   onClose: () => void
+  onOpenAccountDeletion: () => void | Promise<void>
   username?: string
   address: string
   client?: MostBoxMobileClient | null
@@ -25,6 +27,7 @@ type ProfileScreenProps = {
 export function ProfileScreen({
   visible,
   onClose,
+  onOpenAccountDeletion,
   username,
   address,
   client,
@@ -77,6 +80,13 @@ export function ProfileScreen({
           {client && deviceCert ? (
             <View style={styles.card}>
               <DeviceCertTtlSection client={client} cert={deviceCert} />
+            </View>
+          ) : null}
+          {PRODUCT_PROFILE.features.remoteNode ? (
+            <View style={styles.card}>
+              <MostButton onPress={onOpenAccountDeletion}>
+                {t('node.account.deleteAccount')}
+              </MostButton>
             </View>
           ) : null}
         </ScrollView>

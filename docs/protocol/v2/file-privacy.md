@@ -1,18 +1,14 @@
-# 2.2 文件 topic 单向化与 `want` 证明
+# 文件发现与访问证明
 
-状态：已确认（2026-11-18）。原语与标签见 [envelope.md](envelope.md) §3。
+原语见 [版本与信封](envelope.md) §3。内容身份与传输流程分别见 [标识符](identifiers.md)、[文件传输](file-transfer.md)。
 
-## 1. 问题（v1 现状）
+## 1. 权限模型
 
-- 文件 topic = CID 的 multihash 摘要（discovery §3.1）。CID 只是「版本 + codec + 摘要」的编码，DHT 节点看到 topic 后补上 codec（raw 或 dag-pb，两种）即可还原 CID。
-- `want(topic)` 不需要任何证明（file-transfer §3.2）：只要拿到 topic，连上做种者、发 `want` 就能得到 driveKey，再读 drive 中的 `/<cid>` 下载全文。
-- 因此「CID 即权限」实际退化成「topic 即权限」，而 topic 对所有 DHT 节点公开。
+知道 CID 即可尝试下载；链接泄露不算协议漏洞。仅观察到 DHT topic 不应使观察者获得 CID 或 driveKey。每个种子只签名自己的 drive，下载者仍必须独立重算 CID，不信任 Hypercore 签名代表内容正确。
 
-## 2. 目标
+## 2. 范围
 
-- DHT 上看到 topic 的人无法还原 CID。
-- 只有知道 CID 的人能拿到 driveKey。
-- 不改 `most://` 链接、CID、drive 内路径、下载后校验和做种模型。
+本篇定义文件 topic、带连接绑定的 `want` 证明、应答条件和本地 drive 命名。当前不加密文件内容，也不承诺匿名、永久存储或仅凭 topic 隐藏节点 IP。
 
 ## 3. 文件 topic
 
@@ -32,9 +28,9 @@ SHA-256 单向：已知 topic 求 digest 需要原像攻击。知道 CID 的人�
 | Protomux 协议 | `most-cid-drive/3`                                    |
 | handshake     | `fixed32`：本端为这条连接生成的 32 字节随机 challenge |
 | 消息 0 `want` | `fixed64`：`topic ‖ proof`                            |
-| 消息 1 `have` | `fixed64`：`topic ‖ driveKey`（不变）                 |
+| 消息 1 `have` | `fixed64`：`topic ‖ driveKey`                         |
 
-Protomux 的 handshake 在通道打开时双方交换（已核实：`node_modules/protomux/index.js` `open(handshake)` / `onopen(handshake)`），无需额外往返。
+通道无 id。Protomux 在打开通道时交换 handshake；`fixed32`、`fixed64` 均是不带长度前缀的原始字节。消息编号由上表注册顺序确定。
 
 ### 4.2 证明
 
@@ -46,33 +42,27 @@ proof   = MAC(wantKey, "file/want", topic ‖ challenge_B ‖ pk_A ‖ pk_B)
 ```
 
 - `challenge_B`：B 在 handshake 中发给 A 的随机数。
-- `pk_A`、`pk_B`：双方在**文件 swarm** 连接上的 Noise 公钥（`conn.remotePublicKey` 与本端 `swarm.keyPair.publicKey`）。经中继的连接中 Noise 仍端到端，公钥不变。
+- `pk_A`、`pk_B`：双方在**文件 swarm** 连接上的 Noise 公钥（读取 `conn.noiseStream || conn` 上的 `publicKey` 与 `remotePublicKey`）。经中继的连接中 Noise 仍端到端，公钥不变。
 - 绑定 challenge 与双方公钥：证明不能重放到别的连接，也不能转给第三方使用。
 
 ### 4.3 应答规则
 
 B 收到 `want(topic, proof)`：
 
-1. 本机持有该 topic 对应的已校验内容（v1 条件不变：已加入 topic、有 holding、`/<cid>` 可读）；
+1. 本机持有该 topic 对应的已校验内容（已加入 topic、有 holding、`/<cid>` 可读）；
 2. 用本机已知的 `digest` 重算 `proof`，常数时间比较；
 3. 都满足才回 `have(topic, driveKey)`；否则不回应。
-4. 同一连接上累计 16 次无效证明后关闭该通道（防止把 B 当作验证预言机做在线猜测；猜测本身已是 2^256 空间，此限制只为节省资源）。
+4. 对调用方交给通道验证的已知种子 topic，同一连接累计 16 次无效证明后关闭该通道。未知 topic 通常被调用方忽略，不应把这条限制描述为所有未知请求都会累计。
 
 ### 4.4 请求方
 
-A 在通道打开后、以及等待来源期间每 2000 ms，对每个进行中的下载发 `want`（节奏不变，file-transfer §3.1）。收到 `have` 后的读取、校验、换来源逻辑不变（file-transfer §6）。
+A 在通道打开后、以及等待来源期间每 2000 ms，对每个进行中的下载发 `want`；发现刷新与等待节奏见 [文件传输](file-transfer.md) §6–7。收到 `have` 后只接受进行中下载的候选，读取、校验与换来源见 [文件传输](file-transfer.md) §6。
 
-## 5. driveKey 与 drive 内容（D8）
+## 5. driveKey 与内容可见性
 
-问题：只知道 driveKey 的人能否列出 drive 得到 CID？**能**——drive 中的路径就是 `/<cid>`，Hyperdrive 的目录（Hyperbee）可被任何持有 driveKey 的人读取。
+driveKey 是读取 Hyperdrive 元数据的 key。持有者可列出 `/<cid>`，获得 CID，并读取内容。正常协议只向证明知道 CID 摘要的请求方返回它；这不意味着 driveKey 从日志、接口或其他渠道泄露没有风险。
 
-评估：
-
-- v2 中 driveKey 只经 `have` 发出，而 `have` 只发给已证明知道 `digest` 的请求方；知道 `digest` 即可还原 CID。所以拿到 driveKey 的人本来就知道 CID，列目录不泄露新信息。
-- 剩余风险是 driveKey 从别处泄露（日志、API 返回、截图）。v1 的 API 与日志会输出 driveKey 前缀或全文，实现时改为不输出全文。
-- 用摘要派生的密钥加密 drive 内容（Hyperdrive/Hypercore 有块加密选项）能进一步降低该风险，但要改存储格式和迁移，且收益只针对 driveKey 泄露。
-
-**推荐：不加密 drive 内容**，只收紧 driveKey 的输出。若负责人要求加密，加密密钥定为 `KDF(digest, "cid-drive/encryption")`，作为后续可选项另行设计。
+当前 drive 内容不加密，不定义额外文件加密能力。不得把“需要证明才能取得 key”写成“运营者看不到内容”，也不得把 key 的保密性当作 CID 校验的替代。
 
 ## 6. 本节点 CID drive 名
 
@@ -80,11 +70,11 @@ A 在通道打开后、以及等待来源期间每 2000 ms，对每个进行中�
 driveName = "cid-drive-" ‖ hex(MAC(secret, "cid-drive/name", topic))
 ```
 
-只是换成统一标签（v1 为 `HMAC(secret, "most-cid-drive-v2:" ‖ topicHex)`）；`topic` 改为 v2 文件 topic，因此 drive 名与 driveKey 全部变化，需要迁移（§8）。
+`topic` 为原始 32 字节，不是十六进制字符串。`secret` 为桌面节点种子或移动 `node-secret`；drive 在对应 Corestore namespace 中打开。这是参考实现的本地命名约定，不上线，第三方须保证自己 drive 的签名私钥不与其他种子共享。
 
-## 7. 改动后 DHT 与对端仍可见的信息
+## 7. DHT 与对端可见的信息
 
-写入 `PRIVACY.md`（实现时同步）：
+当前可见信息与 [隐私说明](../../../PRIVACY.md) 对照：
 
 | 谁能看到                          | 看到什么                                                                                                                                                                                                                                                      |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -93,27 +83,33 @@ driveName = "cid-drive-" ‖ hex(MAC(secret, "cid-drive/name", topic))
 | 与本节点建立文件 swarm 连接的对端 | 本节点所有已打开 core（CID drive、频道 writer core、账号同步 core）的 discoveryKey（已核实：`node_modules/corestore/index.js` `replicate` 对每条连接挂载全部已打开 core）。discoveryKey 不能还原 core key、读不到内容，但可用于把同一个 core 在不同节点间关联 |
 | 中继                              | 连接双方公钥、时间与流量（`PRIVACY.md` 已披露）                                                                                                                                                                                                               |
 
-最后一行 discoveryKey 关联不在本次范围；如需处理，后续可按连接所属 topic 只挂载相关 core。
+discoveryKey 的关联风险当前仍存在；本规范没有定义按连接隔离 core 的额外能力。
 
 ## 8. 迁移
 
-只支持 0.5.x → 0.8.0 一条升级路径（生产节点停在 0.5.x；0.6.0 / 0.7.0 只在测试环境运行过，其 `cid-drive-<HMAC("most-cid-drive-v2:"…)>` drive 不迁移）。沿用 `docs/cid-drive-protocol.md` §5 的一次性迁移：
+本节记录 0.5.x → 0.8.0 的迁移；当时生产节点停在 0.5.x，0.6.0 / 0.7.0 只在测试环境运行，其 `cid-drive-<HMAC("most-cid-drive-v2:"…)>` drive 不迁移。已实现的一次性路径如下：
 
 - 启动恢复 holding 时，若本节点新 drive 中没有 `/<cid>`，从 0.5.x 的共享 drive `drive-<digestHex>` 读出、重算 CID、写入新 drive，成功后清除旧块；失败按「本地内容缺失」处理。
 - 不再加入摘要 topic，只加入 v2 文件 topic。
 - `published-files.json` / `node-holdings.json` 中的 `topic`、`driveName` 字段改为现算，不再信任记录值。
-- 迁移代码在 0.8.0 之后、确认生产节点已升级后再删除。
+- 这是已列版本的迁移说明，不构成未来必迁移或兼容承诺；本次规范整理不删除现有迁移实现或用户数据。
 
-## 9. 攻击测试（实现时补）
+## 9. 攻击与接力检查
 
-| 用例                                          | 期望                                   |
-| --------------------------------------------- | -------------------------------------- |
-| 只知道 topic，发 `want(topic, 随机 proof)`    | 收不到 `have`；16 次后通道被关闭       |
-| 截获 A↔B 的有效 `want`，在 C↔B 连接上重放     | 收不到 `have`（公钥与 challenge 不同） |
-| 知道 CID 的正常下载者                         | 照常下载并校验                         |
-| 只知道 topic，经 Corestore 复制尝试打开 drive | 没有 driveKey，无法请求块              |
-| 三节点接力（发布者退出）                      | `npm run test:protocol` 通过           |
+| 用例                                          | 期望                                                       |
+| --------------------------------------------- | ---------------------------------------------------------- |
+| 只知道 topic，发 `want(topic, 随机 proof)`    | 已知种子 topic 收不到 `have`；无效证明累计 16 次后关闭通道 |
+| 截获 A↔B 的有效 `want`，在 C↔B 连接上重放     | 收不到 `have`（公钥与 challenge 不同）                     |
+| 知道 CID 的正常下载者                         | 照常下载并校验                                             |
+| 只知道 topic，经 Corestore 复制尝试打开 drive | 没有 driveKey，无法请求块                                  |
+| 三节点接力（发布者退出）                      | 发布者退出后新下载者仍完成下载与 CID 校验                  |
+
+上述用例是检查目标，不代表每条已通过真实网络验收。既有失败与覆盖范围见 [验证状态](../../validation-status.md)。
 
 ## 10. 测试向量
 
-`vectors/v2/file.json`：CID → v2 topic；`wantKey`；给定 challenge 与双方公钥的 `proof`；给定 secret 的 drive 名；`want` / `have` 载荷。
+`../vectors/v2/file.json`：CID → v2 topic；`wantKey`；给定 challenge 与双方公钥的 `proof`；给定 secret 的 drive 名；`want` / `have` 载荷。
+
+---
+
+[目录](README.md) · 上一篇：[聊天与账号同步](chat.md) · 下一篇：[文件传输](file-transfer.md)
