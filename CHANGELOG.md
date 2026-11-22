@@ -4,6 +4,22 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-22
+
+### Added
+
+- Add a prominent account and data deletion request link to the mobile profile and node settings, with an email request pathway and clear local, remote-node, and P2P copy boundaries on the support page.
+
+### Changed
+
+- Clarify the privacy policy for channel identity data, remote-node transfers, optional account sync, HTTP transport, and deletion requests.
+
+## [0.8.3] - 2026-11-22
+
+### Fixed
+
+- Build the Android Bare runtime with flexible page sizes so its ELF load segments support 16 KB memory pages.
+
 ## [0.8.2] - 2026-11-20
 
 Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in place, and 0.5.x nodes upgrade directly to 0.8.2 (`docs/upgrade-0.8.0.md`).

@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 4.0)
+# NDK r27 needs this before project() initializes the Android toolchain.
+set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON)
 project(mostbox_android_runtime LANGUAGES C CXX)
 
 # Cross compilation restricts package searches to the Android sysroot. The

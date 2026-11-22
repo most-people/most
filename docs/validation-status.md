@@ -2,6 +2,24 @@
 
 整理日期：2026-10-17。以下合并既有开发和真机记录，没有在本次文档清理中重新执行设备、构建或网络测试。记录中的 APK 属于内部验证包，不能直接作为商店候选包。
 
+## 2026-11-22：0.8.4 账号删除申请入口（候选包）
+
+- 基线 `d565efa` 加工作区中的版本、链接、文案和法律页修改，版本为 0.8.4 / 804；协议与删除执行逻辑未改。账号页和节点页新增“删除账号与数据”外链，目标为支持页 `#delete-account`，仅适用于启用远程节点功能的产品配置。
+- AAB：`app/dist/mostbox-android-0.8.4-release.aab`，79,183,011 bytes，SHA-256 `7a9bf359cacca753490f311370437a3410eae7753935c78d56c7952ade04a80d`。永久签名 APK：`app/dist/mostbox-android-0.8.4-store-release.apk`，74,670,161 bytes，SHA-256 `a643f8db330f5692637759d57436c511626c0c148be0ce3e6fef6cf8ffa7a820`；上传与应用签名证书分别核对匹配，构建成功。
+- 已通过格式化、根 lint、移动端类型检查、i18n / 产品配置相关 5 项测试、`check:versions -- --tag v0.8.4`。本轮未修改协议，未重复协议或全量可靠性测试。
+- Redmi K30S Ultra / Android 12 / arm64 / 4096-byte pages：以永久签名 APK 从 803 侧载升级到 804，原隔离测试身份、频道及一个文件保留，冷启动及两个入口可见性通过。随后以保留应用数据方式移除侧载安装，再从 Google Play 安装 804，来源 `com.android.vending`，base 与 3 个 split APK 签名均匹配永久证书；冷启动后原专用测试身份、频道、消息及文件保留，Profile 删除入口可见。此前 803 证据仍单独保留。
+- 本地支持页预览及邮件草稿链接已核验，两个入口截图已留存于关联私有仓库。804 AAB 已被 Play 接受，预览无阻塞错误，已发布内部测试，轨道显示最新 `0.8.4 (804) internal` 且有效；其 Play 来源实际安装与分包签名已验证。法律页 PR #13 已合并为 `a90e4ea`，全部 CI 通过，生产隐私与支持页已核验，删除申请邮件收发渠道通过。专用测试安装经物理连接核对身份后清除应用数据，首次启动隐私同意重置，旧测试身份、频道及文件未出现、做种为 0，连接表无历史；force-stop 后再次启动结果一致，未恢复旧凭据。仅本机及支持申请闭环的限定范围验收通过，未验证独立远程节点的完整账号关联数据删除。入口仅发起申请，不代表账号或远端副本已自动删除；现有管理员清理接口不能证明完整删除。办理记录见 `../most.red/docs/release-readiness.md`。
+
+## 2026-11-22：Android 16 KB 构建修复（候选包）
+
+- 基线提交 `280991d1b1e7f623b6ace70cd2fbb0fa62cfd03b` 加工作区中的 Bare 工具链及版本同步修改：在 CMake `project()` 前启用 NDK r27 的 flexible page sizes。版本同步为 0.8.3，Android versionCode / iOS buildNumber 为 803；未改变协议与产品功能。
+- `app/dist/mostbox-android-0.8.3-release.aab`，79,182,899 bytes，SHA-256 `6fdd9707d2348702b7cdd5b965f30df4f135cae6903c57ffc017b19413df8f1f`。本地检查包内 39 个 arm64-v8a ELF 库的全部 PT_LOAD 段：对齐均至少 16384 bytes，文件偏移与虚拟地址按 16384 同余；修复前 `libbare-kit.so` 有一个段仅为 4096。
+- 已通过 `check:versions -- --tag v0.8.3`、app `typecheck`、app 测试 283 项、格式化和 diff 检查；AAB 构建成功，JAR 验证通过。JAR 仍提示自签名证书、无时间戳与 JarInputStream 清单顺序问题，平台静态检查也已显示支持 16 KB；办理证据保存在关联私有仓库。
+- Play 签名通用 APK SHA-256 `c7561de11cb107be2b7f8b987e9b20cc2878d7221dbea4c79ddaf188196e87fc`，已在 M2007J3SC / Android 12 / arm64 通过 ADB 安装及冷启动。144 B 样本 CID `bafkreiatmbvxlr6ou7nsiu7j5wk22i6w4xox5zfojp3jgrdebnacf2qoum`：原发布者退出后新节点从手机取到并重算 CID 一致；手机强制停止/冷启动后再次接力通过（18,273 ms）；手动开启后台保持并退到后台后接力通过（25,027 ms），通知停止后服务确已退出。后两轮时间包含新节点启动，样本 SHA-256 为 `13606b75c7cea7db2453e9ed95ad23d6e5dd7ee4ae4bf69344640b4022ea0ea3`。
+- 同日后续已从 Google Play 内部测试真实安装 0.8.3 / 803，安装来源 `com.android.vending`；提取 base 与 3 个 split APK，签名校验均通过。首次启动、双向文本、附件点击前未自动下载、确认后下载并通过 CID 校验均通过；屏蔽后对方消息隐藏、解除后恢复，举报入口可见但未发送举报。4 张英文截图取自该安装版。
+- 停止桌面原发布者后，独立空目录节点从该 Play 安装版手机取到上述 144 B 样本，原始字节、SHA-256 与重算 CID 全部匹配，耗时 18,427 ms（含新节点启动）。
+- 本轮为单个小样本烟测：手机 Wi-Fi / VPN 开启，NAT 未标定、直连与打洞未区分，未配置应用中继。该机实际内存页为 4096 bytes；未测真实 16 KB 页设备、蜂窝、长时后台及量化可靠性门槛。原始事件、verifier 日志、截图与办理状态见 `../most.red/docs/release-readiness.md` 及其私有证据目录，静态对齐不替代运行验收。
+
 ## 2026-11-21–22：产品决定与待验收范围
 
 产品规则集中见[群聊模型](chat-model.md)，协议目标与早期版本策略见[长期方案](decentralization-plan.md)。本节只记录状态；以下文档决定不代表功能已经完成。

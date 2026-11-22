@@ -359,6 +359,11 @@ export const nodeMessages = {
     'zh-TW': '問題回報',
     en: 'Support',
   },
+  'node.account.deleteAccount': {
+    'zh-CN': '删除账号与数据',
+    'zh-TW': '刪除帳號與資料',
+    en: 'Delete account and data',
+  },
   'node.connection.title': {
     'zh-CN': '节点连接',
     'zh-TW': '節點連線',

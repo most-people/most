@@ -76,7 +76,7 @@
     <main>
       <header>
         <h1>MostBox Privacy Policy</h1>
-        <p class="updated">Last updated: November 13, 2026</p>
+        <p class="updated">Last updated: November 22, 2026</p>
       </header>
 
       <p class="notice">
@@ -98,6 +98,16 @@
 
       <h2>2. P2P network data</h2>
       <p>
+        Channel messages include your public account address, message content,
+        timestamps, signatures, device authorization certificate, and any
+        display name you share. Participants and the nodes holding the channel
+        can read stored messages and profile data. Signatures verify the sender;
+        they do not provide end-to-end encryption. Anyone who knows the channel
+        joining value can try to join, read available history, and send
+        messages. Joining and syncing text history does not automatically
+        download attachment contents.
+      </p>
+      <p>
         When you publish or download a file, the app discovers and connects to
         other peers through the Hyperswarm network. Connected peers and the
         distributed network infrastructure may process your IP address,
@@ -105,6 +115,10 @@
         metadata required to establish connections. File contents travel
         directly between the peers involved; the MostBox project does not
         operate centralized file storage servers.
+      </p>
+      <p>
+        Someone who knows a file's CID can use DHT discovery to find IP
+        addresses of peers seeding it. MostBox does not promise anonymity.
       </p>
 
       <h2>3. Sharing you initiate</h2>
@@ -171,14 +185,48 @@
         their operators; the MostBox project does not operate public remote
         nodes.
       </p>
+      <p>
+        Remote requests can include your public account address, display name,
+        device public key and certificate, channel messages and joining values,
+        file names, CIDs, and the files you choose to upload or download
+        (including photos, videos, audio, and documents). If you enable account
+        sync, the node also receives the sync key and synchronized account
+        metadata needed for that feature. Your password and device private key
+        are not sent to the remote node. The node and its operator can observe
+        your IP address and request times.
+      </p>
+      <p>
+        MostBox supports both HTTP and HTTPS remote node addresses, with
+        corresponding WebSocket connections. HTTP connections are not encrypted
+        in transit. Use a trusted node with HTTPS where available; MostBox does
+        not guarantee that every connection is encrypted or that remote nodes
+        cannot read data they process.
+      </p>
 
       <h2>6. Retention and deletion</h2>
       <p>
-        Data on your device is kept until you delete the corresponding holding,
-        clear the app data, or uninstall the app. Deleting a local holding stops
-        local seeding, but cannot recall complete copies already downloaded by
-        other peers or invalidate share links that have already leaked. See
-        <a href="/support/">MostBox Support</a> for how to delete data.
+        Data on your device is kept until you delete the corresponding holding
+        or clear the app data. Deleting a local holding stops local seeding;
+        exported files and backups must be deleted separately. Signing out,
+        leaving a channel, or deleting a chat list entry does not erase all
+        associated data. Remote operators control retention on their nodes;
+        request deletion from every node you used. Messages and files already
+        held by independent peers cannot be recalled, and leaked share links
+        cannot be invalidated.
+      </p>
+      <p>
+        Use
+        <a href="/support/#delete-account"
+          >Delete your MostBox account and data</a
+        >
+        to start a deletion request without the app or a login. Starting with
+        Android version 0.8.4, the same link is in your profile and Node → About
+        and policies. The page explains local removal, remote node requests,
+        identity recovery materials, and the limits of deletion. We reply with
+        the expected completion time and any required retention, then confirm
+        the result. If you email support, our email provider processes that
+        email; support correspondence stays in the support mailbox until removed
+        and can be included in a deletion request.
       </p>
 
       <h2>7. Children</h2>

@@ -45,6 +45,7 @@ import { ScryptBenchmarkPanel } from '../../devtools/ScryptBenchmarkPanel'
 const SHOW_SCRYPT_BENCHMARK =
   __DEV__ || process.env.EXPO_PUBLIC_SCRYPT_BENCHMARK === '1'
 import { BackgroundServicePanel } from './BackgroundServicePanel'
+import { PRODUCT_PROFILE } from '../../product/productProfile'
 
 export type NodeScreenProps = {
   client: MostBoxMobileClient
@@ -53,6 +54,7 @@ export type NodeScreenProps = {
   snapshot: MobileCoreSnapshot
   onOpenPrivacy: () => void | Promise<void>
   onOpenSupport: () => void | Promise<void>
+  onOpenAccountDeletion: () => void | Promise<void>
   onOpenTerms: () => void | Promise<void>
   onRetryStartCore: () => void | Promise<void>
 }
@@ -130,6 +132,7 @@ export function NodeScreen({
   snapshot,
   onOpenPrivacy,
   onOpenSupport,
+  onOpenAccountDeletion,
   onOpenTerms,
   onRetryStartCore,
 }: NodeScreenProps) {
@@ -326,6 +329,13 @@ export function NodeScreen({
             label={t('node.about.support')}
             onPress={onOpenSupport}
           />
+          {PRODUCT_PROFILE.features.remoteNode ? (
+            <LinkRow
+              external
+              label={t('node.account.deleteAccount')}
+              onPress={onOpenAccountDeletion}
+            />
+          ) : null}
         </View>
       </View>
     </ScrollView>
