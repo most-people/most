@@ -61,13 +61,27 @@
         margin: 8px 0 0;
         color: #6b7974;
       }
+      .request {
+        display: inline-block;
+        padding: 12px 16px;
+        border-radius: 8px;
+        color: #fff;
+        background: #0f766e;
+        text-decoration: none;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      #delete-account {
+        scroll-margin-top: 24px;
+      }
     </style>
   </head>
   <body>
     <main>
       <header>
         <h1>MostBox Support</h1>
-        <p class="updated">Last updated: November 13, 2026</p>
+        <p class="updated">Last updated: November 22, 2026</p>
       </header>
 
       <h2>1. Contact</h2>
@@ -104,31 +118,89 @@
         delete local files, and stop seeding at any time.
       </p>
 
-      <h2>3. Deleting your data</h2>
+      <h2 id="delete-account">3. Delete your MostBox account and data</h2>
       <p>
-        MostBox identities are generated on your device. No account is
-        registered on project servers, and the project does not store your
-        identity, messages, or files. To delete data on your device:
+        You can request deletion without signing in, reinstalling MostBox, or
+        connecting to a node. Email
+        <a href="mailto:dev@most.box">dev@most.box</a> with the subject
+        <strong>MostBox account and data deletion</strong>. Opening an email
+        draft does not send a request; review and send it in your email service.
+        If no email app opens, use your webmail to send to the same address.
       </p>
+      <p>
+        <a
+          class="request"
+          href="mailto:dev@most.box?subject=MostBox%20account%20and%20data%20deletion&amp;body=I%20request%20deletion%20of%20my%20MostBox%20account%20and%20associated%20data.%0A%0APublic%20account%20address%20%28if%20available%29%3A%0ARemote%20node%20URL%20%28if%20used%3B%20omit%20invite%20codes%20and%20tokens%29%3A%0AData%20or%20support%20correspondence%20to%20delete%3A%0A"
+          >Request account and data deletion by email</a
+        >
+      </p>
+      <p>
+        Include your public account address if available (tap your avatar to
+        open your profile and copy the address), the remote node URL if you used
+        one, and the data you want deleted. If you no longer have these details,
+        describe your situation so we can help identify the relevant data. Never
+        send your password, private key, identity recovery material, device
+        certificate, node invite code, or private channel joining value. We
+        verify ownership before deleting another device's or node's data; we do
+        not ask for secret credentials. We reply with the scope and expected
+        completion time and confirm what has been deleted, what is outside our
+        control, and any data that must be retained and why.
+      </p>
+      <p>
+        MostBox identities are derived on your device; there is no central
+        account registry that can revoke an identity everywhere. Account
+        deletion involves removing identity credentials and associated data from
+        your devices and the nodes that hold them. Keeping recovery materials or
+        signing in again with the same username and password can recreate that
+        identity. A deletion request does not itself erase your phone or recall
+        copies held by other participants.
+      </p>
+      <p><strong>Data on your devices</strong></p>
       <ul>
         <li>
-          delete a file in the app to stop seeding it and remove the local copy;
+          Before clearing data, save anything you want to keep. In Android
+          system settings, open Apps → MostBox → Storage → Clear data / Clear
+          storage (wording varies by device). This removes the app's stored
+          identity credentials, node connection history, local chat data, files,
+          transfer records, settings, and runtime logs, and stops local seeding.
+          Repeat on each device you want to erase.
         </li>
         <li>
-          leave a channel in the app to remove it from your contacts and chat
-          list;
+          Files you exported to Downloads or another location, identity backups,
+          and copies on other devices are separate. Delete those separately if
+          you no longer want to keep them. Do not restore an old app backup if
+          you want the deleted data to stay removed.
         </li>
         <li>
-          clear MostBox app data in system settings or uninstall the app to
-          delete all data stored on the device.
+          For selected files, use Files → file details → Delete to remove that
+          app copy and stop seeding its CID. Leaving a channel or deleting its
+          chat list entry is not a complete history wipe. Signing out removes
+          the saved sign-in credentials, but is not account and data deletion.
         </li>
       </ul>
+      <p><strong>Remote nodes and support data</strong></p>
       <p>
-        If you signed in to a remote node you chose, sign out of the remote node
-        account in the app and delete the corresponding data on that node;
-        remote nodes are managed by their operators. Complete copies already
-        downloaded by other peers and channel messages already sent cannot be
-        recalled from your device.
+        Ask the operator of each remote node you used to delete the account's
+        stored data, including account sync registrations and metadata, device
+        authorizations held for sync, channel membership and profile data,
+        messages, and files associated with the account. Stop using account sync
+        on your other devices while the request is handled, so retained copies
+        are not synced back. The project does not operate public remote nodes or
+        have administrator access to independently operated nodes. Contact us if
+        you need help identifying the operator or making a request; we will
+        state which actions require that operator's cooperation. If you cannot
+        access the app or node, you can still start the request by email.
+      </p>
+      <p>
+        We handle deletion of support correspondence and any account-related
+        data under our control. Support emails are processed by our email
+        provider and remain in the support mailbox until removed; include them
+        in your request if you want them deleted. We do not retain a separate
+        centralized archive of your P2P messages or files. We cannot delete
+        messages or complete files already held by independent peers, or revoke
+        leaked share links. We explain any necessary retention and its duration
+        when responding; we do not describe a partial deletion as deletion of
+        all copies.
       </p>
 
       <h2>4. Related documents</h2>
