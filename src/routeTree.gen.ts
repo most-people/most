@@ -17,7 +17,6 @@ import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DownloadIndexRouteImport } from './routes/download/index'
 import { Route as FileIndexRouteImport } from './routes/file/index'
-import { Route as HiIndexRouteImport } from './routes/hi/index'
 import { Route as PingIndexRouteImport } from './routes/ping/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile/index'
 import { Route as Web3IndexRouteImport } from './routes/web3/index'
@@ -69,11 +68,6 @@ const FileIndexRoute = FileIndexRouteImport.update({
   path: '/file/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/file/index.lazy').then((d) => d.Route))
-const HiIndexRoute = HiIndexRouteImport.update({
-  id: '/hi/',
-  path: '/hi/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/hi/index.lazy').then((d) => d.Route))
 const PingIndexRoute = PingIndexRouteImport.update({
   id: '/ping/',
   path: '/ping/',
@@ -134,7 +128,6 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof DocsIndexRoute
   '/download/': typeof DownloadIndexRoute
   '/file/': typeof FileIndexRoute
-  '/hi/': typeof HiIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
@@ -153,7 +146,6 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsIndexRoute
   '/download': typeof DownloadIndexRoute
   '/file': typeof FileIndexRoute
-  '/hi': typeof HiIndexRoute
   '/ping': typeof PingIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/web3': typeof Web3IndexRoute
@@ -173,7 +165,6 @@ export interface FileRoutesById {
   '/docs/': typeof DocsIndexRoute
   '/download/': typeof DownloadIndexRoute
   '/file/': typeof FileIndexRoute
-  '/hi/': typeof HiIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
@@ -194,7 +185,6 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/download/'
     | '/file/'
-    | '/hi/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
@@ -213,7 +203,6 @@ export interface FileRouteTypes {
     | '/docs'
     | '/download'
     | '/file'
-    | '/hi'
     | '/ping'
     | '/profile'
     | '/web3'
@@ -232,7 +221,6 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/download/'
     | '/file/'
-    | '/hi/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
@@ -252,7 +240,6 @@ export interface RootRouteChildren {
   DocsIndexRoute: typeof DocsIndexRoute
   DownloadIndexRoute: typeof DownloadIndexRoute
   FileIndexRoute: typeof FileIndexRoute
-  HiIndexRoute: typeof HiIndexRoute
   PingIndexRoute: typeof PingIndexRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
   Web3IndexRoute: typeof Web3IndexRoute
@@ -319,13 +306,6 @@ declare module '@tanstack/react-router' {
       path: '/file'
       fullPath: '/file/'
       preLoaderRoute: typeof FileIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/hi/': {
-      id: '/hi/'
-      path: '/hi'
-      fullPath: '/hi/'
-      preLoaderRoute: typeof HiIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ping/': {
@@ -396,7 +376,6 @@ const rootRouteChildren: RootRouteChildren = {
   DocsIndexRoute: DocsIndexRoute,
   DownloadIndexRoute: DownloadIndexRoute,
   FileIndexRoute: FileIndexRoute,
-  HiIndexRoute: HiIndexRoute,
   PingIndexRoute: PingIndexRoute,
   ProfileIndexRoute: ProfileIndexRoute,
   Web3IndexRoute: Web3IndexRoute,

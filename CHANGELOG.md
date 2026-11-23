@@ -26,7 +26,7 @@ All notable changes to MostBox are documented in this file.
 
 ## [0.8.2] - 2026-11-20
 
-Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in place, and 0.5.x nodes upgrade directly to 0.8.2 (`docs/upgrade-0.8.0.md`).
+Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in place, and 0.5.x nodes upgrade directly to 0.8.2.
 
 ### Removed
 
@@ -34,7 +34,7 @@ Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in pla
 
 ## [0.8.1] - 2026-11-19
 
-0.8.0 was not published on its own; 0.8.1 is the first published 0.8 release and includes everything listed under 0.8.0. The protocol is unchanged from 0.8.0, and the upgrade path stays 0.5.x to 0.8.1 directly (`docs/upgrade-0.8.0.md`).
+0.8.0 was not published on its own; 0.8.1 is the first published 0.8 release and includes everything listed under 0.8.0. The protocol is unchanged from 0.8.0, and the upgrade path stays 0.5.x to 0.8.1 directly.
 
 ### Changed
 
@@ -56,7 +56,7 @@ Protocol and data format are unchanged from 0.8.1; nodes on 0.8.1 upgrade in pla
 
 ## [0.8.0] - 2026-11-18
 
-This release completes and freezes protocol v2. It is not compatible with 0.7.0, 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files. The supported upgrade path for nodes is 0.5.x to 0.8.0 directly; 0.6.0 and 0.7.0 data directories are not migrated. Back up the stopped data directory first: the first start moves every file into the node's own drive (rehearsed at about 8 s per GB, with the data directory peaking at 2.1 times its size and ending at about 1.7 times). Customer-facing steps are in `docs/upgrade-0.8.0.md`.
+This release completes and freezes protocol v2. It is not compatible with 0.7.0, 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files. The supported upgrade path for nodes is 0.5.x to 0.8.0 directly; 0.6.0 and 0.7.0 data directories are not migrated. Back up the stopped data directory first: the first start moves every file into the node's own drive (rehearsed at about 8 s per GB, with the data directory peaking at 2.1 times its size and ending at about 1.7 times). Historical customer-facing upgrade instructions are available in Git history.
 
 From 0.8.0 on, links, topics, key derivations, signature and frame formats only gain additions; new capabilities are negotiated per connection.
 
@@ -82,7 +82,7 @@ From 0.8.0 on, links, topics, key derivations, signature and frame formats only 
 
 ## [0.7.0] - 2026-11-18
 
-This release switches chat to protocol v2 and is not compatible with 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files, and a 0.7.0 node rejects message requests from older clients. Upgrade the node and its web clients in the same maintenance window, and back up the stopped data directory first. Records migrate on first start and the previous program must not open the migrated directory; roll back by restoring the backup. Customer-facing steps are in `docs/upgrade-0.7.0.md`.
+This release switches chat to protocol v2 and is not compatible with 0.6.x or 0.5.x: nodes and web clients of different versions cannot exchange chat messages or files, and a 0.7.0 node rejects message requests from older clients. Upgrade the node and its web clients in the same maintenance window, and back up the stopped data directory first. Records migrate on first start and the previous program must not open the migrated directory; roll back by restoring the backup. Historical customer-facing upgrade instructions are available in Git history.
 
 ### Changed
 

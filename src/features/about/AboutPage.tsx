@@ -2,7 +2,6 @@ import '~/styles/about.css'
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  ArrowRight,
   Bot,
   CheckCircle2,
   Code2,
@@ -260,16 +259,12 @@ export default function AboutPage() {
         </section>
 
         <section className="about-future-band">
-          <div className="about-container about-future-layout">
+          <div className="about-container">
             <div>
               <p className="about-kicker">{t('about.future.kicker')}</p>
               <h2>{t('about.future.title')}</h2>
               <p>{t('about.future.body')}</p>
             </div>
-            <Link to="/hi/" className="btn btn-secondary">
-              {t('about.future.cta')}
-              <ArrowRight size={16} />
-            </Link>
           </div>
         </section>
       </div>

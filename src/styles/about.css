@@ -396,13 +396,6 @@
   background: #111518;
 }
 
-.about-future-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 48px;
-}
-
 .about-future-band .about-kicker {
   color: #a9e8d2;
 }
@@ -421,12 +414,6 @@
   color: rgba(255, 255, 255, 0.68);
   font-size: 15px;
   line-height: 1.7;
-}
-
-.about-future-band .btn-secondary {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.3);
 }
 
 @media (max-width: 900px) {
@@ -589,15 +576,6 @@
 
   .about-related-links {
     justify-content: flex-start;
-  }
-
-  .about-future-layout {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-
-  .about-future-band .btn {
-    width: 100%;
   }
 }
 

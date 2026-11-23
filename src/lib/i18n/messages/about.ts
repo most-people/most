@@ -59,7 +59,6 @@ export const zhCNAboutMessages = {
   'about.future.title': '接力传播只是起点',
   'about.future.body':
     '我们正在探索个人节点如何成为由用户掌控的长期上下文和 Agent 协作基础。',
-  'about.future.cta': '看看 MostBox 想走向哪里',
 } as const
 
 export const zhTWAboutMessages = {
@@ -123,7 +122,6 @@ export const zhTWAboutMessages = {
   'about.future.title': '接力傳播只是起點',
   'about.future.body':
     '我們正在探索個人節點如何成為由使用者掌控的長期脈絡和 Agent 協作基礎。',
-  'about.future.cta': '看看 MostBox 想走向哪裡',
 } as const
 
 export const enAboutMessages = {
@@ -191,5 +189,4 @@ export const enAboutMessages = {
   'about.future.title': 'Relay sharing is only the beginning.',
   'about.future.body':
     'We are exploring how personal nodes can become user-controlled long-term context and a foundation for agent collaboration.',
-  'about.future.cta': 'See where MostBox may go',
 } as const

@@ -29,7 +29,6 @@ const SOURCE_PATHS = {
   openApiReference: 'src/features/docs/OpenApiReference.tsx',
   openApiRequest: 'src/features/docs/openapiRequest.js',
   about: 'src/features/about/AboutPage.tsx',
-  hi: 'src/features/hi/HiPage.tsx',
   footer: 'src/components/Footer.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
@@ -287,7 +286,6 @@ describe('frontend smoke checks', () => {
     assert.deepEqual(routes, [
       '/',
       '/about/',
-      '/hi/',
       '/admin/',
       '/app/',
       '/file/',
@@ -1484,26 +1482,10 @@ describe('frontend smoke checks', () => {
     assert.match(aboutSource, /about\.toolbox\.web3\.title/)
     assert.match(aboutSource, /about\.opensource\.title/)
     assert.match(aboutSource, /about-artemis\.webp/)
-    assert.match(aboutSource, /to="\/hi\/"/)
     assert.doesNotMatch(aboutSource, /about\.architecture/)
     assert.doesNotMatch(aboutMessages, /Personal Knowledge OS/)
     assert.doesNotMatch(aboutMessages, /Knowledge Graph/)
     assert.doesNotMatch(aboutMessages, /Scoped MCP Interface/)
-  })
-
-  it('keeps the Hi page focused on DChat and file transfer', () => {
-    const hiSource = readSource(SOURCE_PATHS.hi)
-    const hiMessages = readSource('src/lib/i18n/messages/hi.ts')
-    const footerSource = readSource(SOURCE_PATHS.footer)
-
-    assert.match(hiSource, /hi\.hero\.primary/)
-    assert.match(hiSource, /hi\.preview\.channel/)
-    assert.match(hiSource, /hi\.principles\.chat\.title/)
-    assert.match(hiSource, /to=\"\/chat\/\"/)
-    assert.match(hiMessages, /去中心化聊天与文件传输/)
-    assert.match(hiMessages, /Decentralized chat, with files sent directly/)
-    assert.doesNotMatch(hiSource, /knowledge|Knowledge|知识库/)
-    assert.doesNotMatch(footerSource, /to: '\/future\/'/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {

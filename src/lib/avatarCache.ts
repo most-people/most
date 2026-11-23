@@ -43,11 +43,3 @@ export function getCachedAvatar(
 
   return writeCache(address, generate(address, avatar))
 }
-
-export function getAvatarCacheSize() {
-  return cache.size
-}
-
-export function clearAvatarCache() {
-  cache.clear()
-}

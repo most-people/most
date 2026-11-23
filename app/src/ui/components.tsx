@@ -68,25 +68,6 @@ export function getToneSoftColor(theme: MostBoxTheme, tone: Tone) {
   }[tone]
 }
 
-type GlassSurfaceProps = {
-  children: ReactNode
-  style?: StyleProp<ViewStyle>
-  variant?: 'default' | 'subtle' | 'elevated'
-}
-
-export function GlassSurface({
-  children,
-  style,
-  variant = 'default',
-}: GlassSurfaceProps) {
-  const theme = useMostBoxTheme()
-  return (
-    <View style={[getGlassSurfaceStyle(theme, variant), style]}>
-      {children}
-    </View>
-  )
-}
-
 type MostButtonProps = Omit<PressableProps, 'style'> & {
   children: ReactNode
   icon?: ReactNode
@@ -198,36 +179,6 @@ export function MostTextInput({
   )
 }
 
-export function SectionHeader({
-  icon,
-  meta,
-  title,
-  style,
-}: {
-  icon?: ReactNode
-  meta?: string
-  title: string
-  style?: StyleProp<ViewStyle>
-}) {
-  const theme = useMostBoxTheme()
-  const styles = sharedStyles[theme.mode]
-  return (
-    <View style={[styles.sectionHeader, style]}>
-      <View style={styles.sectionTitleGroup}>
-        {icon}
-        <Text maxFontSizeMultiplier={2} style={styles.sectionTitle}>
-          {title}
-        </Text>
-      </View>
-      {meta ? (
-        <Text maxFontSizeMultiplier={2} style={styles.sectionMeta}>
-          {meta}
-        </Text>
-      ) : null}
-    </View>
-  )
-}
-
 export function StatusBadge({
   label,
   tone = 'muted',
@@ -273,18 +224,6 @@ export function SegmentedControl({
   return <View style={[styles.segmented, style]}>{children}</View>
 }
 
-export function ListRow({
-  children,
-  style,
-}: {
-  children: ReactNode
-  style?: StyleProp<ViewStyle>
-}) {
-  const theme = useMostBoxTheme()
-  const styles = sharedStyles[theme.mode]
-  return <View style={[styles.listRow, style]}>{children}</View>
-}
-
 export function BottomSheetCard({
   children,
   style,
@@ -299,8 +238,6 @@ export function BottomSheetCard({
 
 function createSharedStyles(theme: MostBoxTheme) {
   const { colors, radii } = theme
-  const glass = getGlassSurfaceStyle(theme)
-  const subtleGlass = getGlassSurfaceStyle(theme, 'subtle')
   const elevatedGlass = getGlassSurfaceStyle(theme, 'elevated')
 
   return StyleSheet.create({
@@ -365,30 +302,6 @@ function createSharedStyles(theme: MostBoxTheme) {
       backgroundColor: colors.glassSubtle,
       fontSize: 15,
     },
-    sectionHeader: {
-      minHeight: 34,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-    },
-    sectionTitleGroup: {
-      flex: 1,
-      minWidth: 0,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    sectionTitle: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: '700',
-    },
-    sectionMeta: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      fontWeight: '500',
-    },
     badge: {
       minHeight: 26,
       alignItems: 'center',
@@ -411,13 +324,6 @@ function createSharedStyles(theme: MostBoxTheme) {
       borderRadius: 12,
       backgroundColor: colors.glassSubtle,
     },
-    listRow: {
-      minHeight: 56,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: radii.medium,
-      backgroundColor: colors.glassSubtle,
-    },
     bottomSheet: {
       ...elevatedGlass,
       width: '100%',
@@ -436,8 +342,6 @@ function createSharedStyles(theme: MostBoxTheme) {
     disabled: {
       opacity: 0.48,
     },
-    surface: glass,
-    subtleSurface: subtleGlass,
   })
 }
 
