@@ -2,6 +2,16 @@
 
 本文件记录既有开发、构建和真机验证；各节结论以列明的提交、包和验证范围为准。2026-11-23 的本地测试归档已移出仓库，不据此新增真机或可靠性验收结论。内部验证包不能直接作为商店候选包。
 
+## 2026-11-24：iPhone 本机聊天与小文件接力（开发签名 Release 包）
+
+- 候选代码 `904447f4388097f1d10aaf3b8110968f6ac2056c`，版本 `0.8.4 / 804`、Bundle ID `most.box`。在 Intel Mac / macOS 26.4.1、Xcode 26.5（17F42）、Node.js 24.14.1 本地构建 Release，以 Apple Development 签名安装到 iPhone 16；CoreDevice 报告系统为 `27.2.1 (24B156)`。开发描述文件有效至 2026-11-30，非 App Store / TestFlight 分发包。归档 `MostBox-0.8.4-804-development.app.zip` 为 24,654,703 bytes，SHA-256 `8b6b2d5ec6c10e4c871cdcbc32be26dc73521353f55fb0e80ae2dbe5648ce5f0`；该值标识整个 `.app` 的 ZIP，不是 IPA。
+- 移动端测试 159 + 127 项、类型检查、iOS Bare bundle、iOS 配置预检、原生 Release 构建和深度签名校验通过。真机完成隐私确认、本地网络授权、本地测试身份登录和频道加入；Mac 上运行移动生产核心的独立进程与 iPhone 双向交换签名文字消息，Mac 实际读到手机发出的消息。
+- 文件样本 `ios-qa.txt` 为 262,144 bytes，CID `bafkreicukpfcyicrrhmav3mvmdvdtsrhhpjcgavwgjincsj4u67aaj3vzm`，SHA-256 `5453ca2c205189d80aed9560ea39ca273bd22302b63250d1493ca7be002775cb`。手机从聊天中的 `most://` 链接进入确认页，确认后下载，提示 CID 校验通过并前台做种。独立读取手机保存文件，完整字节与原样本一致；Python 使用标准库 SHA-256 与 CID v1 raw-leaf 编码独立重算，CID 一致。重启后点击附件可打开系统分享页，进入“保存到文件”选择器后取消并关闭分享页，正常返回聊天；未实际保存系统副本或验证外部阅读器。
+- 退出 Mac 原发布进程后，两个不同空目录的新节点先后从手机完成下载；第二轮在手机 App 终止并重新启动之后。两轮从新节点启动至完成分别为 6.640s、6.843s，记录的远端地址均为手机局域网地址；字节数、SHA-256 和独立重算 CID 全部一致。重启后手机 holding 保留，频道与已经同步的文字、附件引用在其他测试节点全部退出时仍可读取。仅为同一 Wi-Fi 下 256 KiB 样本的两轮功能证据，不代表跨 NAT、中继、流失或真实网络量化门槛通过。
+- 环境排障：原挂载调试镜像 `17F42` 下 XCTest 在启用自动化模式时超时；补齐设备符号后仍失败。挂载经 Apple TSS 验证的 `27B52` DDI 后，独立 CoreDevice HID、系统粘贴、辅助功能读取和截图可用，以上 UI 操作由该路径执行；没有把 XCTest 初始化失败记为产品测试失败或宣称 XCTest 已通过。期间曾捕获黑屏，用户确认手机界面正常，后续截图恢复，不据此认定 App 黑屏故障。
+- 原始证据保存在本地忽略目录 `.codex-logs/ios-2026-11-23/`：包与 `evidence.json`、UI 截图及 `ui-automation/control-events.jsonl`、`chat-iphone-to-mac.json`、`iphone-holdings-after-restart.json`、`iphone-file-oracle.json`、`peer-events.jsonl`、`verifier-events.jsonl` 和两份 `verifier-result-*.json`。`python3 .codex-logs/ios-2026-11-23/replay-results.py` 可由保存的原始文件与事件重算上述两轮结果及包哈希；`verify.mjs` 使用空目录创建接收节点，可在原发布者退出、手机前台做种时重放传输。包含手机操作的全流程尚未实现一条命令重放。证据含本机设备信息和系统分享界面，不纳入公开仓库。
+- 尚未覆盖：签名 Debug 包、TestFlight 同包、跨网与蜂窝、音频/照片附件、远程节点切换、锁屏/后台/系统清理、权限拒绝、空间不足与大文件，以及完整量化可靠性门槛。此次不修改产品代码或协议，不认定完整 iOS 验收或商店审核通过。
+
 ## 2026-11-23：移除已完成使命的旧版兼容路径（预览候选）
 
 - 代码提交 `141bba0`（基线 `c379124` 加清理）；移除旧账号迁移 API 及两端调用、0.5.x 共享 drive 搬运和旧钱包种子解密备份的回退。当前身份登录、备份与节点自有 CID drive 保留；旧聊天归档、原成员访问限制和重启读取保留。不删除用户文件或历史数据，不改变现行 P2P 报文字节。
