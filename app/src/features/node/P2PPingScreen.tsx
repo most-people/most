@@ -202,6 +202,7 @@ export function P2PPingScreen({
               style={({ pressed }) => [
                 styles.segment,
                 selected ? styles.segmentActive : null,
+                active || busy ? styles.disabled : null,
                 pressed ? styles.buttonPressed : null,
               ]}
             >
@@ -218,6 +219,10 @@ export function P2PPingScreen({
           )
         })}
       </View>
+
+      {active ? (
+        <Text style={styles.fieldLabel}>{t('p2pPing.switchHint')}</Text>
+      ) : null}
 
       <View style={styles.primarySection}>
         {role === 'host' ? (
@@ -504,7 +509,6 @@ function IconAction({
       {icon}
       <Text
         maxFontSizeMultiplier={1.6}
-        numberOfLines={1}
         style={[
           styles.iconActionText,
           success ? styles.iconActionTextSuccess : null,
@@ -690,11 +694,12 @@ function createStyles(theme: MostBoxTheme) {
       borderRadius: radii.medium,
       borderWidth: 1,
       flex: 1,
-      flexDirection: 'row',
+      flexDirection: 'column',
       gap: 6,
       justifyContent: 'center',
       minHeight: 44,
       paddingHorizontal: 8,
+      paddingVertical: 8,
       backgroundColor: colors.glassSubtle,
     },
     iconActionText: {
@@ -702,6 +707,7 @@ function createStyles(theme: MostBoxTheme) {
       flexShrink: 1,
       fontSize: 12,
       fontWeight: '600',
+      textAlign: 'center',
     },
     iconActionTextSuccess: { color: colors.success },
     codeInputRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
@@ -840,8 +846,7 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.glassSubtle,
     },
     detail: {
-      flexDirection: 'row',
-      gap: 14,
+      gap: 4,
       justifyContent: 'space-between',
       paddingVertical: 7,
     },
@@ -852,10 +857,8 @@ function createStyles(theme: MostBoxTheme) {
     },
     detailValue: {
       color: colors.textSecondary,
-      flex: 1,
       fontFamily: Platform.select({ android: 'monospace', default: undefined }),
       fontSize: 12,
-      textAlign: 'right',
     },
     detailDanger: { color: colors.danger },
     cancelButton: {

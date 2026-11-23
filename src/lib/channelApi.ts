@@ -1,6 +1,11 @@
 import type { FileSubtype } from '~/lib/filePreview'
 import type { LocalizedTag, MemberTag } from '~/lib/localizedTag'
 import { api, getApiUrl } from '~server/src/utils/api'
+import type {
+  MessageBody,
+  ProfileBody,
+  SignedEnvelope,
+} from '~/lib/chatSigning'
 
 export interface ChannelAttachment {
   kind: FileSubtype
@@ -45,8 +50,13 @@ export interface Channel {
   localWriterCoreKey?: string
   writerCoreKeys?: string[]
   type?: string
+  /** Protocol v2: private (credential), legacy (v1 random ID) or public (name). */
+  kind?: 'private' | 'legacy' | 'public'
+  public?: boolean
   peerCount?: number
   pinned?: boolean
+  /** 手动折叠偏好；缺省表示按“无消息且未置顶”自动折叠。 */
+  folded?: boolean
 }
 
 interface ChannelPeer {
@@ -85,14 +95,7 @@ interface GetChannelsOptions {
 
 interface SendChannelMessageInput {
   channelName: string
-  content: string
-  clientMessageId?: string
-  author: string
-  authorName: string
-  avatar?: string
-  authorTag?: LocalizedTag
-  mentions?: ChannelMention[]
-  attachment?: ChannelAttachment
+  signed: SignedEnvelope<MessageBody>
 }
 
 interface ChannelProfileInput {
@@ -101,9 +104,9 @@ interface ChannelProfileInput {
   tag?: MemberTag
 }
 
-interface UpdateMemberProfileInput extends ChannelProfileInput {
+interface UpdateMemberProfileInput {
   channelName: string
-  author: string
+  signed: SignedEnvelope<ProfileBody>
 }
 
 interface UpdateMemberProfileResult {
@@ -120,6 +123,11 @@ interface SetChannelRemarkResult {
 interface SetChannelPinnedResult {
   success: boolean
   pinned: boolean
+}
+
+interface SetChannelFoldedResult {
+  success: boolean
+  folded: boolean
 }
 
 interface CreateChannelResult extends Channel {
@@ -161,31 +169,11 @@ export const channelApi = {
       .json()
   },
 
-  sendChannelMessage({
-    channelName,
-    content,
-    clientMessageId,
-    author,
-    authorName,
-    avatar,
-    authorTag,
-    mentions,
-    attachment,
-  }: SendChannelMessageInput) {
-    const json = {
-      content,
-      clientMessageId,
-      author,
-      authorName,
-      avatar,
-      authorTag,
-      mentions,
-      attachment,
-    }
+  sendChannelMessage({ channelName, signed }: SendChannelMessageInput) {
     return api
       .post<SendMessageResult>(
         `/api/channels/${encodeURIComponent(channelName)}/messages`,
-        { json }
+        { json: { signed } }
       )
       .json()
   },
@@ -214,22 +202,12 @@ export const channelApi = {
 
   updateChannelMemberProfile({
     channelName,
-    author,
-    displayName,
-    avatar,
-    tag,
+    signed,
   }: UpdateMemberProfileInput) {
     return api
       .post<UpdateMemberProfileResult>(
         `/api/channels/${encodeURIComponent(channelName)}/member-profile`,
-        {
-          json: {
-            author,
-            displayName,
-            avatar,
-            tag,
-          },
-        }
+        { json: { signed } }
       )
       .json()
   },
@@ -248,6 +226,15 @@ export const channelApi = {
       .put<SetChannelPinnedResult>(
         `/api/channels/${encodeURIComponent(name)}/pin`,
         { json: { pinned } }
+      )
+      .json()
+  },
+
+  setChannelFolded(name: string, folded: boolean) {
+    return api
+      .put<SetChannelFoldedResult>(
+        `/api/channels/${encodeURIComponent(name)}/fold`,
+        { json: { folded } }
       )
       .json()
   },

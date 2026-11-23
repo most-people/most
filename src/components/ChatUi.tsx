@@ -1,5 +1,9 @@
+import { useEffect, useRef } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
   ArrowRight,
   Edit2,
   FileText,
@@ -93,6 +97,7 @@ export function ChatMessageItem({
   authorTag = '',
   mentioned = false,
   time,
+  timeNote = '',
   children,
 }: {
   variant: ChatMessageVariant
@@ -103,6 +108,8 @@ export function ChatMessageItem({
   authorTag?: string
   mentioned?: boolean
   time: string
+  /** Small low-contrast note shown after the time (e.g. unsigned history). */
+  timeNote?: string
   children: ReactNode
 }) {
   const className = [
@@ -137,7 +144,10 @@ export function ChatMessageItem({
           )}
         </span>
         {children}
-        <span className="message-time">{time}</span>
+        <span className="message-time">
+          {time}
+          {timeNote && <span className="message-time-note"> · {timeNote}</span>}
+        </span>
       </div>
     </div>
   )
@@ -146,6 +156,7 @@ export function ChatMessageItem({
 export function ChatChannelNavItem({
   active = false,
   pinned = false,
+  folded = false,
   unread = false,
   mentionUnread = false,
   mentionPreview = '',
@@ -153,11 +164,13 @@ export function ChatChannelNavItem({
   menuClassName,
   onSelect,
   onTogglePin,
+  onToggleFold,
   onRename,
   onLeave,
 }: {
   active?: boolean
   pinned?: boolean
+  folded?: boolean
   unread?: boolean
   mentionUnread?: boolean
   mentionPreview?: string
@@ -165,11 +178,18 @@ export function ChatChannelNavItem({
   menuClassName?: string
   onSelect?: () => void
   onTogglePin?: () => void
+  onToggleFold?: () => void
   onRename?: () => void
   onLeave?: () => void
 }) {
   const { t } = useI18n()
-  const hasActions = Boolean(onTogglePin || onRename || onLeave)
+  const itemRef = useRef<HTMLDivElement>(null)
+  const hasActions = Boolean(onTogglePin || onToggleFold || onRename || onLeave)
+
+  useEffect(() => {
+    if (active) itemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [active])
+
   const className = [
     'sidebar-nav-btn',
     active ? 'active' : '',
@@ -182,6 +202,7 @@ export function ChatChannelNavItem({
 
   return (
     <div
+      ref={itemRef}
       className={className}
       onClick={onSelect}
       role="button"
@@ -233,6 +254,16 @@ export function ChatChannelNavItem({
               onSelect: () => onTogglePin?.(),
             },
             {
+              key: 'fold',
+              label: folded ? t('chat.unfold') : t('chat.fold'),
+              icon: folded ? (
+                <ArchiveRestore size={16} />
+              ) : (
+                <Archive size={16} />
+              ),
+              onSelect: () => onToggleFold?.(),
+            },
+            {
               key: 'rename',
               label: t('chat.rename'),
               icon: <Edit2 size={16} />,
@@ -257,6 +288,74 @@ export function ChatChannelNavItem({
           )}
         />
       )}
+    </div>
+  )
+}
+
+export function ChatFoldedEntryItem({
+  count,
+  unread = false,
+  mentionUnread = false,
+  onSelect,
+}: {
+  count: number
+  unread?: boolean
+  mentionUnread?: boolean
+  onSelect: () => void
+}) {
+  const { t } = useI18n()
+  const className = [
+    'sidebar-nav-btn',
+    'chat-folded-entry',
+    unread ? 'unread' : '',
+    mentionUnread ? 'mention-unread' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <button type="button" className={className} onClick={onSelect}>
+      <span className="chat-channel-icon-wrap">
+        <Archive size={16} />
+        {unread ? (
+          <span
+            className="chat-channel-unread-dot"
+            title={t('chat.unread')}
+            aria-hidden="true"
+          />
+        ) : null}
+      </span>
+      <span className="chat-channel-title">
+        <span className="chat-channel-title-text">
+          {t('chat.folded.title')}
+        </span>
+        {mentionUnread && (
+          <span className="chat-channel-subtitle">
+            <span className="chat-channel-mention-label">
+              [{t('chat.mentionUnreadTag')}]
+            </span>
+          </span>
+        )}
+      </span>
+      <span className="chat-folded-count">{count}</span>
+    </button>
+  )
+}
+
+export function ChatFoldedHeader({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="chat-folded-header">
+      <button
+        type="button"
+        className="btn btn-icon"
+        onClick={onBack}
+        title={t('chat.folded.back')}
+        aria-label={t('chat.folded.back')}
+      >
+        <ArrowLeft size={16} />
+      </button>
+      <span className="chat-folded-header-title">{t('chat.folded.title')}</span>
     </div>
   )
 }

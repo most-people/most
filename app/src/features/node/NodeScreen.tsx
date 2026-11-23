@@ -38,7 +38,14 @@ import {
 } from '../../ui/theme'
 import { NodeConnectionPanel } from './NodeConnectionPanel'
 import { ConnectionStatusBar } from '../../ui/ConnectionStatusBar'
+import { ScryptBenchmarkPanel } from '../../devtools/ScryptBenchmarkPanel'
+
+// Dev builds, or a release build made with EXPO_PUBLIC_SCRYPT_BENCHMARK=1 to
+// measure scrypt at release speed on a phone (docs/protocol/v2/signatures.md §7.2).
+const SHOW_SCRYPT_BENCHMARK =
+  __DEV__ || process.env.EXPO_PUBLIC_SCRYPT_BENCHMARK === '1'
 import { BackgroundServicePanel } from './BackgroundServicePanel'
+import { PRODUCT_PROFILE } from '../../product/productProfile'
 
 export type NodeScreenProps = {
   client: MostBoxMobileClient
@@ -47,6 +54,7 @@ export type NodeScreenProps = {
   snapshot: MobileCoreSnapshot
   onOpenPrivacy: () => void | Promise<void>
   onOpenSupport: () => void | Promise<void>
+  onOpenAccountDeletion: () => void | Promise<void>
   onOpenTerms: () => void | Promise<void>
   onRetryStartCore: () => void | Promise<void>
 }
@@ -124,6 +132,7 @@ export function NodeScreen({
   snapshot,
   onOpenPrivacy,
   onOpenSupport,
+  onOpenAccountDeletion,
   onOpenTerms,
   onRetryStartCore,
 }: NodeScreenProps) {
@@ -288,6 +297,15 @@ export function NodeScreen({
             </Text>
           )
         ) : null}
+        {diagnosticsOpen && SHOW_SCRYPT_BENCHMARK ? (
+          <ScryptBenchmarkPanel
+            runNative={
+              client.runNativeScryptBenchmark
+                ? () => client.runNativeScryptBenchmark!()
+                : undefined
+            }
+          />
+        ) : null}
       </View>
 
       <View style={styles.section}>
@@ -311,6 +329,13 @@ export function NodeScreen({
             label={t('node.about.support')}
             onPress={onOpenSupport}
           />
+          {PRODUCT_PROFILE.features.remoteNode ? (
+            <LinkRow
+              external
+              label={t('node.account.deleteAccount')}
+              onPress={onOpenAccountDeletion}
+            />
+          ) : null}
         </View>
       </View>
     </ScrollView>

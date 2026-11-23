@@ -1,0 +1,13 @@
+{"phase":"publisher","network":{"peers":1,"appPeers":1,"chatPeers":0,"online":true,"relayConfigured":true,"status":"connected"},"phonePublicKey":null}
+{"phase":"publisher+phone","t":1794813010191,"type":"meta","cid":"bafkreifbeiikbxs6p63gpbbdau37bdm5i43jczngc5fszjkjfsxz7573ty","self":null,"firewalled":true}
+{"phase":"publisher+phone","t":1794813010909,"type":"record","publicKey":"08d3e09f6bcce2ca09547c72884e338c34d9ce333a49cc5f6fa56485b9ffbf7e","relayAddresses":["5.9.110.206:49737","65.21.230.76:46757","195.201.13.168:49738"],"from":"91.98.28.169:49738"}
+{"phase":"publisher+phone","t":1794813010909,"type":"record","publicKey":"01c58c1960103a07c3f573b2fa6f60650e502df37a84b00b96a2ae87836d65b8","relayAddresses":["213.136.80.223:49739","34.26.82.51:49737","78.141.237.9:49738"],"from":"91.98.28.169:49738"}
+{"phase":"publisher+phone","t":1794813014264,"type":"connect","publicKey":"08d3e09f6bcce2ca09547c72884e338c34d9ce333a49cc5f6fa56485b9ffbf7e","ok":true,"ms":1467,"remote":"<home-ip>:42657"}
+{"phase":"publisher+phone","t":1794813014559,"type":"connect","publicKey":"01c58c1960103a07c3f573b2fa6f60650e502df37a84b00b96a2ae87836d65b8","ok":true,"ms":1760,"remote":"<home-ip>:42658"}
+{"phase":"publisher+phone","t":1794813014560,"type":"summary","records":2}
+{"phase":"phone-only","t":1794813028022,"type":"meta","cid":"bafkreifbeiikbxs6p63gpbbdau37bdm5i43jczngc5fszjkjfsxz7573ty","self":null,"firewalled":true}
+{"phase":"phone-only","t":1794813028662,"type":"record","publicKey":"08d3e09f6bcce2ca09547c72884e338c34d9ce333a49cc5f6fa56485b9ffbf7e","relayAddresses":["5.9.110.206:49737","65.21.230.76:46757","195.201.13.168:49738"],"from":"129.158.198.51:49737"}
+{"phase":"phone-only","t":1794813029835,"type":"record","publicKey":"01c58c1960103a07c3f573b2fa6f60650e502df37a84b00b96a2ae87836d65b8","relayAddresses":["213.136.80.223:49739","34.26.82.51:49737","78.141.237.9:49738"],"from":"81.17.99.230:49737"}
+{"phase":"phone-only","t":1794813033457,"type":"connect","publicKey":"08d3e09f6bcce2ca09547c72884e338c34d9ce333a49cc5f6fa56485b9ffbf7e","ok":true,"ms":2453,"remote":"<home-ip>:42960"}
+{"phase":"phone-only","t":1794813035270,"type":"connect","publicKey":"01c58c1960103a07c3f573b2fa6f60650e502df37a84b00b96a2ae87836d65b8","ok":false,"ms":4264,"remote":null}
+{"phase":"phone-only","t":1794813035270,"type":"summary","records":2}

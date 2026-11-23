@@ -30,7 +30,13 @@ import { useFeedback } from '../../ui/feedback'
 import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import { useI18n } from '../../i18n'
 import { useMostBoxTheme } from '../../ui/theme'
-import { getJoinedChannels, type JoinedChannel } from './conversationModel'
+import {
+  channelDisplayName,
+  channelLabel,
+  channelShareText,
+  getJoinedChannels,
+  type JoinedChannel,
+} from './conversationModel'
 import * as Clipboard from 'expo-clipboard'
 
 export type ContactsScreenProps = {
@@ -141,11 +147,11 @@ export function ContactsScreen({
   }
 
   const showMenu = (channel: JoinedChannel) => {
-    alert(channel.remark || `#${channel.name}`, undefined, [
+    alert(channelDisplayName(channel), undefined, [
       {
         text: t('chat.copyChannelName'),
         onPress: () => {
-          void Clipboard.setStringAsync(`#${channel.name}`)
+          void Clipboard.setStringAsync(channelShareText(channel))
             .then(() => toast(t('chat.copied'), 'success'))
             .catch(() => toast(t('app.clipboard.failed'), 'error'))
         },
@@ -156,7 +162,7 @@ export function ContactsScreen({
               text: t('chat.shareChannel'),
               onPress: () => {
                 void Share.share({
-                  message: `#${channel.name}`,
+                  message: channelShareText(channel),
                   title: `MostBox · #${channel.name}`,
                 }).catch(() => toast(t('chat.channelShareFailed'), 'error'))
               },
@@ -182,7 +188,7 @@ export function ContactsScreen({
           alert(
             t('contacts.leave'),
             t('contacts.leaveConfirm', {
-              channel: channel.remark || channel.name,
+              channel: channel.remark || channelLabel(channel),
             }),
             [
               { text: t('common.cancel'), style: 'cancel' },
@@ -239,7 +245,7 @@ export function ContactsScreen({
                 </View>
                 <View style={styles.rowText}>
                   <Text numberOfLines={1} style={styles.label}>
-                    {channel.remark || `#${channel.name}`}
+                    {channelDisplayName(channel)}
                   </Text>
                   {channel.pinned ? (
                     <Text style={styles.meta}>{t('contacts.pinned')}</Text>
@@ -248,7 +254,7 @@ export function ContactsScreen({
               </Pressable>
               <IconButton
                 accessibilityLabel={t('chat.conversationOptions', {
-                  channel: channel.remark || channel.name,
+                  channel: channel.remark || channelLabel(channel),
                 })}
                 disabled={working}
                 onPress={() => showMenu(channel)}

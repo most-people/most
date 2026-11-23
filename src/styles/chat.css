@@ -166,6 +166,10 @@
     opacity: 0.7;
   }
 
+  .message-time-note {
+    opacity: 0.8;
+  }
+
   &.pending .message-bubble {
     opacity: 0.6;
   }
@@ -1055,6 +1059,13 @@
   word-break: break-all;
 }
 
+.channel-detail-public-notice {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--warning);
+}
+
 .channel-detail-footer {
   padding: 20px;
   border-top: 1px solid var(--glass-border);
@@ -1815,4 +1826,28 @@
     grid-column: 1 / -1;
     width: 100%;
   }
+}
+
+/* === Folded Chats === */
+.chat-folded-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-folded-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 6px;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chat-folded-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

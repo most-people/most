@@ -1,4 +1,16 @@
 export const chatMessages = {
+  'chat.details.publicNotice': {
+    'zh-CN':
+      '公开频道：任何知道这个名字的人都能加入和阅读。私密聊天请新建频道，它会使用随机凭证。',
+    'zh-TW':
+      '公開頻道：任何知道這個名稱的人都能加入和閱讀。私密聊天請新建頻道，它會使用隨機憑證。',
+    en: 'Public channel: anyone who knows this name can join and read it. For a private chat, create a new channel; it uses a random credential.',
+  },
+  'chat.message.unsigned': {
+    'zh-CN': '未签名',
+    'zh-TW': '未簽署',
+    en: 'Unsigned',
+  },
   'chat.clearSearch': {
     'zh-CN': '清空搜索',
     'zh-TW': '清空搜尋',
@@ -282,6 +294,7 @@ export const chatMessages = {
     en: 'No matching conversations',
   },
   'chat.draftLabel': { 'zh-CN': '[草稿] ', 'zh-TW': '[草稿] ', en: '[Draft] ' },
+  'chat.yesterday': { 'zh-CN': '昨天', 'zh-TW': '昨天', en: 'Yesterday' },
   'chat.unreadCount': {
     'zh-CN': '{count} 条未读消息',
     'zh-TW': '{count} 則未讀訊息',
@@ -379,6 +392,11 @@ export const chatMessages = {
     'zh-CN': '加入频道失败',
     'zh-TW': '加入頻道失敗',
     en: 'Could not join channel',
+  },
+  'chat.initialProfileFailed': {
+    'zh-CN': '已加入频道，但未能同步昵称',
+    'zh-TW': '已加入頻道，但未能同步暱稱',
+    en: 'Joined the channel, but could not sync your name',
   },
   'chat.sendFailed': {
     'zh-CN': '发送消息失败',

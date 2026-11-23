@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: October 17, 2026
+Last updated: November 17, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -23,11 +23,38 @@ infrastructure and other peers. Network participants and infrastructure
 providers may observe information needed to establish a connection, including
 IP addresses, timing, topics, and traffic volume.
 
+MostBox does not use a relay by default. A desktop or daemon operator can set
+`relayPublicKey` in the node configuration to a relay of their choice. When a
+device is behind a NAT that randomizes ports, or hole punching between two
+peers fails, the connection is then routed through that relay. The relay
+forwards the bytes of the peers' encrypted connection and cannot read files or
+messages, but its operator can see both peers' IP addresses and public keys,
+connection timing, and traffic volume. The relay software in this repository
+(`scripts/blind-relay.js`) logs only session counts.
+
 Files published or seeded by a user are transferred to peers that know the
-corresponding `most://` link or CID. Channel messages and presence information
+corresponding `most://` link or CID. Anyone who knows a link can find the peers
+currently seeding it through the DHT and learn their IP addresses within
+seconds by connecting to them. Channel messages and presence information
 are replicated to peers participating in the corresponding channel. CIDs,
 `most://` links, and channel identifiers act as capabilities and should be
 shared accordingly.
+
+Since version 0.8.0 a file's DHT topic is a one-way hash of its CID, and a
+seed hands out the drive key for a file only to a peer that proves it knows
+the CID. What remains visible:
+
+| Who                                    | What they can see                                                                                                                                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any DHT node                           | File topics (which cannot be turned back into a CID); the IP address, port, and file-swarm public key of each peer announcing a topic; the number of announcers                                                                                         |
+| Anyone who knows a CID or link         | All of the above, plus which topic belongs to that CID: they **can still list the IP addresses of every online seeder and downloader of that file**                                                                                                     |
+| A peer connected to the node for files | The discovery keys of every core the node has open (file drives, channel writer cores, account sync cores). A discovery key cannot be turned into the core key and does not allow reading content, but it can link the same core across different nodes |
+| A relay                                | Both peers' public keys, connection timing, and traffic volume (see above)                                                                                                                                                                              |
+
+In v2 live voice rooms, authorized channel members can see who joins, leaves,
+or changes microphone state. Connection setup data (SDP and ICE, which may
+include IP addresses) passes through the participating nodes to the target
+session. Other channel subscribers do not receive it.
 
 ## Optional photos and voice messages
 

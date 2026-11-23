@@ -12,6 +12,8 @@ import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginSession } from '../../src/utils/userIdentity.js'
+import { resolveChannelHandle } from '../../src/core/channelKeysV2.js'
+import { signedMessage, signedProfile } from '../helpers/signedMessage.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
@@ -49,6 +51,35 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     const method = init.method || 'GET'
     const path = new URL(String(input), baseUrl).pathname
     return buildAuthHeaders(TEST_IDENTITY, method, path)
+  }
+
+  /** POST init for a message signed by `identity` (TEST_IDENTITY by default). */
+  async function messageInit(channelName, content, fields = {}) {
+    const { identity = TEST_IDENTITY, ...rest } = fields
+    let channelId = '0'.repeat(64)
+    try {
+      channelId = engine.resolveChannelKey(channelName)
+    } catch {
+      // Not a member yet: the node refuses before it checks the channel.
+    }
+    const signed = await signedMessage(channelId, content, {
+      identity,
+      ...rest,
+    })
+    return {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signed }),
+    }
+  }
+
+  async function sendAs(identity, channelName, content) {
+    const signed = await signedMessage(
+      engine.resolveChannelKey(channelName),
+      content,
+      { identity, authorName: 'TestUser' }
+    )
+    return engine.sendMessage(channelName, signed)
   }
 
   async function fetchWithoutAuth(input, init = {}) {
@@ -671,11 +702,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 53)
+      assert.strictEqual(documentedOperations.length, 55)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        53
+        55
       )
       assert.ok(
         documentedOperations.every(
@@ -713,6 +744,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/member-profile'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
+      assert.ok(spec.paths['/api/channels/{name}/fold'])
       assert.ok(spec.components.schemas.ChannelMention)
       assert.ok(spec.components.schemas.LocalizedTag)
       assert.ok(spec.components.schemas.LocalizedTagInput)
@@ -740,11 +772,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         { $ref: '#/components/schemas/MemberTagInput' }
       )
       assert.deepStrictEqual(
-        spec.components.schemas.ChannelMessageRequest.properties.authorTag,
+        spec.components.schemas.ChannelMessageRequest.properties.signed
+          .properties.body.properties.authorTag,
         { $ref: '#/components/schemas/LocalizedTagInput' }
       )
       assert.deepStrictEqual(
-        spec.components.schemas.ChannelMemberProfileRequest.properties.tag,
+        spec.components.schemas.ChannelMemberProfileRequest.properties.signed
+          .properties.body.properties.tag,
         { $ref: '#/components/schemas/MemberTagInput' }
       )
       assert.ok(spec.components.schemas.ChannelMessage.properties.mentions)
@@ -1767,9 +1801,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
-      assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.match(data.holding.driveName, /^cid-drive-[0-9a-f]{64}$/)
       assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
-      assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
     it('logs P2P pull link failures with CID diagnostics', async () => {
@@ -2659,79 +2692,77 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'INVALID_INVITE')
     })
 
-    it('rate limits repeated missing authentication without charging valid signatures', async () => {
+    // Behind a gateway or CDN every visitor can share one address: failed
+    // requests must never throttle anyone, including the valid users.
+    it('never rate limits failed signatures', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 21,
         configStore,
         nodeLogger,
-        rateLimit: {
-          policies: {
-            global: { windowMs: 60_000, maxRequests: 100 },
-            authFailure: { windowMs: 60_000, maxRequests: 2 },
-          },
-        },
       })
-      const requestInit = { headers: { host: 'localhost:1976' } }
+      const forged = async () => {
+        const { Authorization } = await buildAuthHeaders(
+          TEST_IDENTITY,
+          'GET',
+          '/api/files'
+        )
+        const [cert, timestamp] = Authorization.split(',')
+        const signature = Buffer.alloc(64, 1).toString('base64url')
+        return app.request(
+          '/api/files',
+          {
+            headers: {
+              host: 'localhost:1976',
+              authorization: `${cert},${timestamp},${signature}`,
+            },
+          },
+          LOCAL_REQUEST_CONTEXT
+        )
+      }
 
+      const statuses = []
+      for (let i = 0; i < 30; i += 1) statuses.push((await forged()).status)
       const authenticated = await requestAsWithContext(
         TEST_IDENTITY,
         app,
         '/api/files'
       )
-      const first = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
-      const second = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
-      const blocked = await app.request(
-        '/api/files',
-        requestInit,
-        LOCAL_REQUEST_CONTEXT
-      )
-      const blockedData = await blocked.json()
 
+      assert.deepStrictEqual(statuses, Array(30).fill(401))
       assert.strictEqual(authenticated.status, 200)
-      assert.strictEqual(first.status, 401)
-      assert.strictEqual(second.status, 401)
-      assert.strictEqual(blocked.status, 429)
-      assert.strictEqual(blockedData.code, 'RATE_LIMITED')
-      assert.strictEqual(blockedData.policy, 'authFailure')
-      assert.ok(Number(blocked.headers.get('retry-after')) >= 1)
     })
 
-    it('rate limits repeated invalid remote invites', async () => {
+    it('never rate limits wrong or missing remote invites', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 22,
         host: '127.0.0.1',
         configStore,
         nodeLogger,
-        remoteInvites: [],
-        rateLimit: {
-          policies: {
-            global: { windowMs: 60_000, maxRequests: 100 },
-            inviteFailure: { windowMs: 60_000, maxRequests: 2 },
-          },
-        },
+        remoteInvites: ['invite-ok'],
       })
       const context = {
         incoming: { socket: { remoteAddress: '203.0.113.25' } },
       }
-      const requestInit = { headers: { host: 'mostbox.example.com' } }
+      const withInvite = invite => ({
+        headers: { host: 'mostbox.example.com', 'x-mostbox-invite': invite },
+      })
 
-      const first = await app.request('/api/node-id', requestInit, context)
-      const second = await app.request('/api/node-id', requestInit, context)
-      const blocked = await app.request('/api/node-id', requestInit, context)
-      const blockedData = await blocked.json()
+      const statuses = []
+      for (let i = 0; i < 30; i += 1) {
+        const invite = i % 2 ? 'guess' : ''
+        statuses.push(
+          (await app.request('/api/node-id', withInvite(invite), context))
+            .status
+        )
+      }
+      const valid = await app.request(
+        '/api/node-id',
+        withInvite('invite-ok'),
+        context
+      )
 
-      assert.strictEqual(first.status, 403)
-      assert.strictEqual(second.status, 403)
-      assert.strictEqual(blocked.status, 429)
-      assert.strictEqual(blockedData.policy, 'inviteFailure')
+      assert.deepStrictEqual(statuses, Array(30).fill(403))
+      assert.strictEqual(valid.status, 200)
     })
 
     it('does not trust LAN host headers by themselves', async () => {
@@ -3004,8 +3035,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.strictEqual(data.name, 'test-channel')
       assert.ok(data.key)
-      assert.strictEqual(data.channelKey, 'test-channel')
-      assert.ok(!data.channelKey.includes(':'))
+      assert.strictEqual(
+        data.channelKey,
+        resolveChannelHandle('test-channel').channelKey
+      )
+      assert.strictEqual(data.public, true)
     })
 
     it('creates a channel with a localized member tag', async () => {
@@ -3035,7 +3069,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         'zh-CN': '有人@我',
         en: 'Mentioned',
       })
-      assert.ok(profiles[0].profileUpdatedAt)
     })
 
     it('returns existing channel if already created', async () => {
@@ -3079,7 +3112,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         })
         const data = await res.json()
         assert.strictEqual(res.status, 400)
-        assert.match(data.error, /点号为系统保留/)
+        assert.match(data.error, /频道凭证或名称无效/)
       }
     })
   })
@@ -3135,15 +3168,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       await engine.createChannel(`auth-msg-${uid}`)
       const res = await fetchWithoutAuth(
         `${baseUrl}/api/channels/auth-msg-${uid}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'Hello!',
-            author: TEST_IDENTITY.address,
-            authorName: 'TestUser',
-          }),
-        }
+        await messageInit(`auth-msg-${uid}`, 'Hello!')
       )
       const data = await res.json()
 
@@ -3153,15 +3178,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
     it('sends a message to a channel', async () => {
       await engine.createChannel(`msg-${uid}`)
-      const res = await fetch(`${baseUrl}/api/channels/msg-${uid}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: 'Hello!',
-          author: TEST_IDENTITY.address,
-          authorName: 'TestUser',
-        }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/msg-${uid}/messages`,
+        await messageInit(`msg-${uid}`, 'Hello!', { authorName: 'TestUser' })
+      )
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
@@ -3181,15 +3201,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const messageRes = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'tagged hello',
-            author: TEST_IDENTITY.address,
-            authorName: 'Tagged API User',
-          }),
-        }
+        await messageInit(channelName, 'tagged hello', {
+          authorName: 'Tagged API User',
+          authorTag: { default: '有人@我', en: 'Mentioned' },
+        })
       )
       const messageData = await messageRes.json()
       assert.strictEqual(messageRes.status, 200)
@@ -3204,9 +3219,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            author: TEST_IDENTITY.address,
-            displayName: 'Tagged API User',
-            tag: null,
+            signed: await signedProfile(engine.resolveChannelKey(channelName), {
+              identity: TEST_IDENTITY,
+              displayName: 'Tagged API User',
+              tag: null,
+            }),
           }),
         }
       )
@@ -3225,7 +3242,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('passes message client id and mentions through HTTP', async () => {
       const channelName = `http-mention-${uid}`
       const clientMessageId = '22222222-2222-4222-8222-222222222222'
-      const mentioned = SECOND_IDENTITY.address
+      const mentioned = SECOND_IDENTITY.address.toLowerCase()
       const mentions = [
         {
           address: mentioned,
@@ -3238,28 +3255,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const res = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'hi @SecondUser',
-            author: TEST_IDENTITY.address,
-            authorName: 'TestUser',
-            clientMessageId,
-            mentions,
-          }),
-        }
+        await messageInit(channelName, 'hi @SecondUser', {
+          authorName: 'TestUser',
+          id: clientMessageId,
+          mentions,
+        })
       )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.message.clientMessageId, clientMessageId)
-      assert.deepStrictEqual(data.message.mentions, [
-        {
-          ...mentions[0],
-          address: mentioned.toLowerCase(),
-        },
-      ])
+      assert.deepStrictEqual(data.message.mentions, mentions)
     })
 
     it('persists message author avatar snapshots', async () => {
@@ -3267,16 +3273,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       await engine.createChannel(channelName)
       const res = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'avatar update',
-            author: TEST_IDENTITY.address,
-            authorName: 'AvatarUser',
-            avatar: 'data:image/png;base64,avatar',
-          }),
-        }
+        await messageInit(channelName, 'avatar update', {
+          authorName: 'AvatarUser',
+          avatar: 'data:image/png;base64,avatar',
+        })
       )
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -3296,15 +3296,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const noAvatarRes = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'avatar unchanged',
-            author: TEST_IDENTITY.address,
-            authorName: 'AvatarUser',
-          }),
-        }
+        await messageInit(channelName, 'avatar unchanged', {
+          authorName: 'AvatarUser',
+        })
       )
       assert.strictEqual(noAvatarRes.status, 200)
       const latestMessagesRes = await fetch(
@@ -3332,23 +3326,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const res = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: link,
-            author: TEST_IDENTITY.address,
-            authorName: 'TestUser',
-            attachment: {
-              kind: 'video',
-              cid: VALID_MISSING_CID,
-              fileName,
-              link,
-              mimeType: 'video/mp4',
-              size: 456,
-            },
-          }),
-        }
+        await messageInit(channelName, link, {
+          authorName: 'TestUser',
+          attachment: {
+            kind: 'video',
+            cid: VALID_MISSING_CID,
+            fileName,
+            link,
+            mimeType: 'video/mp4',
+            size: 456,
+          },
+        })
       )
       const data = await res.json()
 
@@ -3370,26 +3358,23 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const res = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
-            author: TEST_IDENTITY.address,
-            authorName: 'TestUser',
+        await messageInit(
+          channelName,
+          `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
+          {
             attachment: {
               kind: 'unknown',
               cid: VALID_MISSING_CID,
               fileName: 'chat-file/bad/file.txt',
               link: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
             },
-          }),
-        }
+          }
+        )
       )
       const data = await res.json()
 
       assert.strictEqual(res.status, 400)
-      assert.match(data.error, /attachment kind/)
+      assert.match(data.error, /invalid attachment/)
     })
 
     it('rejects a message author that does not match the logged-in user', async () => {
@@ -3397,15 +3382,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetchAs(
         SECOND_IDENTITY,
         `${baseUrl}/api/channels/spoof-${uid}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'spoofed',
-            author: TEST_IDENTITY.address,
-            authorName: 'TestUser',
-          }),
-        }
+        await messageInit(`spoof-${uid}`, 'spoofed')
       )
       const data = await res.json()
 
@@ -3420,15 +3397,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const blocked = await fetchAs(
         SECOND_IDENTITY,
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'not joined yet',
-            author: SECOND_IDENTITY.address,
-            authorName: 'SecondUser',
-          }),
-        }
+        await messageInit(channelName, 'not joined yet', {
+          identity: SECOND_IDENTITY,
+        })
       )
       const blockedData = await blocked.json()
 
@@ -3449,15 +3420,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const allowed = await fetchAs(
         SECOND_IDENTITY,
         `${baseUrl}/api/channels/${channelName}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: 'joined now',
-            author: SECOND_IDENTITY.address,
-            authorName: 'SecondUser',
-          }),
-        }
+        await messageInit(channelName, 'joined now', {
+          identity: SECOND_IDENTITY,
+          authorName: 'SecondUser',
+        })
       )
       const allowedData = await allowed.json()
 
@@ -3493,43 +3459,27 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
     it('returns messages from a channel', async () => {
       await engine.createChannel(`read-${uid}`)
-      await engine.sendMessage(
-        `read-${uid}`,
-        'msg1',
-        '0x1234567890abcdef1234567890abcdef12345678',
-        'TestUser'
-      )
-      await engine.sendMessage(
-        `read-${uid}`,
-        'msg2',
-        '0x1234567890abcdef1234567890abcdef12345678',
-        'TestUser'
-      )
+      await sendAs(TEST_IDENTITY, `read-${uid}`, 'msg1')
+      await sendAs(TEST_IDENTITY, `read-${uid}`, 'msg2')
 
       const res = await fetch(`${baseUrl}/api/channels/read-${uid}/messages`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
+      // Joining writes nothing to the channel (signatures.md §6).
       assert.deepStrictEqual(
-        data.map(message => message.type),
-        ['system', 'message', 'message']
-      )
-      assert.strictEqual(data[0].event, 'channel.member.joined')
-      assert.deepStrictEqual(
-        data.slice(1).map(message => message.content),
-        ['msg1', 'msg2']
+        data.map(message => [message.type, message.content]),
+        [
+          ['message', 'msg1'],
+          ['message', 'msg2'],
+        ]
       )
     })
 
     it('blocks non-members from reading local channel history', async () => {
       const channelName = `private-read-${uid}`
       await engine.createChannel(channelName)
-      await engine.sendMessage(
-        channelName,
-        'owner-only message',
-        TEST_IDENTITY.address,
-        'TestUser'
-      )
+      await sendAs(TEST_IDENTITY, channelName, 'owner-only message')
 
       const res = await fetchAs(
         SECOND_IDENTITY,
@@ -3541,28 +3491,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
 
-    it('returns a system member-joined message for a newly joined chat channel', async () => {
-      await engine.createChannel(`empty-${uid}`)
-      const res = await fetch(`${baseUrl}/api/channels/empty-${uid}/messages`)
-      const data = await res.json()
-      assert.strictEqual(res.status, 200)
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].type, 'system')
-      assert.strictEqual(data[0].event, 'channel.member.joined')
-      assert.strictEqual(data[0].content, 'channel.member.joined')
-      assert.strictEqual(data[0].author, TEST_IDENTITY.address.toLowerCase())
-    })
-
     it('supports pagination with limit and offset', async () => {
       await engine.createChannel(`page-${uid}`)
       for (let i = 0; i < 5; i++) {
-        await engine.sendMessage(
-          `page-${uid}`,
-          `msg${i}`,
-          '0x1234567890abcdef1234567890abcdef12345678',
-          'TestUser'
-        )
+        await sendAs(TEST_IDENTITY, `page-${uid}`, `msg${i}`)
       }
 
       const res = await fetch(
@@ -3574,71 +3506,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('channel join history messages', () => {
-    it('records each new chat member with a welcome message snapshot', async () => {
-      const channelName = `members-${uid}`
-      const firstJoin = await fetch(`${baseUrl}/api/channels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: channelName,
-          type: 'public',
-          displayName: 'FirstUser',
-          avatar: 'first.png',
-        }),
-      })
-      assert.strictEqual(firstJoin.status, 200)
-
-      await new Promise(resolve => setTimeout(resolve, 5))
-      const secondJoin = await fetchAs(
-        SECOND_IDENTITY,
-        `${baseUrl}/api/channels`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: channelName,
-            type: 'public',
-            displayName: 'SecondUser',
-            avatar: 'second.png',
-          }),
-        }
-      )
-      assert.strictEqual(secondJoin.status, 200)
-
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`)
-      const data = await res.json()
-      const welcomeMessages = data.filter(
-        message => message.event === 'channel.member.joined'
-      )
-
-      assert.strictEqual(res.status, 200)
-      assert.deepStrictEqual(
-        welcomeMessages.map(message => message.author),
-        [
-          TEST_IDENTITY.address.toLowerCase(),
-          SECOND_IDENTITY.address.toLowerCase(),
-        ]
-      )
-      assert.deepStrictEqual(
-        welcomeMessages.map(message => message.type),
-        ['system', 'system']
-      )
-      assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
-      assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
-      assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
-      assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
-      const listRes = await fetch(`${baseUrl}/api/channels`)
-      const channels = await listRes.json()
-      const channel = channels.find(item => item.name === channelName)
-      assert.strictEqual(listRes.status, 200)
-      assert.strictEqual(channel.members, undefined)
-      assert.ok(
-        Number(welcomeMessages[0].timestamp) <=
-          Number(welcomeMessages[1].timestamp)
-      )
-    })
-
+  describe('channel members endpoint', () => {
     it('does not expose the old channel members endpoint', async () => {
       const channelName = `removed-members-${uid}`
       await engine.createChannel(channelName)
@@ -3835,6 +3703,52 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const clearData = await clearRes.json()
       assert.strictEqual(clearRes.status, 200)
       assert.strictEqual(clearData.pinned, false)
+    })
+  })
+
+  describe('PUT /api/channels/:name/fold', () => {
+    it('requires login before folding a channel', async () => {
+      await engine.createChannel(`auth-fold-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-fold-${uid}/fold`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folded: true }),
+        }
+      )
+      assert.strictEqual(res.status, 401)
+    })
+
+    it('folds and unfolds a channel', async () => {
+      await engine.createChannel(`fold-${uid}`, 'personal', {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+      const findChannel = async () => {
+        const channels = await (await fetch(`${baseUrl}/api/channels`)).json()
+        return channels.find(c => c.name === `fold-${uid}`)
+      }
+      assert.strictEqual((await findChannel()).folded, undefined)
+
+      const foldRes = await fetch(`${baseUrl}/api/channels/fold-${uid}/fold`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folded: true }),
+      })
+      assert.strictEqual(foldRes.status, 200)
+      assert.strictEqual((await foldRes.json()).folded, true)
+      assert.strictEqual((await findChannel()).folded, true)
+
+      const unfoldRes = await fetch(
+        `${baseUrl}/api/channels/fold-${uid}/fold`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folded: false }),
+        }
+      )
+      assert.strictEqual((await unfoldRes.json()).folded, false)
+      assert.strictEqual((await findChannel()).folded, false)
     })
   })
 

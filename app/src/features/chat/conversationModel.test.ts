@@ -3,6 +3,9 @@ import test from 'node:test'
 import {
   shouldShowMessageTime,
   getJoinedChannelNames,
+  channelDisplayName,
+  channelLabel,
+  channelShareText,
   getJoinedChannels,
   getVisibleConversations,
   normalizeHiddenConversations,
@@ -56,16 +59,43 @@ test('invalid persisted conversation entries do not introduce fake channels', ()
 
 test('channel remarks preserve identity and pinned channels sort before ordinary channels', () => {
   const channels = getJoinedChannels([
-    { channelKey: '8848', remark: 'Team', pinned: false },
+    { channelKey: '8848', remark: 'Team', pinned: false, public: true },
     { channelKey: 'other', remark: 'Pinned team', pinned: true },
   ])
   assert.deepEqual(channels, [
-    { name: 'other', remark: 'Pinned team', pinned: true },
-    { name: '8848', remark: 'Team', pinned: false },
+    {
+      name: 'other',
+      handle: '',
+      remark: 'Pinned team',
+      pinned: true,
+      public: false,
+    },
+    { name: '8848', handle: '', remark: 'Team', pinned: false, public: true },
   ])
   assert.deepEqual(getJoinedChannels([{ ...channels[1], remark: '' }]), [
-    { name: '8848', remark: '', pinned: false },
+    { name: '8848', handle: '', remark: '', pinned: false, public: true },
   ])
+})
+
+test('channels show and share the handle people type, never a private credential', () => {
+  const publicId = 'a'.repeat(64)
+  const credential = 'b'.repeat(52)
+  const [pub, priv, v1] = getJoinedChannels([
+    { channelKey: publicId, channelId: 'general', public: true },
+    { channelKey: 'c'.repeat(64), channelId: credential },
+    { channelKey: 'd'.repeat(64), channelId: 'pwnr2dwtmdixjzrd5xpwoh2yfe' },
+  ])
+  assert.equal(pub.name, publicId)
+  assert.equal(channelLabel(pub), 'general')
+  assert.equal(channelDisplayName(pub), '#general')
+  assert.equal(channelShareText(pub), '#general')
+  assert.equal(channelDisplayName({ ...pub, remark: 'Team' }), 'Team')
+  // The credential joins the channel, so it is shared but never shown.
+  assert.equal(channelLabel(priv), 'c'.repeat(64))
+  assert.equal(channelShareText(priv), `#${credential}`)
+  assert.equal(channelLabel(v1), 'pwnr2dwtmdixjzrd5xpwoh2yfe')
+  // Without a handle the public ID is all there is.
+  assert.equal(channelShareText({ name: publicId, handle: '' }), `#${publicId}`)
 })
 
 const aliceMessage = (timestamp: number, content = 'Hello'): ChatMessage => ({

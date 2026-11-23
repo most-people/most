@@ -1,0 +1,57 @@
+{
+  "description": "Canonical JSON (v2/signatures.md §3) computed by an independent Python implementation. \"input\" is JSON text; \"canonical\" is the expected output text; invalid inputs must be rejected. -0 and 1e400 cannot be parsed by every JSON reader and are listed for implementations that construct them directly.",
+  "valid": [
+    { "input": "null", "canonical": "null" },
+    { "input": "true", "canonical": "true" },
+    { "input": "0", "canonical": "0" },
+    { "input": "-1", "canonical": "-1" },
+    { "input": "9007199254740991", "canonical": "9007199254740991" },
+    { "input": "-9007199254740991", "canonical": "-9007199254740991" },
+    { "input": "1.0", "canonical": "1" },
+    { "input": "\"plain\"", "canonical": "\"plain\"" },
+    {
+      "input": "\"quote \\\" backslash \\\\ slash /\"",
+      "canonical": "\"quote \\\" backslash \\\\ slash /\""
+    },
+    {
+      "input": "\"\\u0000\\u0001\\u001f \\b\\f\\n\\r\\t \\u007f\"",
+      "canonical": "\"\\u0000\\u0001\\u001f \\b\\f\\n\\r\\t \""
+    },
+    {
+      "input": "\"line sep \\u2028 para sep \\u2029\"",
+      "canonical": "\"line sep   para sep  \""
+    },
+    {
+      "input": "\"中文 emoji \\ud83d\\ude00 é\"",
+      "canonical": "\"中文 emoji 😀 é\""
+    },
+    { "input": "[]", "canonical": "[]" },
+    { "input": "{}", "canonical": "{}" },
+    {
+      "input": "[1,[2,[3]],{\"a\":[]}]",
+      "canonical": "[1,[2,[3]],{\"a\":[]}]"
+    },
+    {
+      "input": "{\"b\":1,\"a\":2,\"A\":3,\"_\":4,\"aa\":5,\"\":6}",
+      "canonical": "{\"\":6,\"A\":3,\"_\":4,\"a\":2,\"aa\":5,\"b\":1}"
+    },
+    {
+      "input": "{\"é\":1,\"z\":2,\"中\":3,\"\\ud83d\\ude00\":4,\"\\uff21\":5}",
+      "canonical": "{\"z\":2,\"é\":1,\"中\":3,\"😀\":4,\"Ａ\":5}"
+    },
+    {
+      "input": "{\"kind\":\"message\",\"channelId\":\"ab\",\"author\":\"0x11\",\"id\":\"u\",\"createdAt\":1795000000000,\"content\":\"hi\",\"mentions\":[{\"address\":\"0x22\",\"label\":\"bob\",\"start\":0,\"end\":4}]}",
+      "canonical": "{\"author\":\"0x11\",\"channelId\":\"ab\",\"content\":\"hi\",\"createdAt\":1795000000000,\"id\":\"u\",\"kind\":\"message\",\"mentions\":[{\"address\":\"0x22\",\"end\":4,\"label\":\"bob\",\"start\":0}]}"
+    }
+  ],
+  "invalid": [
+    "1.5",
+    "-0",
+    "9007199254740992",
+    "-9007199254740992",
+    "1e400",
+    "\"\\ud800\"",
+    "\"x\\udc00\"",
+    "{\"\\ud800\":1}"
+  ]
+}

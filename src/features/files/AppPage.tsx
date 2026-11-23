@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
+import {
+  createBurstDebounce,
+  METADATA_REFRESH_MAX_WAIT_MS,
+  METADATA_REFRESH_WAIT_MS,
+} from '~/lib/burstDebounce'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Upload,
@@ -534,6 +539,12 @@ export default function App() {
 
     let ws: WebSocket | null = null
     let cancelled = false
+    // Account sync can emit hundreds of metadata updates in a row; reload once per burst.
+    const metadataRefresh = createBurstDebounce(
+      () => void refreshFiles(),
+      METADATA_REFRESH_WAIT_MS,
+      METADATA_REFRESH_MAX_WAIT_MS
+    )
     ;(async () => {
       ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
       if (cancelled) {
@@ -572,11 +583,11 @@ export default function App() {
               })
             )
           }
-          if (
-            event === 'download:success' ||
-            event === 'user:metadata:updated'
-          ) {
+          if (event === 'download:success') {
             refreshFiles()
+          }
+          if (event === 'user:metadata:updated') {
+            metadataRefresh()
           }
         } catch (err) {
           console.warn('[App WS] Failed to parse message:', err.message)
@@ -585,6 +596,7 @@ export default function App() {
     })()
     return () => {
       cancelled = true
+      metadataRefresh.cancel()
       ws?.close()
     }
   }, [hasBackend, userIdentity?.address])

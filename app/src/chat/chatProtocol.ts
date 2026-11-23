@@ -1,5 +1,6 @@
 import { CID } from 'multiformats/cid'
-import type { MobileIdentity } from '../mobileCore/types'
+import type { SignedEnvelope } from './chatSigning'
+import type { MobileIdentity, MobileMemberProfile } from '../mobileCore/types'
 import { buildRemoteApiUrl, buildRemoteHeaders } from '../remoteNode/protocol'
 import { parseMostLink } from '../mobileCore/protocol'
 
@@ -416,13 +417,37 @@ export class ChatApiClient {
     )
   }
 
-  async sendMessage(channel: string, input: ChatMessageInput) {
-    const payload = buildChatMessagePayload(input)
+  /** Sends a message the client signed (docs/protocol/v2/signatures.md §4). */
+  async getChannelMemberProfiles(
+    channel: string
+  ): Promise<MobileMemberProfile[]> {
+    const members = await this.#request(
+      'GET',
+      `/api/channels/${encodeURIComponent(channel)}/member-profiles`
+    )
+    if (
+      !Array.isArray(members) ||
+      !members.every(member => typeof member?.address === 'string')
+    ) {
+      throw new Error('Invalid member profiles response')
+    }
+    return members
+  }
+
+  async updateChannelMemberProfile(channel: string, signed: SignedEnvelope) {
+    await this.#request(
+      'POST',
+      `/api/channels/${encodeURIComponent(channel)}/member-profile`,
+      { signed }
+    )
+  }
+
+  async sendMessage(channel: string, signed: SignedEnvelope) {
     const response = asRecord(
       await this.#request(
         'POST',
         `/api/channels/${encodeURIComponent(channel)}/messages`,
-        payload
+        { signed }
       )
     )
     const message = normalizeChatMessage(response.message)

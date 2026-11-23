@@ -18,7 +18,7 @@ MCP 不引入新的内容身份、P2P 协议或存储格式。
 ## 边界和不变量
 
 - 原生分享链接保持 `most://<cid>?filename=...`。
-- Hyperswarm topic 继续使用 `cid.multihash.digest`，Hyperdrive key 继续使用 `/<cid>`。
+- Hyperdrive key 继续使用 `/<cid>`。
 - 文件名、路径和 MCP metadata 只用于展示或定位，不能替代 CID 完整性判断。
 - MCP 不启动第二个 `MostBoxEngine`，所有调用最终进入已运行 daemon 的现有 API 和引擎。
 - 首版不暴露删除文件、移动文件、目录分享、节点配置、日志清理、关机、账户导入、
@@ -100,7 +100,7 @@ SSH 隧道映射到本机后使用，不能因为 daemon 监听 `0.0.0.0` 而向
 1. 启动 daemon 并打开 `/admin/`。
 2. 在“MCP 客户端”中选择最小 scope；只有启用 `files:publish` 时才需要填写允许目录。
 3. 创建凭证并立即保存一次性 token。
-4. 按 README 的 Codex、Claude Desktop 或 VS Code 配置连接。
+4. 按下方[客户端配置](#客户端配置)连接 Codex、Claude Desktop 或 VS Code。
 5. 不再使用时在管理台吊销客户端；已建立的 HTTP 或 stdio 连接随后不能继续调用 daemon。
 
 CLI stdio 入口：
@@ -110,6 +110,65 @@ MOSTBOX_URL=http://127.0.0.1:1976 \
 MOSTBOX_MCP_TOKEN='<token>' \
 npx -y most-box@latest mcp
 ```
+
+## 客户端配置
+
+Codex 使用 Streamable HTTP：
+
+```bash
+export MOSTBOX_MCP_TOKEN='<管理台创建的 token>'
+codex mcp add mostbox \
+  --url http://127.0.0.1:1976/mcp \
+  --bearer-token-env-var MOSTBOX_MCP_TOKEN
+codex mcp list
+```
+
+Claude Desktop 使用 stdio，在 `claude_desktop_config.json` 的 `mcpServers` 中加入：
+
+```json
+{
+  "mcpServers": {
+    "mostbox": {
+      "command": "npx",
+      "args": ["-y", "most-box@latest", "mcp"],
+      "env": {
+        "MOSTBOX_URL": "http://127.0.0.1:1976",
+        "MOSTBOX_MCP_TOKEN": "<管理台创建的 token>"
+      }
+    }
+  }
+}
+```
+
+VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，避免把 token 提交到仓库：
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "mostbox-token",
+      "description": "MostBox MCP token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "mostbox": {
+      "type": "http",
+      "url": "http://127.0.0.1:1976/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:mostbox-token}"
+      }
+    }
+  }
+}
+```
+
+源码运行 stdio 时，可将 `command` 改为 Node.js，`args` 设为 MostBox 仓库绝对路径下的
+`server/cli.js` 和 `mcp`。完整 scope、工具合同、安全边界与验收矩阵见
+[能力合同](#能力合同)。客户端格式参考 [Codex MCP 配置](https://developers.openai.com/codex/mcp/)、
+[VS Code MCP 配置](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) 和
+[Anthropic MCP 文档](https://docs.anthropic.com/en/docs/mcp)。
 
 ## 验收矩阵
 

@@ -1,0 +1,83 @@
+{
+  "description": "Protocol v2 primitives (v2/envelope.md §3), computed independently with Python hashlib/hmac. Parts are hex bytes unless marked utf8.",
+  "labels": [
+    {
+      "purpose": "topic/file",
+      "label": "6d6f73742f76322f746f7069632f66696c6500"
+    },
+    {
+      "purpose": "channel/id",
+      "label": "6d6f73742f76322f6368616e6e656c2f696400"
+    }
+  ],
+  "invalidPurposes": [
+    "",
+    "Topic/File",
+    "topic file",
+    "topic/file\u0000",
+    "topic_file"
+  ],
+  "H": [
+    {
+      "purpose": "topic/file",
+      "parts": [
+        {
+          "hex": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        }
+      ],
+      "output": "d82045e4f17781ce78a34c6f271aa8294cea8d73962ec311d4735543a9d71926"
+    },
+    {
+      "purpose": "channel/public",
+      "parts": [{ "utf8": "general" }],
+      "output": "ea373818a08820d0860385af1843021fc5fa5ef5a91946786f23f8e9add0d143"
+    },
+    {
+      "purpose": "channel/legacy",
+      "parts": [{ "utf8": "a2b3c4d5e6f7g8h9i0j1k2l3m4" }],
+      "output": "8674288070b2232542e79f27db69c0406326a14254efa24f44e5c03fffcdfb05"
+    },
+    {
+      "purpose": "topic/file",
+      "parts": [],
+      "output": "c3c92df1967744b6eef3a0542eac167028edb4e2039c2001eb8195eb20125386"
+    }
+  ],
+  "MAC": [
+    {
+      "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "purpose": "file/want",
+      "parts": [
+        {
+          "hex": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "hex": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ],
+      "output": "e73c9a01daf87445599b3ad1a3366b2578ac8c4c273ad4d8ccf4ef30caf27f12"
+    },
+    {
+      "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "purpose": "cid-drive/name",
+      "parts": [
+        {
+          "hex": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        }
+      ],
+      "output": "9fbbc881684d449b5f85cada585c4f322115672d572ef4c1c28da4837c0ed7e9"
+    }
+  ],
+  "KDF": [
+    {
+      "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "purpose": "channel/proof-key",
+      "output": "39ed2aef371cfded1c6a0c955b4934581e82acb7a611eb50ca1ca1de7f30eba9"
+    },
+    {
+      "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "purpose": "channel/encryption",
+      "output": "17fafa2155d8c7dc11b6fb4ef53e79693236fb587501b70839f28be3da4c2de7"
+    }
+  ]
+}

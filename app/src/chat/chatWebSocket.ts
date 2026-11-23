@@ -1,4 +1,4 @@
-import type { MobileIdentity } from '../mobileCore/types'
+import type { ChannelPresenceInput, MobileIdentity } from '../mobileCore/types'
 import { buildAuthenticatedWebSocketUrl } from '../remoteNode/protocol'
 import {
   buildChannelSubscribeFrame,
@@ -79,6 +79,15 @@ export class ChatWebSocketSession {
     this.#channels.add(normalized)
     await this.connect()
     if (wasConnected) this.#send(buildChannelSubscribeFrame(normalized))
+  }
+
+  sendPresence({ action, channelName, signed }: ChannelPresenceInput) {
+    this.#send(
+      JSON.stringify({
+        event: 'channel:presence:' + action,
+        data: { channel: channelName, signed },
+      })
+    )
   }
 
   unsubscribe(channel: string) {

@@ -19,6 +19,7 @@ const SYNC_KEY_REGEX = /^0x[0-9a-f]{64}$/
 const CORE_KEY_REGEX = /^[0-9a-f]{64}$/
 const NONCE_REGEX = /^[0-9a-f]{32}$/
 const MAX_WRITER_CORES = 64
+const SCAN_BATCH_DELAY_MS = 250
 
 export function getAccountSyncMetadataPath(dataPath) {
   return path.join(dataPath, 'account-sync.json')
@@ -45,7 +46,7 @@ function normalizeSyncKey(input) {
   return prefixed
 }
 
-function chatTopicFor(topicHex) {
+export function chatTopicFor(topicHex) {
   return crypto.createHash('sha256').update(`${topicHex}:chat`).digest()
 }
 
@@ -83,6 +84,10 @@ export class AccountSync extends EventEmitter {
   }
 
   async stop() {
+    for (const account of this.#accounts.values()) {
+      clearTimeout(account.scanTimer)
+      account.scanTimer = null
+    }
     this.#streams.clear()
     this.removeAllListeners()
   }
@@ -139,6 +144,7 @@ export class AccountSync extends EventEmitter {
     const address = normalizeAddress(addressInput)
     const account = this.#accounts.get(address)
     if (!account) return { registered: false }
+    clearTimeout(account.scanTimer)
     this.#accounts.delete(address)
     this.#persist()
     const topicBuffer = b4a.from(account.topic.slice(2), 'hex')
@@ -333,6 +339,7 @@ export class AccountSync extends EventEmitter {
       state: new Map(),
       maxUpdatedAt: 0,
       scanning: Promise.resolve(),
+      scanTimer: null,
       dialedPeers: new Set(),
     }
     this.#accounts.set(address, account)
@@ -371,9 +378,20 @@ export class AccountSync extends EventEmitter {
     if (core.writable === false) core.download({ start: 0, end: -1 })
   }
 
+  /**
+   * Replication fires `download` once per block. Scanning on each one would
+   * emit one `change` per entry, so wait briefly and scan everything that
+   * arrived in the meantime as one batch.
+   */
   #scheduleScan(address) {
     const account = this.#accounts.get(address)
-    if (account) this.#scan(account).catch(() => {})
+    if (!account || account.scanTimer) return
+    account.scanTimer = setTimeout(() => {
+      account.scanTimer = null
+      if (this.#accounts.get(address) !== account) return
+      this.#scan(account).catch(() => {})
+    }, SCAN_BATCH_DELAY_MS)
+    account.scanTimer.unref?.()
   }
 
   #scan(account) {
@@ -433,7 +451,7 @@ export class AccountSync extends EventEmitter {
     )
     try {
       stream.write(
-        `${JSON.stringify({ type: ACCOUNT_HELLO_TYPE, envelope })}\n`
+        `${JSON.stringify({ v: 2, type: ACCOUNT_HELLO_TYPE, envelope })}\n`
       )
     } catch {
       this.#streams.delete(stream)

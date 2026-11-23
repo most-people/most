@@ -19,6 +19,7 @@ describe('channel presence manager', () => {
     presence.join(CHANNEL, {
       address: ALICE,
       sessionId: 'one',
+      frame: { id: 1 },
       local: true,
       displayName: 'Alice',
       profileUpdatedAt: 1,
@@ -27,6 +28,7 @@ describe('channel presence manager', () => {
     presence.join(CHANNEL, {
       address: ALICE,
       sessionId: 'two',
+      frame: { id: 2 },
       local: true,
       displayName: 'Alice new',
       profileUpdatedAt: 2,
@@ -41,9 +43,10 @@ describe('channel presence manager', () => {
       })),
       [{ channelId: 'id:room', displayName: 'Alice new', lastSeen: 200 }]
     )
-    assert.equal(presence.listLocal().length, 1)
+    assert.deepEqual(presence.localFrames(), [{ id: 1 }, { id: 2 }])
 
     presence.leave('room', { address: ALICE, sessionId: 'one' })
+    assert.deepEqual(presence.localFrames(), [{ id: 2 }])
     assert.equal(presence.list('room').length, 1)
     presence.leave('room', { address: ALICE, sessionId: 'two' })
     assert.equal(presence.list('room').length, 0)

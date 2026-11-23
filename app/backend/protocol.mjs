@@ -21,7 +21,7 @@ function encodeBase32(bytes) {
 }
 
 export function createRandomChannelId(fillRandomBytes) {
-  const bytes = new Uint8Array(16)
+  const bytes = new Uint8Array(32)
   fillRandomBytes(bytes)
   return encodeBase32(bytes)
 }

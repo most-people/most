@@ -18,18 +18,14 @@ signs each request with that device key.
 
 - Device key: an ed25519 key pair, one per device. `publicKey` is 32 bytes of
   hex; `secretKey` is the 64-byte tweetnacl secret key in hex.
-- Device certificate: `dc1.<base64url(payload)>.<signature>`. `payload` is JSON
-  `{address, devicePublicKey, issuedAt, expiresAt}` (milliseconds). `signature`
-  is an EIP-191 signature, by the account's secp256k1 key, over
-  `most-box-device-cert-v1
-
-<address>
-<devicePublicKey>
-<issuedAt>
-<expiresAt>`.
-  The node rejects certificates that are expired, issued more than five
-  minutes in the future, or valid for longer than 90 days. Clients use 30 days
-  and ask the user for the password again to renew.
+- Device certificate: `dc1.<base64url(payload)>.<EIP-191 signature>`, with
+  JSON payload `{address, devicePublicKey, issuedAt, expiresAt}`. The exact
+  signed message and verification rules are defined once in
+  [the device certificate specification](protocol/v2/signatures.md#5-设备证书与撤销边界).
+  HTTP rejects expired certificates, issuance more than five minutes in the
+  future, or validity longer than 90 days. Thirty days is the default;
+  clients can select shorter validity. P2P historical checks do not apply
+  current-time expiry checks, and there is no P2P device revocation.
 - Request signature: base64url of the ed25519 detached signature, by the device
   key, over `<timestamp-ms>:<UPPERCASE-METHOD>:<pathname>`. Query parameters are
   excluded. The node accepts signatures within five minutes of its clock.
@@ -78,24 +74,32 @@ promise that peers have finished replicating all historical entries.
 
 ## Sending and Retrying
 
-`POST /api/channels/:name/messages` accepts
-`{content, author, authorName, avatar?, clientMessageId?, attachment?, mentions?}`.
-The author must equal the signed request identity. Text is limited to 10,000
-characters. Success retains the existing `{success: true, message}` envelope.
+`POST /api/channels/:name/messages` requires `{signed}`. The signed envelope
+is `{body, device, cert, sig}` as defined in [the current signature specification](protocol/v2/signatures.md).
+`body.kind` is `message`; `body.channelId` is the public 64-hex channel ID;
+`body.author` must equal the authenticated account. Unsigned requests are rejected.
+Text is limited to 10,000 UTF-16 code units and must already be trimmed.
+Success returns `{success: true, message}`; this API projection uses
+`clientMessageId = body.id` and `timestamp = ts`, not a separate wire format.
 
-Use one UUID v4 `clientMessageId` per logical message and reuse it on retries.
-Within one node, `(channel, author, clientMessageId)` is checked against
-persisted history and sends to each channel are serialized. Repeating the
-same normalized content, attachment and mentions returns the original message,
-including after restart. Reusing the id with a different payload returns HTTP
-409 with `code: "CONFLICT"`. Display-name or avatar updates do not create a new
-message. Requests without a client id keep the legacy append behavior.
+Use one lowercase UUID v4 `body.id` per logical message and retain the complete
+signed body for retries, including `createdAt` and optional fields. Within one
+node, sends are serialized and `(channel, author, id)` is checked against the
+locally available persisted history. An identical canonical body returns the
+original message, including after restart. Reusing the id with any different
+body field returns HTTP 409 with `code: "CONFLICT"`. The node never edits a
+signed body to normalize it.
 
-Clients merge HTTP responses, WebSocket events and history by channel, author
-and clientMessageId. Legacy records without a client id can use the existing
-message id or author/timestamp/content key. This is not a cross-node consensus
-or deduplication guarantee if the same logical send is submitted to independent
-nodes simultaneously.
+Clients merge responses, live events and history by channel, author and id.
+Current P2P readers also deduplicate `(author, id)` and keep the earliest entry
+by the shared ordering rule. This is not cross-node consensus or proof that a
+recipient received the message. Version-specific unsigned local snapshots are
+read-only and follow [the migration boundary](protocol/v2/channel-keys.md#7-迁移d7).
+
+To update member details, send `{signed}` to
+`POST /api/channels/:name/member-profile` with a `kind: "profile"` body.
+Absent fields leave the previous value unchanged; `tag: null` clears it.
+A node does not create an unsigned profile event on the user's behalf.
 
 ## WebSocket
 
@@ -106,8 +110,8 @@ not log the full URL.
 
 ```json
 {"event":"channel:subscribe","data":{"channel":"example-room"}}
-{"event":"channel:subscribed","data":{"channel":"example-room"}}
-{"event":"channel:message","data":{"channel":"example-room","message":{}}}
+{"event":"channel:subscribed","data":{"channel":"example-room","channelKey":"<64-hex public channel ID>"}}
+{"event":"channel:message","data":{"channel":"<64-hex public channel ID>","message":{}}}
 {"event":"channel:unsubscribe","data":{"channel":"example-room"}}
 ```
 
@@ -117,6 +121,25 @@ channel subscriptions. Reconnect, resubscribe and reload history after network
 loss. Unknown browser origins are refused; native connections without an
 Origin header still require remote invite and signature authentication.
 
+For presence, send `channel:presence:join|heartbeat|profile|leave` with
+`data: {channel, signed}`. Use the public channel ID in the signed body. Set
+`kind: "presence"` and the corresponding `status` (`online`, `heartbeat`,
+`profile`, or `offline`). Sign a fresh event with the authenticated account's
+device for each action; keep the same unique `sessionId` for the lifetime of
+one tab or active mobile conversation. See
+[the v2 signature format](protocol/v2/signatures.md#43-聊天-swarm-帧).
+Send a heartbeat every 15 seconds and a signed leave before closing normally.
+An abrupt socket close clears only that socket's sessions locally. A connected
+peer expires a session after 45 seconds without a heartbeat. An account stays
+online while any session remains. Unsigned presence frames are ignored.
+
+For live voice, subscribe first and use the public channel ID from the
+acknowledgement. Send `channel:voice:<event>` with `data: {channel, signed}`;
+sign a fresh `kind: "voice"` body as described in [voice v2](protocol/v2/voice.md).
+The node emits verified `channel:voice` events to subscribers. A signal goes
+only to its target session; a missing or expired target receives nothing.
+WebRTC clients handle only `transport: "webrtc1"`.
+
 ## Attachments
 
 1. Read `GET /api/node/policy` with the remote invite and signature for the
@@ -124,8 +147,8 @@ Origin header still require remote invite and signature authentication.
 2. Upload a multipart `file` field to `POST /api/publish`. Native FormData uses
    a URI, filename and MIME type; browser FormData uses a File. Do not override
    the multipart Content-Type boundary.
-3. Use the returned `cid`, `fileName` and `link` in the attachment object. Send
-   a message whose `content` is exactly the attachment link.
+3. Use the returned `cid`, `fileName` and `link` in the signed body attachment.
+   Set `body.content` to exactly the attachment link before signing.
 4. Download from `GET /api/files/:cid/download` with remote request headers.
    This endpoint supports byte ranges. If the node has no local copy, use
    `/api/download/check` and `/api/download` before retrying the file request.

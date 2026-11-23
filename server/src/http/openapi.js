@@ -46,7 +46,6 @@ function responses(success, errorStatuses = [400, 401, 403, 500]) {
         404: 'Requested resource was not found',
         409: 'Request conflicts with current state',
         413: 'Payload exceeds the configured limit',
-        429: 'Too many requests',
         500: 'Daemon operation failed',
       }[status] || 'Request failed'
     )
@@ -734,6 +733,11 @@ const schemas = {
       peerCount: { type: 'number' },
       remark: { type: 'string' },
       pinned: { type: 'boolean' },
+      folded: {
+        type: 'boolean',
+        description:
+          'Manual fold preference of the current user; absent means automatic',
+      },
     },
     additionalProperties: true,
   },
@@ -826,26 +830,78 @@ const schemas = {
   },
   ChannelMessageRequest: {
     type: 'object',
-    required: ['content', 'author', 'authorName'],
+    required: ['signed'],
     properties: {
-      content: { type: 'string' },
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      authorName: { type: 'string', maxLength: 50 },
-      avatar: { type: 'string' },
-      authorTag: ref('LocalizedTagInput'),
-      clientMessageId: { type: 'string', format: 'uuid' },
-      mentions: { type: 'array', maxItems: 20, items: ref('ChannelMention') },
-      attachment: ref('ChannelAttachment'),
+      signed: {
+        type: 'object',
+        description:
+          'A message body signed by the client device key (docs/protocol/v2/signatures.md §4). The node verifies it and never edits the body.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: [
+              'kind',
+              'channelId',
+              'author',
+              'id',
+              'createdAt',
+              'content',
+            ],
+            properties: {
+              kind: { const: 'message' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              content: { type: 'string', maxLength: 10000 },
+              authorName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              authorTag: ref('LocalizedTagInput'),
+              mentions: {
+                type: 'array',
+                maxItems: 20,
+                items: ref('ChannelMention'),
+              },
+              attachment: ref('ChannelAttachment'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelMemberProfileRequest: {
     type: 'object',
-    required: ['author'],
+    required: ['signed'],
     properties: {
-      author: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-      displayName: { type: 'string' },
-      avatar: { type: 'string' },
-      tag: ref('MemberTagInput'),
+      signed: {
+        type: 'object',
+        description:
+          'A profile body signed by the client device key (docs/protocol/v2/signatures.md §4.2). Absent fields stay unchanged; tag null clears the tag. The newest createdAt wins.',
+        required: ['body', 'device', 'cert', 'sig'],
+        properties: {
+          body: {
+            type: 'object',
+            required: ['kind', 'channelId', 'author', 'id', 'createdAt'],
+            properties: {
+              kind: { const: 'profile' },
+              channelId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              author: { type: 'string', pattern: '^0x[0-9a-f]{40}$' },
+              id: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'integer', minimum: 0 },
+              displayName: { type: 'string', maxLength: 50 },
+              avatar: { type: 'string' },
+              tag: ref('MemberTagInput'),
+            },
+          },
+          device: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          cert: { type: 'string' },
+          sig: { type: 'string' },
+        },
+      },
     },
   },
   ChannelRemarkRequest: {
@@ -857,6 +913,11 @@ const schemas = {
     type: 'object',
     required: ['pinned'],
     properties: { pinned: { type: 'boolean' } },
+  },
+  ChannelFoldRequest: {
+    type: 'object',
+    required: ['folded'],
+    properties: { folded: { type: 'boolean' } },
   },
 }
 
@@ -1013,7 +1074,7 @@ export function createOpenApiSpec({
                 ref('AdministrationAccess')
               ),
             },
-            [403, 429]
+            [403]
           ),
         }),
         post: operation({
@@ -1032,7 +1093,7 @@ export function createOpenApiSpec({
                 ref('AdministrationAccess')
               ),
             },
-            [401, 403, 409, 429, 500]
+            [401, 403, 409, 500]
           ),
         }),
       },
@@ -1046,7 +1107,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('MCP client list', ref('McpClientList')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1068,7 +1129,7 @@ export function createOpenApiSpec({
                 ref('McpCredential')
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1106,7 +1167,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
       },
@@ -1120,7 +1181,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('MCP client principal', ref('McpPrincipal')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
       },
@@ -1139,7 +1200,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1152,7 +1213,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Node status', ref('NodeStatus')),
             },
-            [403, 429, 500]
+            [403, 500]
           ),
         }),
       },
@@ -1166,7 +1227,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Node configuration', ref('NodeConfig')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1183,7 +1244,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('NodeConfig')],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1198,7 +1259,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Storage limits', ref('NodePolicy')),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         post: operation({
@@ -1214,7 +1275,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('NodePolicy')],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1241,7 +1302,7 @@ export function createOpenApiSpec({
                 ref('StoragePolicyDecision')
               ),
             },
-            [400, 401, 403, 429]
+            [400, 401, 403]
           ),
         }),
       },
@@ -1258,7 +1319,7 @@ export function createOpenApiSpec({
                 items: ref('NodeHolding'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         post: operation({
@@ -1280,7 +1341,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1320,7 +1381,7 @@ export function createOpenApiSpec({
                 },
               }),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
         delete: operation({
@@ -1344,7 +1405,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1370,7 +1431,7 @@ export function createOpenApiSpec({
                 },
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1386,7 +1447,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Pull task result', ref('DownloadResult')),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1404,7 +1465,7 @@ export function createOpenApiSpec({
             {
               202: jsonResponse('P2P Ping accepted', ref('P2PPingResponse')),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
           ),
         }),
       },
@@ -1417,7 +1478,7 @@ export function createOpenApiSpec({
           parameters: [pathParameter('id', 'P2P Ping identifier.')],
           responses: responses(
             { 200: jsonResponse('P2P Ping status', ref('P2PPingResponse')) },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
         delete: operation({
@@ -1429,7 +1490,7 @@ export function createOpenApiSpec({
           parameters: [pathParameter('id', 'P2P Ping identifier.')],
           responses: responses(
             { 200: jsonResponse('P2P Ping cancelled', ref('P2PPingResponse')) },
-            [401, 403, 404, 429, 500]
+            [401, 403, 404, 500]
           ),
         }),
       },
@@ -1443,7 +1504,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Profile metadata', ref('UserProfile')),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         put: operation({
@@ -1465,7 +1526,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1483,7 +1544,7 @@ export function createOpenApiSpec({
                 { registered: true, writerCores: 2, entries: 8 }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
         put: operation({
@@ -1513,7 +1574,7 @@ export function createOpenApiSpec({
                 { success: true, status: { registered: true } }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
         delete: operation({
@@ -1540,7 +1601,7 @@ export function createOpenApiSpec({
                 { success: true, status: { registered: false } }
               ),
             },
-            [400, 401, 403, 429, 500]
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1558,7 +1619,7 @@ export function createOpenApiSpec({
                 ref('AccountBackup')
               ),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1587,7 +1648,47 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
+          ),
+        }),
+      },
+      '/api/user/migrate': {
+        post: operation({
+          tag: 'Users',
+          operationId: 'migrateUserData',
+          summary: 'Move a v1 account to the authenticated v2 chat identity',
+          description:
+            'Requires the v1 account EIP-191 signature over "most-box-account-migrate-v2", the old and the new address (lowercase, newline separated). Moves profile, files and channels on this node, then clears the old address.',
+          sideEffect: 'dangerous',
+          confirmation: true,
+          security: signedSecurity,
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['oldAddress', 'signature'],
+            properties: {
+              oldAddress: { type: 'string' },
+              signature: { type: 'string' },
+            },
+          }),
+          responses: responses(
+            {
+              200: jsonResponse('Migration result', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: {
+                      migrated: { type: 'boolean' },
+                      result: {
+                        type: ['object', 'null'],
+                        additionalProperties: true,
+                      },
+                    },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 500]
           ),
         }),
       },
@@ -1604,7 +1705,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1623,7 +1724,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1640,7 +1741,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Cache pull result', ref('DownloadResult')),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1671,7 +1772,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1694,7 +1795,7 @@ export function createOpenApiSpec({
                 ref('PublishResult')
               ),
             },
-            [400, 401, 403, 413, 429, 500]
+            [400, 401, 403, 413, 500]
           ),
         }),
       },
@@ -1711,7 +1812,7 @@ export function createOpenApiSpec({
                 items: ref('PublishedFile'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
       },
@@ -1729,7 +1830,7 @@ export function createOpenApiSpec({
                 ref('Collection')
               ),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1752,7 +1853,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1773,7 +1874,7 @@ export function createOpenApiSpec({
                 ref('DownloadResult')
               ),
             },
-            [400, 401, 403, 404, 413, 429, 500]
+            [400, 401, 403, 404, 413, 500]
           ),
         }),
       },
@@ -1790,7 +1891,7 @@ export function createOpenApiSpec({
                 items: ref('DownloadTask'),
               }),
             },
-            [401, 403, 429]
+            [401, 403]
           ),
         }),
       },
@@ -1810,7 +1911,7 @@ export function createOpenApiSpec({
             {
               200: jsonResponse('Cancellation result', ref('SuccessResponse')),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1855,7 +1956,7 @@ export function createOpenApiSpec({
               },
               416: { description: 'Requested range is not satisfiable' },
             },
-            [400, 404, 429]
+            [400, 404]
           ),
         }),
       },
@@ -1879,7 +1980,7 @@ export function createOpenApiSpec({
                 items: ref('Channel'),
               }),
             },
-            [401, 403, 429, 500]
+            [401, 403, 500]
           ),
         }),
         post: operation({
@@ -1895,7 +1996,7 @@ export function createOpenApiSpec({
                 allOf: [successSchema, ref('Channel')],
               }),
             },
-            [400, 401, 403, 409, 429, 500]
+            [400, 401, 403, 409, 500]
           ),
         }),
         delete: operation({
@@ -1920,7 +2021,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1952,7 +2053,7 @@ export function createOpenApiSpec({
                 ref('ChannelHistoryPage')
               ),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -1982,7 +2083,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelMessage'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
         post: operation({
@@ -1990,7 +2091,7 @@ export function createOpenApiSpec({
           operationId: 'sendChannelMessage',
           summary: 'Send a P2P channel message',
           description:
-            'A UUID v4 clientMessageId makes retries idempotent for one author in one channel on this node, including after restart. The same id with different content, attachment or mentions returns 409. Omit clientMessageId for legacy append behavior.',
+            'The client signs the body with its device key; the node checks the signature, the certificate and that body.author is the signed-in account. body.id (UUID v4) makes retries idempotent for one author in one channel, including after restart. The same id with a different body returns 409.',
           sideEffect: 'write',
           security: signedSecurity,
           parameters: [channelNameParameter],
@@ -2007,7 +2108,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 409, 429, 500]
+            [400, 401, 403, 404, 409, 500]
           ),
         }),
       },
@@ -2025,7 +2126,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelMemberProfile'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2053,7 +2154,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2071,7 +2172,7 @@ export function createOpenApiSpec({
                 items: { type: 'object', additionalProperties: true },
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2089,7 +2190,7 @@ export function createOpenApiSpec({
                 items: ref('ChannelPresence'),
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2114,7 +2215,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
           ),
         }),
       },
@@ -2139,7 +2240,32 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 500]
+          ),
+        }),
+      },
+      '/api/channels/{name}/fold': {
+        put: operation({
+          tag: 'Channels',
+          operationId: 'updateChannelFold',
+          summary: 'Fold or unfold a channel',
+          sideEffect: 'write',
+          security: signedSecurity,
+          parameters: [channelNameParameter],
+          requestBody: jsonRequest(ref('ChannelFoldRequest')),
+          responses: responses(
+            {
+              200: jsonResponse('Updated fold state', {
+                allOf: [
+                  successSchema,
+                  {
+                    type: 'object',
+                    properties: { folded: { type: 'boolean' } },
+                  },
+                ],
+              }),
+            },
+            [400, 401, 403, 404, 500]
           ),
         }),
       },

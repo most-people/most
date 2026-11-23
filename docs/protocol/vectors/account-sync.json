@@ -1,0 +1,84 @@
+{
+  "description": "Account sync envelope (chat.md §8.1, desktop only) and last-writer-wins merge (§8.2).",
+  "syncKey": "0x9f8f3de373f36ff63d410183a178b67d30f7ad431859ad63f88a713db9251b40",
+  "envelope": "ma://1.YRuJpsaf0zfohSQ4bXRdAdYthIrFPzeq.7d6dsLAgfa1nsLqUHiLrywNILANMfV1vMLs3bdejXQeaSL1kdHxiKqt5X2Ub64n855IBZGtXUpB6sbv4s8C6UaomqCZiiNAFFVO/JOJYOsMZPeiIg7x9ocUeP+E4vyTUDNS59ewKzzTRW7gvj2tN/In2zgXJFfuRZbh50rJJtQY2eb/PLLbie7a7+6yRTAU3w7kuWmVzE48SAmb7fJ7AKngBlKDV8tqP66gskcMDSfBuICaaGJA/ILvvBfqBwHX6k/RjdpHkbMpm1s4=",
+  "entry": {
+    "v": 1,
+    "kind": "profile",
+    "id": "self",
+    "deviceId": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "updatedAt": 1795000000000,
+    "deleted": false,
+    "data": { "displayName": "alice" }
+  },
+  "wrongSyncKey": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "merge": {
+    "entries": [
+      {
+        "v": 1,
+        "kind": "file",
+        "id": "c1",
+        "deviceId": "a",
+        "updatedAt": 10,
+        "deleted": false,
+        "data": { "n": 1 }
+      },
+      {
+        "v": 1,
+        "kind": "file",
+        "id": "c1",
+        "deviceId": "b",
+        "updatedAt": 10,
+        "deleted": false,
+        "data": { "n": 2 }
+      },
+      {
+        "v": 1,
+        "kind": "file",
+        "id": "c1",
+        "deviceId": "a",
+        "updatedAt": 9,
+        "deleted": false,
+        "data": { "n": 3 }
+      },
+      {
+        "v": 1,
+        "kind": "channel",
+        "id": "g",
+        "deviceId": "a",
+        "updatedAt": 5,
+        "deleted": false,
+        "data": { "x": 1 }
+      },
+      {
+        "v": 1,
+        "kind": "channel",
+        "id": "g",
+        "deviceId": "b",
+        "updatedAt": 6,
+        "deleted": true,
+        "data": null
+      }
+    ],
+    "winners": {
+      "file:c1": {
+        "v": 1,
+        "kind": "file",
+        "id": "c1",
+        "deviceId": "b",
+        "updatedAt": 10,
+        "deleted": false,
+        "data": { "n": 2 }
+      },
+      "channel:g": {
+        "v": 1,
+        "kind": "channel",
+        "id": "g",
+        "deviceId": "b",
+        "updatedAt": 6,
+        "deleted": true,
+        "data": null
+      }
+    }
+  }
+}

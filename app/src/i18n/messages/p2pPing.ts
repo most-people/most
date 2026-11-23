@@ -159,7 +159,16 @@ export const p2pPingMessages = {
     'zh-TW': '發現候選數',
     en: 'Discovered candidates',
   },
-  'p2pPing.elapsed': { 'zh-CN': '耗时', 'zh-TW': '耗時', en: 'Elapsed' },
+  'p2pPing.elapsed': {
+    'zh-CN': '本机会话耗时',
+    'zh-TW': '本機工作階段耗時',
+    en: 'Local session elapsed',
+  },
+  'p2pPing.switchHint': {
+    'zh-CN': '检测进行中，取消检测后可切换创建或加入模式。',
+    'zh-TW': '檢測進行中，取消檢測後可切換建立或加入模式。',
+    en: 'Cancel the current test to switch between creating and joining.',
+  },
   'p2pPing.peerKey': {
     'zh-CN': '对端 peer key',
     'zh-TW': '對端 peer key',

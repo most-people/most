@@ -19,7 +19,9 @@ import type {
   MobileChannel,
   MobileChannelAttachment,
   MobileChannelMessage,
+  MobileMemberProfile,
   SendChannelMessageInput,
+  ChannelPresenceInput,
   MobileLogEntry,
   MobileTransfer,
   MostBoxMobileCore,
@@ -29,6 +31,7 @@ import type {
   P2PPing,
   StartP2PPingInput,
   CancelP2PPingInput,
+  NativeScryptRun,
 } from './types'
 
 type BareWorkletMostBoxCoreOptions = {
@@ -343,6 +346,33 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return ping
   }
 
+  /** v2 chat identity seed (0x-hex), derived natively in the Bare backend. */
+  async deriveChatSeed(username: string, password: string): Promise<string> {
+    await this.#ensureStarted()
+    const result = (await this.#request(
+      COMMANDS.IDENTITY_DERIVE,
+      { username, password },
+      [EVENTS.IDENTITY_DERIVED],
+      60000
+    )) as { chatSeed?: string }
+    if (!/^0x[0-9a-f]{64}$/.test(String(result?.chatSeed))) {
+      throw new Error('P2P core did not derive a chat identity')
+    }
+    return String(result.chatSeed)
+  }
+
+  /** Dev only: native scrypt timing in the Bare backend. */
+  async runNativeScryptBenchmark(): Promise<NativeScryptRun[]> {
+    await this.#ensureStarted()
+    const result = (await this.#request(
+      COMMANDS.DEV_SCRYPT_BENCHMARK,
+      {},
+      [EVENTS.DEV_SCRYPT_BENCHMARK_RESULT],
+      600000
+    )) as { runs?: NativeScryptRun[] }
+    return Array.isArray(result?.runs) ? result.runs : []
+  }
+
   async cancelP2PPing(input: CancelP2PPingInput = {}): Promise<P2PPing | null> {
     await this.#ensureStarted()
     const result = await this.#request(
@@ -500,6 +530,50 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
         [EVENTS.CHANNEL_STATUS],
         30000
       )
+    )
+  }
+
+  async getChannelMemberProfiles(
+    channelName: string
+  ): Promise<MobileMemberProfile[]> {
+    const result = asRecord(
+      await this.#request(
+        COMMANDS.CHANNEL_MEMBER_PROFILES,
+        { channelName },
+        [EVENTS.CHANNEL_STATUS],
+        30000
+      )
+    )
+    if (!Array.isArray(result.members))
+      throw new Error('Invalid member profiles response')
+    return result.members
+  }
+
+  async updateChannelMemberProfile(input: SendChannelMessageInput) {
+    await this.#request(
+      COMMANDS.CHANNEL_MEMBER_PROFILE_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      30000
+    )
+  }
+
+  async sendChannelPresence({
+    channelName,
+    signed,
+    action,
+  }: ChannelPresenceInput) {
+    if (!this.#worklet || this.#snapshot.node.status !== 'ready') return
+    const commands = {
+      join: COMMANDS.CHANNEL_PRESENCE_JOIN,
+      heartbeat: COMMANDS.CHANNEL_PRESENCE_HEARTBEAT,
+      leave: COMMANDS.CHANNEL_PRESENCE_LEAVE,
+    }
+    await this.#request(
+      commands[action],
+      { channelName, signed },
+      [EVENTS.CHANNEL_PRESENCE],
+      30000
     )
   }
 

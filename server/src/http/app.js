@@ -25,7 +25,6 @@ import {
   isRemoteAccessRequest,
 } from './access.js'
 import { buildNodeStatus } from './nodeStatus.js'
-import { createRateLimitGuard } from './rateLimit.js'
 import {
   isPublicFileDownloadPath,
   requiresUserAuth,
@@ -71,8 +70,6 @@ export function createApp(engine, options = {}) {
     appPort,
     options.allowedOrigins ?? process.env.MOSTBOX_ALLOWED_ORIGINS
   )
-  const rateLimitGuard =
-    options.rateLimitGuard || createRateLimitGuard(options.rateLimit)
   const downloadTasks = createDownloadTaskRegistry(engine)
   function getRemoteInviteSet() {
     const invites =
@@ -108,13 +105,7 @@ export function createApp(engine, options = {}) {
       c.set('requestAccessMode', accessMode)
 
       if (accessMode === 'remote') {
-        const blocked = rateLimitGuard.rejectIfBlocked(c, ['inviteFailure'])
-        if (blocked) return blocked
-        if (!isValidInvite(c)) {
-          const limited = rateLimitGuard.enforce(c, ['inviteFailure'])
-          if (limited) return limited
-          return getInvalidInviteResponse(c)
-        }
+        if (!isValidInvite(c)) return getInvalidInviteResponse(c)
       }
 
       const authHeader = c.req.header('authorization')
@@ -132,8 +123,6 @@ export function createApp(engine, options = {}) {
 
         const principal = mcpClientStore.authenticate(mcpTokenMatch[1].trim())
         if (!principal) {
-          const limited = rateLimitGuard.enforce(c, ['authFailure'])
-          if (limited) return limited
           return c.json(
             { error: 'Invalid or expired MCP token', code: 'MCP_UNAUTHORIZED' },
             401
@@ -162,12 +151,8 @@ export function createApp(engine, options = {}) {
           return
         }
 
-        const blocked = rateLimitGuard.rejectIfBlocked(c, ['authFailure'])
-        if (blocked) return blocked
         const auth = verifyAuthHeader(authHeader, c.req.method, path)
         if (!auth.ok) {
-          const limited = rateLimitGuard.enforce(c, ['authFailure'])
-          if (limited) return limited
           return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
         }
         c.set('userAddress', auth.address)
@@ -179,8 +164,6 @@ export function createApp(engine, options = {}) {
         c.req.method === 'GET'
       ) {
         if (!c.get('userAddress')) {
-          const limited = rateLimitGuard.enforce(c, ['authFailure'])
-          if (limited) return limited
           return c.json(
             { error: 'Login required', code: 'LOGIN_REQUIRED' },
             401
@@ -208,8 +191,6 @@ export function createApp(engine, options = {}) {
 
         if (isAdminAccessApi(path) && c.req.method === 'POST') {
           if (!c.get('userAddress')) {
-            const limited = rateLimitGuard.enforce(c, ['authFailure'])
-            if (limited) return limited
             return c.json(
               {
                 error: 'Login required to claim node administration',
@@ -225,8 +206,6 @@ export function createApp(engine, options = {}) {
         if (accessMode === 'lan') {
           const userAddress = c.get('userAddress')
           if (!userAddress) {
-            const limited = rateLimitGuard.enforce(c, ['authFailure'])
-            if (limited) return limited
             return c.json(
               {
                 error: 'Node administrator login required',
@@ -258,9 +237,9 @@ export function createApp(engine, options = {}) {
         }
       }
 
+      // Not counted: a missing login costs nothing to reject and guesses
+      // nothing; signed-out pages that poll must not lock out their IP.
       if (requiresUserAuth(path) && !c.get('userAddress')) {
-        const limited = rateLimitGuard.enforce(c, ['authFailure'])
-        if (limited) return limited
         return c.json({ error: 'Login required', code: 'LOGIN_REQUIRED' }, 401)
       }
 
@@ -314,11 +293,25 @@ export function createApp(engine, options = {}) {
     return entry
   }
 
-  function wsSendToChannel(channelName, event, data) {
+  function wsSendToChannel(channelName, event, data, target) {
     const payload = JSON.stringify({ event, data })
     const subscribers = channelSubscriptions.get(channelName)
     if (subscribers) {
       subscribers.forEach(ws => {
+        if (target !== undefined && ws.presenceSourceId !== target) return
+        if (event === 'channel:voice') {
+          try {
+            if (
+              !ws.userAddress ||
+              engine.resolveChannelKey(channelName, {
+                ownerAddress: ws.userAddress,
+              }) !== channelName
+            )
+              return
+          } catch {
+            return
+          }
+        }
         if (ws.readyState === 1) {
           try {
             ws.send(payload)
@@ -408,7 +401,6 @@ export function createApp(engine, options = {}) {
   const mcpHttp = createMostBoxMcpHttpHandler({
     appPort,
     mcpClientStore,
-    rateLimitGuard,
     appendNodeLog,
     fetchImpl: (url, init = {}) => {
       const headers = new Headers(init.headers)
@@ -442,8 +434,6 @@ export function createApp(engine, options = {}) {
     })
   )
 
-  // 速率限制中间件
-  app.use('/api/*', rateLimitGuard.middleware())
   app.use('/api/*', authMiddleware())
 
   // 全局错误处理
@@ -508,7 +498,6 @@ export function createApp(engine, options = {}) {
     cleanupWsSubscriptions,
     validateWebSocketRequest,
     getWebSocketUserAddress,
-    rateLimitGuard,
     downloadTasks,
     mcpClientStore,
     closeMcp: mcpHttp.close,

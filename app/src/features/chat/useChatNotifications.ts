@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { AppState } from 'react-native'
 import type { ChatMessage } from '../../chat/chatProtocol'
 import { useI18n } from '../../i18n'
-import type { JoinedChannel } from './conversationModel'
+import { channelDisplayName, type JoinedChannel } from './conversationModel'
 import {
   ChatNotificationCursor,
   getNotificationChannel,
@@ -58,11 +58,11 @@ export function useChatNotifications(input: {
         foreground: AppState.currentState === 'active',
       }) || []
     for (const channel of pending) {
-      const remark = input.channels.find(item => item.name === channel)?.remark
+      const current = input.channels.find(item => item.name === channel)
       void showChatNotification({
         scope: input.scope,
         channel,
-        title: `MostBox · ${remark || '#' + channel}`,
+        title: `MostBox · ${current ? channelDisplayName(current) : '#' + channel}`,
         body: t('chat.notifications.body'),
         shouldPresent: () => {
           const current = inputRef.current

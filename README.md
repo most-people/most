@@ -8,9 +8,17 @@
 
 [下载客户端](https://most.box/download) · [在线入口](https://most.box) · [开发与发行路线](docs/roadmap.md) · [文档入口](docs/README.md) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
 
-当前开发顺序：先完成全功能版，再适配海外和中国大陆 APP 商店版；三个版本共享代码与协议，按发行目标管理功能和构建。
+**长期目标：成为能脱离创始人长期存在的公共协议。** 第三方能够依据公开规范实现兼容节点，自行运行基础设施，并接手维护与分发；官方服务不可用时，已有群体仍能通信，新节点仍能加入。该目标尚未完成整体验收，见[长期方案](docs/decentralization-plan.md)与[验证状态](docs/validation-status.md)。
+
+本仓库提供协议规范、测试向量与参考客户端。当前优先补齐独立实现、基础设施接替和可靠性证据；客户端先验证全功能版，再适配海外和中国大陆 APP 商店版。商店是分发渠道之一。
+
+项目仍处早期，未来较长阶段不承担历史版本兼容，允许有明确版本边界的不兼容升级，不默认保留兼容分支或承诺旧数据迁移。何时进入稳定兼容阶段另行确定，见[早期协议兼容策略](docs/decentralization-plan.md#早期协议兼容策略)。
 
 MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消息，也可以发送 `most://` 文件链接；接收者从在线节点下载完整文件并重算 CID，校验通过后默认继续做种。
+
+首批用户是愿意搭建远程节点、供朋友或公众使用的人。使用者通过这些节点聊天和传文件，群体自行维持可用性。产品追求像微信一样方便的聊天与文件传输体验；完全去中心化的长期目标以任何人可独立实现节点、基础设施可接替和维护可交接来验证，当前仍待验收。
+
+群聊成员平权，只使用一个 `channelId` 标识并加入群。文字历史默认全部同步保存，界面按 100 条分页；附件点击下载、CID 校验后默认做种，空间清理主要针对本机附件。用户自行保管身份与已有数据，须能在原节点消失后换节点继续使用。完整规则、分页与清理设计及实现差异统一见[群聊模型](docs/chat-model.md)，这些要求仍须按候选版本验收。
 
 因此，聊天保持在参与者之间传播；原发布者退出后，只要仍有至少一个下载者在线，新的接收者就可以继续下载同一份内容。
 
@@ -125,69 +133,7 @@ MOSTBOX_ALLOWED_ORIGINS='https://web.example.com,https://admin.example.com' npm 
 
 ## MCP（AI 客户端）
 
-公开使用指南见 [MCP 文档](https://most.box/docs/mcp/)，交互式接口参考见
-[OpenAPI 文档](https://most.box/docs/api/)。
-
-先启动 MostBox daemon，在 `/admin/` 的“MCP 客户端”中创建凭证。每个凭证绑定当前
-MostBox 身份、独立 scope、过期时间和允许发布的目录；token 只显示一次。Streamable HTTP
-端点固定为 `http://127.0.0.1:1976/mcp`，只接受本机回环请求。
-
-Codex 使用 Streamable HTTP：
-
-```bash
-export MOSTBOX_MCP_TOKEN='<管理台创建的 token>'
-codex mcp add mostbox \
-  --url http://127.0.0.1:1976/mcp \
-  --bearer-token-env-var MOSTBOX_MCP_TOKEN
-codex mcp list
-```
-
-Claude Desktop 使用 stdio，在 `claude_desktop_config.json` 的 `mcpServers` 中加入：
-
-```json
-{
-  "mcpServers": {
-    "mostbox": {
-      "command": "npx",
-      "args": ["-y", "most-box@latest", "mcp"],
-      "env": {
-        "MOSTBOX_URL": "http://127.0.0.1:1976",
-        "MOSTBOX_MCP_TOKEN": "<管理台创建的 token>"
-      }
-    }
-  }
-}
-```
-
-VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，避免把 token 提交到仓库：
-
-```json
-{
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "mostbox-token",
-      "description": "MostBox MCP token",
-      "password": true
-    }
-  ],
-  "servers": {
-    "mostbox": {
-      "type": "http",
-      "url": "http://127.0.0.1:1976/mcp",
-      "headers": {
-        "Authorization": "Bearer ${input:mostbox-token}"
-      }
-    }
-  }
-}
-```
-
-源码运行 stdio 时，可将 `command` 改为 Node.js，`args` 设为 MostBox 仓库绝对路径下的
-`server/cli.js` 和 `mcp`。完整 scope、工具合同、安全边界与验收矩阵见
-[MCP 方案](docs/mcp.md)。客户端格式参考 [Codex MCP 配置](https://developers.openai.com/codex/mcp/)、
-[VS Code MCP 配置](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) 和
-[Anthropic MCP 文档](https://docs.anthropic.com/en/docs/mcp)。
+启动 daemon 后，在 `/admin/` 的“MCP 客户端”中创建凭证，再连接本机回环端点 `http://127.0.0.1:1976/mcp`。客户端配置、scope、授权目录与安全边界统一见 [MCP 文档](docs/mcp.md#使用入口)。
 
 ## 项目结构
 
@@ -244,7 +190,7 @@ npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.5.5
+    image: ghcr.io/most-people/most-box:0.8.4
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -312,7 +258,7 @@ mostbox.example.com {
 }
 ```
 
-开放到公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。
+开放到公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。节点本身不做请求限流，邀请码请使用长随机串（如 `openssl rand -hex 16`），防刷交给前面的反向代理或 CDN。
 
 ## 核心功能
 
@@ -350,6 +296,10 @@ mostbox.example.com {
 ### 文件存储在哪里？
 
 文件以 **P2P 方式** 保存在分享者和接收者的设备上。每个做种节点都持有完整文件副本；MostBox 不会把文件集中上传到云端服务器。
+
+### 双方都无法打洞时怎么办？
+
+默认不使用中继。桌面/daemon 可在节点配置的 `relayPublicKey` 中填写自己运行或信任的盲中继公钥（中继程序见 `scripts/blind-relay.js`）：只在本机 NAT 随机分配端口或打洞失败时转发双方的加密连接（之后若打洞成功会改为直连），中继看不到文件和消息内容，但能看到双方 IP、公钥、连接时间和流量。移动端暂不支持配置中继。详见[隐私政策](PRIVACY.md)。
 
 ### 如何分享文件给其他人？
 
@@ -423,6 +373,14 @@ npx most-box@latest
 发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`app/package.json` / `app/package-lock.json`、`app/app.json` 和文档里的 Docker 示例 tag；`app/app.json` 的 Android `versionCode` 与 iOS `buildNumber` 也必须同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和移动端构建号；本地 iOS 原生工程存在时也会校验其版本，并由 `app` 下的 `npm run bundle:ios` 自动同步。
 
 Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 应设置为 `app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。若 Pages 后台仍使用旧值 `mobile`，需先改为 `app`；仓库修改不会自动同步后台配置。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
+
+### 协议 v2 切换
+
+协议 v2 首次切换需将节点与 Expo Web 安排在同一维护窗口，顺序如下：
+
+1. 记录当前节点版本和 Pages 部署，暂停写入，正常停节点，在原路径可恢复地备份完整数据目录（含节点身份、Corestore、频道及账号元数据）。先在隔离实例验证能恢复；不要把打开中的数据库当作备份。
+2. 保留旧实例及备份，用候选节点启动数据副本，限定测试账号访问。确认旧凭据登录、带标识的旧频道文本、首次登录文件列表、按 CID 下载和新签名消息双向收发，再切换节点流量。新旧客户端不能混用消息接口。
+3. 节点通过后，将**同一已验收提交**快进到 `pre`，核对 Pages 成功部署和线上 Web 到目标节点的上述操作，再恢复正常写入。如果检查失败，停止新写入，将 Pages、节点程序和升级前的数据一起恢复；切换后的新增数据单独保留，不用旧程序直接打开已迁移目录。
 
 ### Code signing policy
 

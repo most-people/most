@@ -2,10 +2,25 @@ import { HDNodeWallet, decodeBase64, encodeBase64, verifyMessage } from 'ethers'
 import nacl from 'tweetnacl'
 import { normalizeAddress } from '../core/shared.js'
 import { mostMnemonic } from './mostWallet.js'
+import { buildAccountMigrationMessage } from './chatIdentity.js'
 
 export const AUTH_MAX_AGE_MS = 5 * 60 * 1000
 export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 export const DEVICE_CERT_MAX_TTL_MS = 90 * 24 * 60 * 60 * 1000
+/**
+ * Validity periods a user can pick at sign-in; 30 days is the default. They
+ * limit how long this device may access a node. P2P signature checks do not
+ * look at expiry (signatures.md, D5), so a shorter period does not stop a
+ * stolen device key from signing chat messages.
+ */
+export const DEVICE_CERT_TTL_OPTIONS = Object.freeze({
+  '4h': 4 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000,
+  '30d': DEVICE_CERT_TTL_MS,
+})
+export const DEFAULT_DEVICE_CERT_TTL = '30d'
+/** Renew when this share of the validity period is left (30d -> 3 days). */
+export const DEVICE_CERT_RENEW_FRACTION = 0.1
 const DEVICE_CERT_PREFIX = 'dc1'
 const DEVICE_CERT_DOMAIN = 'most-box-device-cert-v1'
 const DEVICE_PUBLIC_KEY_HEX = /^[0-9a-f]{64}$/
@@ -115,6 +130,35 @@ export function issueDeviceCert(danger, devicePublicKey, options) {
   )
 }
 
+/**
+ * issuedAt / expiresAt of a certificate for local renewal (signature not
+ * checked; nodes decide validity), or null when it cannot be read.
+ */
+export function readDeviceCertWindow(cert) {
+  try {
+    const bytes = fromBase64Url(String(cert || '').split('.')[1])
+    const { issuedAt, expiresAt } = JSON.parse(new TextDecoder().decode(bytes))
+    if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt))
+      return null
+    if (expiresAt <= issuedAt) return null
+    return { issuedAt, expiresAt, ttlMs: expiresAt - issuedAt }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * When to renew: a tenth of the certificate's own validity before it
+ * expires, so short periods are not renewed days early. 0 when unreadable.
+ */
+export function deviceCertRenewAt(cert) {
+  const window = readDeviceCertWindow(cert)
+  if (!window) return 0
+  return Math.floor(
+    window.expiresAt - window.ttlMs * DEVICE_CERT_RENEW_FRACTION
+  )
+}
+
 /** 仅读取到期时间用于本机提前续期，不验证签名；是否有效以节点验证为准。 */
 export function readDeviceCertExpiry(cert) {
   try {
@@ -128,7 +172,15 @@ export function readDeviceCertExpiry(cert) {
   }
 }
 
-export function verifyDeviceCert(cert, { now = Date.now() } = {}) {
+/**
+ * `checkTime: false` skips issue and expiry checks: P2P signatures are verified
+ * without trusted time and must stay valid after a certificate expires
+ * (docs/protocol/v2/signatures.md §5). The TTL bound still applies.
+ */
+export function verifyDeviceCert(
+  cert,
+  { now = Date.now(), checkTime = true } = {}
+) {
   const [prefix, payload64, signature] = String(cert || '').split('.')
   if (prefix !== DEVICE_CERT_PREFIX || !payload64 || !signature) {
     return { ok: false, error: 'Missing or invalid authorization' }
@@ -149,10 +201,10 @@ export function verifyDeviceCert(cert, { now = Date.now() } = {}) {
     ) {
       return { ok: false, error: 'Invalid device certificate' }
     }
-    if (issuedAt > now + AUTH_MAX_AGE_MS) {
+    if (checkTime && issuedAt > now + AUTH_MAX_AGE_MS) {
       return { ok: false, error: 'Invalid device certificate' }
     }
-    if (now >= expiresAt) {
+    if (checkTime && now >= expiresAt) {
       return { ok: false, error: 'Device certificate expired' }
     }
     const recovered = normalizeAddress(
@@ -172,6 +224,22 @@ export function verifyDeviceCert(cert, { now = Date.now() } = {}) {
     return { ok: true, address, devicePublicKey, expiresAt }
   } catch {
     return { ok: false, error: 'Invalid device certificate' }
+  }
+}
+
+/** True when `signature` is the v1 account `oldAddress` approving the move to `newAddress`. */
+export function verifyAccountMigration({ oldAddress, newAddress, signature }) {
+  const from = normalizeAddress(oldAddress)
+  const to = normalizeAddress(newAddress)
+  if (!from || !to || from === to) return false
+  try {
+    return (
+      normalizeAddress(
+        verifyMessage(buildAccountMigrationMessage(from, to), signature)
+      ) === from
+    )
+  } catch {
+    return false
   }
 }
 

@@ -1,6 +1,7 @@
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import type { AppearancePreference } from '~/lib/appearance'
 import { useAppStore } from '~/stores/useAppStore'
+import { ProfileCollapsible } from '~/features/profile/ProfileCollapsible'
 
 const APPEARANCE_OPTIONS: Array<{
   value: AppearancePreference
@@ -17,13 +18,7 @@ export function ProfileAppearanceSettings() {
   const setAppearance = useAppStore(state => state.setAppearance)
 
   return (
-    <section
-      className="profile-appearance-section profile-panel ui-glass-surface"
-      aria-labelledby="profile-appearance-title"
-    >
-      <h2 id="profile-appearance-title" className="profile-appearance-title">
-        {t('profile.section.theme')}
-      </h2>
+    <ProfileCollapsible title={t('profile.section.theme')}>
       <div
         className="profile-appearance-options"
         role="radiogroup"
@@ -67,6 +62,6 @@ export function ProfileAppearanceSettings() {
           )
         })}
       </div>
-    </section>
+    </ProfileCollapsible>
   )
 }

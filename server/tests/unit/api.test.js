@@ -147,8 +147,11 @@ describe('api browser helpers', () => {
   describe('getBackendConnectionCandidates()', () => {
     it('builds secure-first candidates for an address without a protocol', () => {
       assert.deepStrictEqual(
-        getBackendConnectionCandidates(' x.most.red:1976/base/ '),
-        ['https://x.most.red:1976/base', 'http://x.most.red:1976/base']
+        getBackendConnectionCandidates(' node.example.com:1976/base/ '),
+        [
+          'https://node.example.com:1976/base',
+          'http://node.example.com:1976/base',
+        ]
       )
     })
 
@@ -665,6 +668,7 @@ describe('api browser helpers', () => {
         reason: 'http',
         retryable: false,
         status: 403,
+        code: 'INVALID_INVITE',
       })
       assert.strictEqual(urls.length, 2)
       assert.ok(urls.every(url => url.startsWith('https://')))
@@ -762,7 +766,7 @@ describe('api browser helpers', () => {
 
       assert.deepStrictEqual(
         await checkBackendConnectionTarget({ url: 'https://node.example.com' }),
-        { ok: false, reason: 'http', retryable: true }
+        { ok: false, reason: 'http', retryable: true, code: 'TIMEOUT' }
       )
     })
 
@@ -783,7 +787,13 @@ describe('api browser helpers', () => {
           await checkBackendConnectionTarget({
             url: 'https://node.example.com',
           }),
-          { ok: false, reason: 'http', retryable: true, status: 200 }
+          {
+            ok: false,
+            reason: 'http',
+            retryable: true,
+            status: 200,
+            ...(error.name === 'TimeoutError' ? { code: 'TIMEOUT' } : {}),
+          }
         )
       })
     }

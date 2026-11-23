@@ -157,7 +157,7 @@ describe('frontend smoke checks', () => {
     assert.match(readSource(SOURCE_PATHS.acceptance), /npm run test:frontend/)
   })
 
-  it('shows the connected node host in the shared footer and keeps local backup actions full width', () => {
+  it('shows the connected node host in the shared footer and lays out profile settings rows', () => {
     const portalSource = readSource(SOURCE_PATHS.featurePortal)
     const footerSource = readSource(SOURCE_PATHS.footer)
     const appStoreSource = readSource(SOURCE_PATHS.appStore)
@@ -197,7 +197,7 @@ describe('frontend smoke checks', () => {
     )
     assert.match(
       profileCssSource,
-      /\.profile-backup-action-group \{[\s\S]*?grid-column: 1 \/ -1;/
+      /\.profile-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto;/
     )
   })
 
@@ -258,11 +258,11 @@ describe('frontend smoke checks', () => {
     assert.equal(selectLocalizedTag({ en: 'Test user' }, 'zh-CN'), 'Test user')
     assert.equal(selectExactLocalizedTag({ en: 'Test user' }, 'zh-CN'), '')
     assert.equal(selectExactLocalizedTag(tag, 'zh-CN'), '测试用户')
-    assert.match(profileSource, /selectLocalizedTag\(identity\.tag, locale\)/)
     assert.match(
       profileSource,
       /selectExactLocalizedTag\(identity\?\.tag, locale\)/
     )
+    assert.match(profileSource, /selectLocalizedTag\(identity\.tag, locale\)/)
     assert.match(profileSource, /normalizeLocalizedTag\(nextTagValues\)/)
     assert.match(profileSource, /nextTagValues\[locale\]/)
     assert.doesNotMatch(profileSource, /handleClearTag/)
@@ -1146,12 +1146,33 @@ describe('frontend smoke checks', () => {
 
   it('keeps chat page event and mention normalization in a testable model', async () => {
     const {
+      dedupeChannels,
       formatMentionCandidateLabel,
       getSocketEventChannelKeys,
       normalizeMemberAddress,
       shouldShowChannelMentionUnread,
     } = await importBundledSource(SOURCE_PATHS.chatPageModel)
     const address = `0x${'ab'.repeat(20)}`
+
+    assert.deepEqual(
+      dedupeChannels([
+        { name: 'b8c436952eb246d8', channelKey: 'b8c436952eb246d8' },
+        { name: 'other', channelKey: 'other' },
+        {
+          name: 'b8c436952eb246d8',
+          channelKey: 'b8c436952eb246d8',
+          remark: 'UID:46116',
+        },
+      ]),
+      [
+        {
+          name: 'b8c436952eb246d8',
+          channelKey: 'b8c436952eb246d8',
+          remark: 'UID:46116',
+        },
+        { name: 'other', channelKey: 'other' },
+      ]
+    )
 
     assert.deepEqual(
       getSocketEventChannelKeys({
@@ -1327,7 +1348,7 @@ describe('frontend smoke checks', () => {
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
     const inputModalSource = readSource(SOURCE_PATHS.inputModal)
 
-    assert.match(chatRoomSource, /new Uint8Array\(16\)/)
+    assert.match(chatRoomSource, /new Uint8Array\(32\)/)
     assert.match(chatRoomSource, /buildChatSharePath/)
     assert.match(
       chatRoomSource,

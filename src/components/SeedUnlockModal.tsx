@@ -10,6 +10,7 @@ function SeedUnlockForm() {
   const unlockError = useUserStore(s => s.unlockError)
   const submitUnlock = useUserStore(s => s.submitUnlock)
   const cancelUnlock = useUserStore(s => s.cancelUnlock)
+  const unlockReason = useUserStore(s => s.unlockReason)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
@@ -35,6 +36,9 @@ function SeedUnlockForm() {
           </button>
         </div>
         <div className="login-modal-body">
+          {unlockReason === 'renew' && (
+            <p className="login-tip">{t('unlock.renewTip')}</p>
+          )}
           <p className="login-tip">{t('unlock.tip')}</p>
           {unlockError && <p className="login-error">{t(unlockError)}</p>}
           <div className="login-password-wrapper">

@@ -315,11 +315,13 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
   })
   assert.deepEqual(await client.listChannels(), [{ channelId: 'room' }])
   await client.getHistory('room', { limit: 20, before: 'cursor' })
-  await client.sendMessage('room', {
-    content: 'hello',
-    author: AUTHOR,
-    authorName: 'Alice',
-  })
+  const envelope = {
+    body: { kind: 'message', content: 'hello' },
+    device: 'a'.repeat(64),
+    cert: 'dc1.x.y',
+    sig: 'sig',
+  }
+  await client.sendMessage('room', envelope)
   assert.match(
     requests[1].url,
     /\/base\/api\/channels\/room\/history\?limit=20&before=cursor/
@@ -330,7 +332,7 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
     'invite'
   )
   const body = JSON.parse(String(requests[2].init?.body))
-  assert.match(body.clientMessageId, /^[0-9a-f]{8}-[0-9a-f]{4}-4/)
+  assert.deepEqual(body, { signed: envelope })
 })
 
 test('ChatApiClient preserves canonical most:// attachment metadata', async () => {
@@ -363,20 +365,26 @@ test('ChatApiClient preserves canonical most:// attachment metadata', async () =
     fetchImpl,
   })
   await client.sendMessage('room', {
-    content: LINK,
-    author: AUTHOR,
-    authorName: 'Alice',
-    attachment: {
-      kind: 'image',
-      cid: CID,
-      fileName: 'photo.png',
-      link: LINK,
-      mimeType: 'image/png',
-      size: 42,
+    body: {
+      kind: 'message',
+      content: LINK,
+      attachment: {
+        kind: 'image',
+        cid: CID,
+        fileName: 'photo.png',
+        link: LINK,
+        mimeType: 'image/png',
+        size: 42,
+      },
     },
+    device: 'a'.repeat(64),
+    cert: 'dc1.x.y',
+    sig: 'sig',
   })
   assert.ok(requestBody)
-  const sentBody = requestBody as Record<string, unknown>
+  const sentBody = (
+    requestBody as { signed: { body: Record<string, unknown> } }
+  ).signed.body
   assert.deepEqual(sentBody.attachment, {
     kind: 'image',
     cid: CID,

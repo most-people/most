@@ -38,7 +38,9 @@ describe('remote node protocol', () => {
   })
 
   it('attaches invite and signed WebSocket credentials', async () => {
-    const identity = await createMobileIdentity('alice', 'password')
+    const identity = await createMobileIdentity('alice', 'password', {
+      deriveChatSeed: async () => `0x${'11'.repeat(32)}`,
+    })
     const headers = await buildRemoteHeaders({
       baseUrl: 'https://node.example.com/base',
       invite: 'invite-code',

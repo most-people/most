@@ -135,7 +135,7 @@ describe('engine account state sync', () => {
       .listChannels({ ownerAddress: ADDRESS })
       .find(channel => channel.channelId === channelId)
 
-  it('propagates joining, remarks, pins and leaving a channel', async t => {
+  it('propagates joining, remarks, pins, folds and leaving a channel', async t => {
     const { first, second } = await pair(t)
     const created = await first.createChannel('sync-room', 'group', {
       ownerAddress: ADDRESS,
@@ -155,6 +155,19 @@ describe('engine account state sync', () => {
         channelOf(second, 'sync-room')?.pinned === true &&
         channelOf(second, 'sync-room')?.remark === 'work',
       'pin and remark to sync'
+    )
+
+    first.setChannelFolded(created.channelKey, true, { ownerAddress: ADDRESS })
+    await waitFor(
+      () => channelOf(second, 'sync-room')?.folded === true,
+      'fold to sync'
+    )
+    first.setChannelFolded(created.channelKey, false, {
+      ownerAddress: ADDRESS,
+    })
+    await waitFor(
+      () => channelOf(second, 'sync-room')?.folded === false,
+      'manual unfold to sync'
     )
 
     await second.leaveChannel(created.channelKey, { ownerAddress: ADDRESS })
@@ -220,6 +233,39 @@ describe('engine account state sync', () => {
     assert.equal(record.fileName, 'synced.txt')
     assert.equal(record.localAvailable, false)
     assert.ok(!second.listHoldings().some(item => item.cid === published.cid))
+  })
+
+  it('applies a batch of remote records with one update event, not one per record', async t => {
+    const fx = await fixture(t)
+    const first = await fx.engine()
+    const second = await fx.engine()
+    const count = 30
+    await first.registerAccountSync(ADDRESS, syncKey)
+    for (let i = 0; i < count; i++) {
+      await first.createChannel(`batch-room-${i}`, 'group', {
+        ownerAddress: ADDRESS,
+        displayName: 'Alice',
+      })
+    }
+    await second.registerAccountSync(ADDRESS, syncKey)
+    let channelUpdates = 0
+    second.on('user:metadata:updated', event => {
+      if (event.scope === 'channels') channelUpdates += 1
+    })
+    fx.connect(first, second)
+
+    await waitFor(
+      () =>
+        second
+          .listChannels({ ownerAddress: ADDRESS })
+          .filter(channel => channel.channelId.startsWith('batch-room-'))
+          .length === count,
+      'all channels to reach the second device'
+    )
+    assert.ok(
+      channelUpdates <= 3,
+      `expected a few batched updates, got ${channelUpdates}`
+    )
   })
 
   it('settles instead of echoing changes back and forth', async t => {

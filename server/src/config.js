@@ -26,6 +26,8 @@ export const FILE_WRITE_CHUNK_SIZE = 64 * 1024
 export const DOWNLOAD_POLL_INTERVAL_MIN = 500
 export const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 export const DRIVE_UPDATE_INTERVAL = 2000
+// Re-run the DHT lookup for a topic this often while a download has no source.
+export const TOPIC_LOOKUP_INTERVAL = 5000
 
 // 启动时恢复做种 topic 的后台批处理
 export const HOLDING_REJOIN_BATCH_SIZE = 16

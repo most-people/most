@@ -114,7 +114,12 @@ import {
 } from './src/ui/components'
 import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
-import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
+import {
+  ACCOUNT_DELETION_URL,
+  PRIVACY_URL,
+  SUPPORT_URL,
+  TERMS_URL,
+} from './src/privacy/legalUrls'
 import { PRODUCT_PROFILE } from './src/product/productProfile'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
@@ -1240,7 +1245,10 @@ function MostBoxApp() {
 
   const openExternalUrl = async (url: string) => {
     try {
-      if (Platform.OS === 'web' && url === SUPPORT_URL) {
+      if (
+        Platform.OS === 'web' &&
+        (url === SUPPORT_URL || url === ACCOUNT_DELETION_URL)
+      ) {
         window.location.assign(url)
         return
       }
@@ -1561,6 +1569,9 @@ function MostBoxApp() {
                 snapshot={currentSnapshot}
                 onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
                 onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+                onOpenAccountDeletion={() =>
+                  openExternalUrl(ACCOUNT_DELETION_URL)
+                }
                 onOpenTerms={() => openExternalUrl(TERMS_URL)}
                 onRetryStartCore={handleStartCore}
               />
@@ -1571,8 +1582,11 @@ function MostBoxApp() {
         <ProfileScreen
           visible={profileOpen}
           onClose={() => setProfileOpen(false)}
+          onOpenAccountDeletion={() => openExternalUrl(ACCOUNT_DELETION_URL)}
           username={currentSnapshot.node.username}
           address={currentSnapshot.node.userAddress || ''}
+          client={core}
+          deviceCert={core?.getIdentity?.()?.device.cert || ''}
         />
         <AboutMostBox
           visible={aboutOpen}

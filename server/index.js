@@ -252,8 +252,8 @@ export function bindEngineEvents({
   engine.on('channel:member-profile', data =>
     wsSendToChannel(data.channelKey, 'channel:member-profile', data)
   )
-  engine.on('channel:voice', data =>
-    wsSendToChannel(data.channelKey, 'channel:voice', data)
+  engine.on('channel:voice', (data, target) =>
+    wsSendToChannel(data.channelKey, 'channel:voice', data, target)
   )
   engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
@@ -293,9 +293,7 @@ export function createWebSocketServer({
     ws.on('close', () => {
       cleanupWsSubscriptions(ws)
       try {
-        engine.clearChannelPresenceSource(ws.presenceSourceId, {
-          broadcast: true,
-        })
+        engine.clearChannelPresenceSource(ws.presenceSourceId)
       } catch {}
     })
     ws.on('message', raw => {
@@ -311,22 +309,30 @@ export function createWebSocketServer({
             if (data.channel && ws.userAddress) {
               try {
                 const channel = String(data.channel).trim().toLowerCase()
-                engine.getChannelPeers(channel, {
+                // Engine events are addressed by the public channel ID.
+                const channelKey = engine.resolveChannelKey(channel, {
                   ownerAddress: ws.userAddress,
                 })
-                subscribeToChannel(ws, channel)
+                subscribeToChannel(ws, channelKey)
                 ws.send(
                   JSON.stringify({
                     event: 'channel:subscribed',
-                    data: { channel },
+                    data: { channel, channelKey },
                   })
                 )
               } catch {}
             }
             break
           case 'channel:unsubscribe':
-            if (data.channel) {
-              unsubscribeFromChannel(ws, data.channel)
+            if (data.channel && ws.userAddress) {
+              try {
+                unsubscribeFromChannel(
+                  ws,
+                  engine.resolveChannelKey(String(data.channel).trim(), {
+                    ownerAddress: ws.userAddress,
+                  })
+                )
+              } catch {}
             }
             break
           case 'channel:presence:join':
@@ -334,10 +340,7 @@ export function createWebSocketServer({
               engine.joinChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
-                displayName: data.displayName,
-                avatar: data.avatar,
-                profileUpdatedAt: data.profileUpdatedAt,
+                signed: data.signed,
               })
             }
             break
@@ -346,7 +349,7 @@ export function createWebSocketServer({
               engine.heartbeatChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
+                signed: data.signed,
               })
             }
             break
@@ -355,10 +358,7 @@ export function createWebSocketServer({
               engine.updateChannelPresenceProfile(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
-                displayName: data.displayName,
-                avatar: data.avatar,
-                profileUpdatedAt: data.profileUpdatedAt,
+                signed: data.signed,
               })
             }
             break
@@ -367,7 +367,7 @@ export function createWebSocketServer({
               engine.leaveChannelPresence(data.channel, {
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
-                sessionId: data.sessionId,
+                signed: data.signed,
               })
             }
             break
@@ -377,16 +377,11 @@ export function createWebSocketServer({
           case 'channel:voice:leave':
           case 'channel:voice:signal':
             if (data.channel && ws.userAddress) {
-              engine.sendChannelVoiceEvent(
-                data.channel,
-                {
-                  ...data,
-                  event: event.replace('channel:voice:', ''),
-                },
-                {
-                  ownerAddress: ws.userAddress,
-                }
-              )
+              engine.sendChannelVoiceEvent(data.channel, data.signed, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                event: event.slice('channel:voice:'.length),
+              })
             }
             break
         }

@@ -287,6 +287,33 @@ export const nodeMessages = {
     'zh-TW': '{count} 筆記錄',
     en: '{count} record',
   },
+  'node.devtools.scrypt': {
+    'zh-CN': 'scrypt 基准测试',
+    'zh-TW': 'scrypt 基準測試',
+    en: 'scrypt benchmark',
+  },
+  'node.devtools.scryptNative': {
+    'zh-CN': '原生 scrypt 测量（Bare）',
+    'zh-TW': '原生 scrypt 測量（Bare）',
+    en: 'Native scrypt (Bare)',
+  },
+  'node.devtools.scryptRunning': {
+    'zh-CN': '测量中…',
+    'zh-TW': '測量中…',
+    en: 'Measuring…',
+  },
+  'node.devtools.scryptHint': {
+    'zh-CN':
+      '开发版专用：测量本机派生聊天身份所需时间（N=2^14 到 2^17，每档两次），完成后复制结果。测量期间请保持应用在前台。',
+    'zh-TW':
+      '開發版專用：測量本機衍生聊天身分所需時間（N=2^14 到 2^17，每檔兩次），完成後複製結果。測量期間請保持應用在前景。',
+    en: 'Dev builds only: measures how long this device takes to derive the chat identity (N=2^14 to 2^17, twice each). Copy the result when done and keep the app in the foreground meanwhile.',
+  },
+  'node.devtools.scryptProgress': {
+    'zh-CN': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    'zh-TW': 'N=2^{logN} 第 {attempt} 次：{percent}%',
+    en: 'N=2^{logN} run {attempt}: {percent}%',
+  },
   'node.diagnostics.title': {
     'zh-CN': '诊断详情',
     'zh-TW': '診斷詳情',
@@ -331,6 +358,11 @@ export const nodeMessages = {
     'zh-CN': '问题反馈',
     'zh-TW': '問題回報',
     en: 'Support',
+  },
+  'node.account.deleteAccount': {
+    'zh-CN': '删除账号与数据',
+    'zh-TW': '刪除帳號與資料',
+    en: 'Delete account and data',
   },
   'node.connection.title': {
     'zh-CN': '节点连接',
@@ -461,6 +493,64 @@ export const nodeMessages = {
     'zh-CN': '密码',
     'zh-TW': '密碼',
     en: 'Password',
+  },
+  'node.account.certTtl': {
+    'zh-CN': '设备授权有效期',
+    'zh-TW': '裝置授權有效期',
+    en: 'Device authorization period',
+  },
+  'node.account.certTtl.4h': {
+    'zh-CN': '4 小时',
+    'zh-TW': '4 小時',
+    en: '4 hours',
+  },
+  'node.account.certTtl.1d': { 'zh-CN': '1 天', 'zh-TW': '1 天', en: '1 day' },
+  'node.account.certTtl.30d': {
+    'zh-CN': '30 天',
+    'zh-TW': '30 天',
+    en: '30 days',
+  },
+  'node.account.certTtlHint': {
+    'zh-CN':
+      '限制这台设备访问节点的时长，修改时需要输入密码，到期前会提醒重新登录。它不影响聊天消息的签名验证，不能阻止已泄露的设备密钥冒充你发言。',
+    'zh-TW':
+      '限制這台裝置存取節點的時長，修改時需要輸入密碼，到期前會提醒重新登入。它不影響聊天訊息的簽署驗證，不能阻止已外洩的裝置金鑰冒充你發言。',
+    en: 'Limits how long this device can access the node (changing it asks for your password); you are reminded to sign in again before it ends. It does not affect how chat message signatures are checked and cannot stop a leaked device key from posting as you.',
+  },
+  'node.account.certTtlExpires': {
+    'zh-CN': '当前授权到期时间：{time}',
+    'zh-TW': '目前授權到期時間：{time}',
+    en: 'Current authorization ends at {time}',
+  },
+  'node.account.certTtlPasswordHint': {
+    'zh-CN': '输入密码确认修改设备授权有效期。',
+    'zh-TW': '輸入密碼確認修改裝置授權有效期。',
+    en: 'Enter your password to change the device authorization period.',
+  },
+  'node.account.certTtlConfirm': {
+    'zh-CN': '确认修改',
+    'zh-TW': '確認修改',
+    en: 'Change',
+  },
+  'node.account.certTtlWrongPassword': {
+    'zh-CN': '密码不正确',
+    'zh-TW': '密碼不正確',
+    en: 'Incorrect password',
+  },
+  'node.account.certTtlFailed': {
+    'zh-CN': '未能修改设备授权有效期',
+    'zh-TW': '未能修改裝置授權有效期',
+    en: 'Could not change the device authorization period',
+  },
+  'node.account.certExpiring': {
+    'zh-CN': '这台设备访问节点的授权将于 {time} 到期，点此重新登录续期。',
+    'zh-TW': '這台裝置存取節點的授權將於 {time} 到期，點此重新登入續期。',
+    en: "This device's access to the node ends at {time}. Tap to sign in again.",
+  },
+  'node.account.certExpired': {
+    'zh-CN': '这台设备访问节点的授权已到期，点此重新登录。',
+    'zh-TW': '這台裝置存取節點的授權已到期，點此重新登入。',
+    en: "This device's access to the node has ended. Tap to sign in again.",
   },
   'node.account.passwordShort': {
     'zh-CN':
