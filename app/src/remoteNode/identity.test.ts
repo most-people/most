@@ -14,7 +14,6 @@ import {
   isUsableDevice,
   readDeviceCertExpiry,
   reissueMobileDeviceCert,
-  signLegacyAccountMigration,
 } from './identity'
 import { deriveChatSeedJs } from './chatIdentity'
 
@@ -121,28 +120,6 @@ describe('mobile remote identity', () => {
     assert.equal(isUsableDevice(expired.device), false)
     assert.equal(isUsableDevice({ ...fresh.device, secretKey: 'x' }), false)
     assert.equal(isUsableDevice(undefined), false)
-  })
-
-  it('signs the v1 account approval for moving to the v2 address', async () => {
-    const newAddress = '0x' + '2'.repeat(40)
-    const migration = await signLegacyAccountMigration(
-      ' alice ',
-      'correct horse battery staple',
-      newAddress
-    )
-    assert.equal(
-      migration.oldAddress,
-      '0x023B10b4e691580966D160FbF50Dce5596A97D4C'
-    )
-    const message = [
-      'most-box-account-migrate-v2',
-      migration.oldAddress.toLowerCase(),
-      newAddress,
-    ].join('\n')
-    assert.equal(
-      verifyMessage(message, migration.signature),
-      migration.oldAddress
-    )
   })
 
   it('offers the same validity periods as the web and renews at a tenth', async () => {

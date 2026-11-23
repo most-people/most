@@ -31,8 +31,6 @@ export const zhCNChatJoinMessages = {
     '完整链接代表加入能力；它不绑定收件人，请只发给预期接收者。',
   'chatJoin.demo.guide.security.identity':
     '邀请会创建或切换本地身份，并覆盖昵称、头像、Logo、主题和标签；只打开可信来源的链接。',
-  'chatJoin.demo.guide.security.legacy':
-    '旧版 ?token=...&pub=... 链接不再支持，需要重新生成。',
   'chatJoin.demo.parseSection': '解析现有链接',
   'chatJoin.demo.inviteSection': '邀请内容',
   'chatJoin.demo.outputSection': '生成结果',
@@ -101,8 +99,6 @@ export const zhTWChatJoinMessages = {
     '完整連結代表加入能力；它不綁定收件者，請只傳給預期接收者。',
   'chatJoin.demo.guide.security.identity':
     '邀請會建立或切換本機身分，並覆蓋暱稱、頭像、Logo、主題和標籤；只開啟可信來源的連結。',
-  'chatJoin.demo.guide.security.legacy':
-    '舊版 ?token=...&pub=... 連結已不再支援，需要重新生成。',
   'chatJoin.demo.parseSection': '解析現有連結',
   'chatJoin.demo.inviteSection': '邀請內容',
   'chatJoin.demo.outputSection': '生成結果',
@@ -174,8 +170,6 @@ export const enChatJoinMessages = {
     'The complete link grants join capability. It is not recipient-bound, so share it only with intended recipients.',
   'chatJoin.demo.guide.security.identity':
     'An invite creates or switches the local identity and replaces its name, avatar, logos, theme, and tag. Open links only from trusted sources.',
-  'chatJoin.demo.guide.security.legacy':
-    'Legacy ?token=...&pub=... links are unsupported and must be regenerated.',
   'chatJoin.demo.parseSection': 'Parse existing link',
   'chatJoin.demo.inviteSection': 'Invite payload',
   'chatJoin.demo.outputSection': 'Generated output',

@@ -76,13 +76,12 @@ for name, cid in SAMPLES:
         'wantKey': want_key.hex(),
         'proof': proof.hex(),
         'driveName': drive_name,
-        'legacyDriveName': 'drive-' + digest.hex(),
         'want': (topic + proof).hex(),
         'have': (topic + DRIVE_KEY).hex(),
     })
 
 json.dump({
-    'description': 'Protocol v2 file topic, want proof, drive name and most-cid-drive/3 payloads (v2/file-privacy.md), computed independently in Python (hashlib, hmac, hand-decoded CID). legacyDriveName is the 0.5.x shared drive that 0.8.0 migrates from (§8).',
+    'description': 'Protocol v2 file topic, want proof, drive name and most-cid-drive/3 payloads (v2/file-privacy.md), computed independently in Python (hashlib, hmac, hand-decoded CID).',
     'protocol': 'most-cid-drive/3',
     'secret': SECRET.hex(),
     'challenge': CHALLENGE.hex(),

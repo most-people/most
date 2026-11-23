@@ -4,10 +4,7 @@ import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 export async function createChatJoinInviteIdentity(
   invite: ChatJoinInvitePayload
 ) {
-  const { identity, danger, migration } = await createLoginSession(
-    invite.uid,
-    ''
-  )
+  const { identity, danger } = await createLoginSession(invite.uid, '')
   return {
     identity: {
       ...identity,
@@ -20,6 +17,5 @@ export async function createChatJoinInviteIdentity(
       tag: invite.tag,
     },
     danger,
-    migration,
   }
 }

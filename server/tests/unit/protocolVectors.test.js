@@ -150,7 +150,6 @@ describe('protocol vectors (desktop)', () => {
       const info = getCidInfo(item.cid)
       assert.equal(info.topicHex, item.topic, item.name)
       assert.equal(b4a.toString(info.wantKey, 'hex'), item.wantKey, item.name)
-      assert.equal(info.legacyDriveName, item.legacyDriveName, item.name)
     }
   })
 

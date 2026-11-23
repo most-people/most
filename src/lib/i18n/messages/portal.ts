@@ -4,67 +4,14 @@ export const zhCNPortalMessages = {
   'portal.hero.kicker': '自己运行的 P2P 节点',
   'portal.hero.subtitle':
     '安装、打开、加入频道，让设备直接参与 P2P 网络；聊天、文件传输和 Web3 工具各自独立。',
-  'portal.nodeEntry': '节点入口',
   'portal.webConnectNode': '连接节点',
   'portal.nodeAdmin': '节点管理',
-  'portal.enterFeature': '进入 {title}',
-  'portal.openFeature': '打开{title}',
   'portal.feature.app.title': '文件',
-  'portal.feature.app.subtitle': 'P2P 文件分享与做种',
-  'portal.feature.app.hero': '发布文件并持续做种',
   'portal.feature.app.desc': '发布 most:// 链接，下载后校验 CID 并继续做种。',
-  'portal.feature.app.bullet.localIdentity':
-    '无需云端账号，使用本地身份隔离数据',
-  'portal.feature.app.bullet.hyperswarm': '用户之间直接连接传输文件',
-  'portal.feature.app.bullet.largeFiles': 'GB 级大文件流式处理',
-  'portal.feature.app.bullet.cid': '相同文件 = 相同 CID，链接可反复校验',
-  'portal.feature.app.bullet.seedAfterDownload': '下载完成后默认继续做种',
-  'portal.feature.app.bullet.noCloud':
-    '不依赖中心化账号或云端托管，也不承诺永久保存',
-  'portal.feature.app.bullet.desktop':
-    'Web 端只连接已有节点，桌面端提供完整 P2P 能力',
-  'portal.feature.app.bullet.openSource': 'MIT 开源，自托管，数据完全自主掌控',
-  'portal.feature.app.step.download.title': '下载客户端',
-  'portal.feature.app.step.download.desc':
-    '支持 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
-  'portal.feature.app.step.download.link': '前往下载页',
-  'portal.feature.app.step.install.title': '安装并运行',
-  'portal.feature.app.step.install.desc':
-    '安装后打开应用，无需单独安装 Node.js。',
-  'portal.feature.app.step.share.title': '分享 most:// 链接',
-  'portal.feature.app.step.share.desc': '朋友下载校验通过后也会成为新的种子。',
   'portal.feature.chat.title': '聊天',
-  'portal.feature.chat.subtitle': '频道 ID 即权限',
-  'portal.feature.chat.hero': '打开能力频道',
   'portal.feature.chat.desc': '按频道 ID 打开频道，消息在在线节点间同步。',
-  'portal.feature.chat.bullet.identity': '本地登录身份保护消息署名',
-  'portal.feature.chat.bullet.sync': '消息通过 P2P Channel 同步',
-  'portal.feature.chat.bullet.offline': '文件附件可独立按 CID 校验下载',
-  'portal.feature.chat.bullet.noAccount': '无需中心化账号注册',
-  'portal.feature.chat.step.download.title': '下载客户端',
-  'portal.feature.chat.step.download.desc': '支持 Windows、macOS 和 Linux。',
-  'portal.feature.chat.step.download.link': '前往下载页',
-  'portal.feature.chat.step.create.title': '打开频道',
-  'portal.feature.chat.step.create.desc':
-    '输入已有频道 ID，或生成随机 ID 打开新频道。',
-  'portal.feature.chat.step.send.title': '开始聊天',
-  'portal.feature.chat.step.send.desc': '发送消息，也可按需发送附件。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '开源账户系统',
-  'portal.feature.web3.hero': '确定性密钥派生工具箱',
   'portal.feature.web3.desc': '本地生成账户、助记词、以太坊地址和 PEM。',
-  'portal.feature.web3.bullet.frontend': '开源且可复用',
-  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 密钥对生成',
-  'portal.feature.web3.bullet.mnemonic': 'BIP-39 助记词派生',
-  'portal.feature.web3.bullet.eth': '以太坊地址与私钥导出',
-  'portal.feature.web3.bullet.pem': 'PEM 格式密钥导出',
-  'portal.feature.web3.bullet.qr': '二维码展示地址与助记词',
-  'portal.feature.web3.step.username.title': '输入用户名',
-  'portal.feature.web3.step.username.desc': '用户名 + 密码（可选）作为种子。',
-  'portal.feature.web3.step.keys.title': '查看密钥',
-  'portal.feature.web3.step.keys.desc': '即时生成 Ed25519 与 x25519 公钥。',
-  'portal.feature.web3.step.export.title': '导出使用',
-  'portal.feature.web3.step.export.desc': '复制地址、导出 PEM、派生子地址。',
 } as const
 
 export const zhTWPortalMessages = {
@@ -73,68 +20,14 @@ export const zhTWPortalMessages = {
   'portal.hero.kicker': '自己執行的 P2P 節點',
   'portal.hero.subtitle':
     '安裝、開啟、加入頻道，讓裝置直接參與 P2P 網路；聊天、檔案傳輸和 Web3 工具各自獨立。',
-  'portal.nodeEntry': '節點入口',
   'portal.webConnectNode': '連線節點',
   'portal.nodeAdmin': '節點管理',
-  'portal.enterFeature': '進入 {title}',
-  'portal.openFeature': '開啟{title}',
   'portal.feature.app.title': '檔案',
-  'portal.feature.app.subtitle': 'P2P 檔案分享與做種',
-  'portal.feature.app.hero': '發布檔案並持續做種',
   'portal.feature.app.desc': '發布 most:// 連結，下載後校驗 CID 並繼續做種。',
-  'portal.feature.app.bullet.localIdentity':
-    '無需雲端帳號，使用本機身份隔離資料',
-  'portal.feature.app.bullet.hyperswarm': '使用者之間直接連線傳輸檔案',
-  'portal.feature.app.bullet.largeFiles': 'GB 級大檔案流式處理',
-  'portal.feature.app.bullet.cid': '相同檔案 = 相同 CID，連結可反覆校驗',
-  'portal.feature.app.bullet.seedAfterDownload': '下載完成後預設繼續做種',
-  'portal.feature.app.bullet.noCloud':
-    '不依賴中心化帳號或雲端託管，也不承諾永久保存',
-  'portal.feature.app.bullet.desktop':
-    'Web 端只連線已有節點，桌面端提供完整 P2P 能力',
-  'portal.feature.app.bullet.openSource': 'MIT 開源，自託管，資料完全自主掌控',
-  'portal.feature.app.step.download.title': '下載用戶端',
-  'portal.feature.app.step.download.desc':
-    '支援 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
-  'portal.feature.app.step.download.link': '前往下載頁',
-  'portal.feature.app.step.install.title': '安裝並執行',
-  'portal.feature.app.step.install.desc':
-    '安裝後開啟應用，無需單獨安裝 Node.js。',
-  'portal.feature.app.step.share.title': '分享 most:// 連結',
-  'portal.feature.app.step.share.desc': '朋友下載校驗通過後也會成為新的種子。',
   'portal.feature.chat.title': '聊天',
-  'portal.feature.chat.subtitle': '頻道 ID 即權限',
-  'portal.feature.chat.hero': '開啟能力頻道',
   'portal.feature.chat.desc': '按頻道 ID 開啟頻道，訊息在線上節點間同步。',
-  'portal.feature.chat.bullet.identity': '本機登入身份保護訊息署名',
-  'portal.feature.chat.bullet.sync': '訊息通過 P2P Channel 同步',
-  'portal.feature.chat.bullet.offline': '檔案附件可獨立按 CID 校驗下載',
-  'portal.feature.chat.bullet.noAccount': '無需中心化帳號註冊',
-  'portal.feature.chat.step.download.title': '下載用戶端',
-  'portal.feature.chat.step.download.desc': '支援 Windows、macOS 和 Linux。',
-  'portal.feature.chat.step.download.link': '前往下載頁',
-  'portal.feature.chat.step.create.title': '開啟頻道',
-  'portal.feature.chat.step.create.desc':
-    '輸入既有頻道 ID，或產生隨機 ID 開啟新頻道。',
-  'portal.feature.chat.step.send.title': '開始聊天',
-  'portal.feature.chat.step.send.desc': '傳送訊息，也可按需傳送附件。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '開源帳戶系統',
-  'portal.feature.web3.hero': '確定性金鑰派生工具箱',
   'portal.feature.web3.desc': '本機生成帳戶、助記詞、以太坊地址和 PEM。',
-  'portal.feature.web3.bullet.frontend': '開源且可複用',
-  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
-  'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',
-  'portal.feature.web3.bullet.eth': '以太坊地址與私鑰匯出',
-  'portal.feature.web3.bullet.pem': 'PEM 格式金鑰匯出',
-  'portal.feature.web3.bullet.qr': '二維碼展示地址與助記詞',
-  'portal.feature.web3.step.username.title': '輸入使用者名稱',
-  'portal.feature.web3.step.username.desc':
-    '使用者名稱 + 密碼（可選）作為種子。',
-  'portal.feature.web3.step.keys.title': '檢視金鑰',
-  'portal.feature.web3.step.keys.desc': '即時生成 Ed25519 與 x25519 公鑰。',
-  'portal.feature.web3.step.export.title': '匯出使用',
-  'portal.feature.web3.step.export.desc': '複製地址、匯出 PEM、派生子地址。',
 } as const
 
 export const enPortalMessages = {
@@ -143,81 +36,15 @@ export const enPortalMessages = {
   'portal.hero.kicker': 'Run your own P2P node',
   'portal.hero.subtitle':
     'Install it, open it, share a link, and let your device participate directly in the P2P network.',
-  'portal.nodeEntry': 'Node entry',
   'portal.webConnectNode': 'Connect node',
   'portal.nodeAdmin': 'Node admin',
-  'portal.enterFeature': 'Open {title}',
-  'portal.openFeature': 'Open {title}',
   'portal.feature.app.title': 'Files',
-  'portal.feature.app.subtitle': 'P2P file sharing and seeding',
-  'portal.feature.app.hero': 'Publish files and keep seeding',
   'portal.feature.app.desc':
     'Publish most:// links, verify CID, and keep seeding.',
-  'portal.feature.app.bullet.localIdentity':
-    'No cloud account required; local identity keeps data separated',
-  'portal.feature.app.bullet.hyperswarm': 'Direct user-to-user file transfer',
-  'portal.feature.app.bullet.largeFiles':
-    'Streaming support for GB-scale files',
-  'portal.feature.app.bullet.cid':
-    'Same file means same CID, and links can be verified repeatedly',
-  'portal.feature.app.bullet.seedAfterDownload':
-    'Downloads keep seeding by default after completion',
-  'portal.feature.app.bullet.noCloud':
-    'No centralized account or hosted storage dependency, and no promise of permanent storage',
-  'portal.feature.app.bullet.desktop':
-    'The Web app connects to existing nodes; the desktop app provides full P2P capability',
-  'portal.feature.app.bullet.openSource':
-    'MIT open source, self-hostable, and fully under your control',
-  'portal.feature.app.step.download.title': 'Download client',
-  'portal.feature.app.step.download.desc':
-    'Supports Windows, macOS, and Linux. The desktop app provides full P2P capability.',
-  'portal.feature.app.step.download.link': 'Go to downloads',
-  'portal.feature.app.step.install.title': 'Install and run',
-  'portal.feature.app.step.install.desc':
-    'Open the app after installation. No separate Node.js install is required.',
-  'portal.feature.app.step.share.title': 'Share the most:// link',
-  'portal.feature.app.step.share.desc':
-    'Friends who complete and verify the download become new seeders.',
   'portal.feature.chat.title': 'Chat',
-  'portal.feature.chat.subtitle': 'Channel ID as access',
-  'portal.feature.chat.hero': 'Open a capability channel',
   'portal.feature.chat.desc':
     'Open channels by ID; messages sync between online peers.',
-  'portal.feature.chat.bullet.identity':
-    'Local login identity protects message signatures',
-  'portal.feature.chat.bullet.sync': 'Messages sync through P2P Channels',
-  'portal.feature.chat.bullet.offline':
-    'File attachments can still be verified by CID',
-  'portal.feature.chat.bullet.noAccount':
-    'No centralized account registration required',
-  'portal.feature.chat.step.download.title': 'Download client',
-  'portal.feature.chat.step.download.desc':
-    'Supports Windows, macOS, and Linux.',
-  'portal.feature.chat.step.download.link': 'Go to downloads',
-  'portal.feature.chat.step.create.title': 'Open channel',
-  'portal.feature.chat.step.create.desc':
-    'Enter an existing channel ID or generate a random ID to open a new channel.',
-  'portal.feature.chat.step.send.title': 'Start chatting',
-  'portal.feature.chat.step.send.desc':
-    'Send messages and attach files when needed.',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': 'Open-source account system',
-  'portal.feature.web3.hero': 'Deterministic key derivation toolbox',
   'portal.feature.web3.desc':
     'Generate accounts, mnemonics, Ethereum addresses, and PEM locally.',
-  'portal.feature.web3.bullet.frontend': 'Open source and reusable',
-  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 key pair generation',
-  'portal.feature.web3.bullet.mnemonic': 'BIP-39 mnemonic derivation',
-  'portal.feature.web3.bullet.eth': 'Ethereum address and private key export',
-  'portal.feature.web3.bullet.pem': 'PEM key export',
-  'portal.feature.web3.bullet.qr': 'QR codes for addresses and mnemonics',
-  'portal.feature.web3.step.username.title': 'Enter username',
-  'portal.feature.web3.step.username.desc':
-    'Use username plus optional password as the seed.',
-  'portal.feature.web3.step.keys.title': 'View keys',
-  'portal.feature.web3.step.keys.desc':
-    'Instantly generate Ed25519 and x25519 public keys.',
-  'portal.feature.web3.step.export.title': 'Export and use',
-  'portal.feature.web3.step.export.desc':
-    'Copy addresses, export PEM, and derive child addresses.',
 } as const

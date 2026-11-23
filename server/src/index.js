@@ -3001,89 +3001,6 @@ export class MostBoxEngine extends EventEmitter {
     return { ...profile }
   }
 
-  /**
-   * Moves a v1 account's data on this node to its v2 chat identity
-   * (docs/protocol/v2/signatures.md §7.4) by renaming the owner: published
-   * files, channel membership with remarks and pins, and the profile. The
-   * caller has already proven control of both addresses. Returns what moved,
-   * or null when the old address has nothing on this node.
-   */
-  async migrateUserData(oldAddressInput, newAddressInput) {
-    this.#ensureInitialized()
-    const oldAddress = normalizeOwnerAddress(oldAddressInput)
-    const newAddress = normalizeOwnerAddress(newAddressInput)
-    if (!oldAddress || !newAddress || oldAddress === newAddress) {
-      throw new ValidationError('two different owner addresses are required')
-    }
-    const files = this.#getPublishedBucket(oldAddress)
-    const channels = this.#channels.filter(channel =>
-      this.#channelHasMember(channel, oldAddress)
-    )
-    const profile = this.#accountMetadata.profiles?.[oldAddress]
-    if (files.length === 0 && channels.length === 0 && !profile) return null
-
-    if (files.length > 0) {
-      const target = this.#getPublishedBucket(newAddress, true)
-      const known = new Set(target.map(file => file.cid))
-      for (const file of files) {
-        if (!known.has(file.cid)) target.push(file)
-      }
-      this.#setPublishedBucket(newAddress, target)
-      this.#setPublishedBucket(oldAddress, [])
-      this.#savePublishedMetadata()
-    }
-
-    const renameKey = map => {
-      if (!map || typeof map !== 'object') return map
-      const next = {}
-      for (const [address, value] of Object.entries(map)) {
-        const owner = normalizeOwnerAddress(address)
-        if (owner === oldAddress) {
-          if (!(newAddress in next)) next[newAddress] = value
-        } else {
-          next[address] = value
-        }
-      }
-      return next
-    }
-    for (const channel of channels) {
-      if (channel.legacyOwners?.includes(oldAddress)) {
-        channel.legacyOwners = uniqueStrings(
-          channel.legacyOwners.map(owner =>
-            owner === oldAddress ? newAddress : owner
-          )
-        )
-      }
-      const hasNew = this.#channelHasMember(channel, newAddress)
-      channel.members = channel.members.flatMap(member => {
-        if (normalizeOwnerAddress(member?.address) !== oldAddress) {
-          return [member]
-        }
-        return hasNew ? [] : [{ ...member, address: newAddress }]
-      })
-      channel.remarks = renameKey(channel.remarks)
-      channel.pinnedBy = renameKey(channel.pinnedBy)
-      channel.foldedBy = renameKey(channel.foldedBy)
-      channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
-    }
-    if (channels.length > 0) {
-      this.#saveChannelsMetadata()
-      this.#broadcastChannelHello()
-    }
-
-    if (profile) {
-      this.#accountMetadata.profiles[newAddress] ??= profile
-      delete this.#accountMetadata.profiles[oldAddress]
-      this.#saveAccountMetadata()
-    }
-
-    return {
-      filesMoved: files.length,
-      channelsMoved: channels.length,
-      profileMoved: Boolean(profile),
-    }
-  }
-
   exportUserData(ownerAddressInput) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
@@ -5729,7 +5646,6 @@ export class MostBoxEngine extends EventEmitter {
               status: 'checking',
             })
             try {
-              await this.#migrateLegacyCidDrive(holding)
               const localContent = await this.#getLocalCidContent(holding.cid, {
                 public: true,
                 allowHoldingFallback: true,
@@ -5792,42 +5708,6 @@ export class MostBoxEngine extends EventEmitter {
       .finally(() => {
         this.#holdingResumeTask = null
       })
-  }
-
-  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
-  // content that recomputes to its CID is copied; anything else stays missing
-  // and reports an error.
-  async #migrateLegacyCidDrive(holding) {
-    const { cid } = holding
-    const driveKey = '/' + cid
-    const own = await this.#getOrCreateDrive(this.#getCidInfo(cid).driveName)
-    if (await this.#hasLocalDriveContent(own, driveKey)) return
-
-    const legacy = new Hyperdrive(
-      this.#store.namespace(getCidInfo(cid).legacyDriveName)
-    )
-    try {
-      await legacy.ready()
-      if (!(await this.#hasLocalDriveContent(legacy, driveKey))) return
-      if (holding.kind === 'collection') {
-        await this.#copyUnixfsBlocks(legacy, own, cid)
-      } else {
-        const { cid: actual } = await calculateCid(
-          legacy.createReadStream(driveKey, { wait: false })
-        )
-        if (actual.toString() !== cid) return
-        await pipeline(
-          legacy.createReadStream(driveKey, { wait: false }),
-          own.createWriteStream(driveKey)
-        )
-      }
-      await legacy.clear(driveKey).catch(() => {})
-      console.log(`[MostBox] Migrated ${cid} to its own seed drive`)
-    } catch (err) {
-      console.warn(`[MostBox] Failed to migrate ${cid}:`, err.message)
-    } finally {
-      await legacy.close().catch(() => {})
-    }
   }
 
   #normalizeHolding(record = {}) {

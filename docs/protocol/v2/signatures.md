@@ -178,7 +178,7 @@ Web3 独立工具箱仍用原钱包派生：`PBKDF2-HMAC-SHA512(UTF8(password), 
 
 不强制最低强度；少于 18 字符时提示而不拦截。密码派生身份可被离线穷举，弱密码被破解后可冒充账号；scrypt 只增加尝试成本，不能替代强密码和恢复材料保管。
 
-### 7.4 账号同步与已有迁移
+### 7.4 账号同步
 
 ```text
 syncTopic      = H("topic/account-sync", syncKey)
@@ -187,7 +187,7 @@ syncHelloTopic = H("topic/account-sync-chat", syncKey)
 
 两者以原始 32 字节 `syncKey` 参与计算；同步日志及信封见 [聊天](chat.md) §8。
 
-已实现的旧身份迁移使用新账号认证调用 `POST /api/user/migrate`，提交 `{oldAddress, signature}`。旧账号按 EIP-191 签署 `most-box-account-migrate-v2\n<oldAddress 小写>\n<newAddress 小写>`，节点验证旧账号授权和当前认证的新账号，迁移按地址保存的 owner、群成员及账号同步记录。仅适用于对应升级路径，不是未来兼容承诺。旧身份与新身份不能混作同一签名账号；第三方接入使用当前聊天地址。
+参考实现不再提供旧账号向当前聊天身份的数据迁移接口，也不再尝试用旧钱包种子解密账号备份；使用当前聊天身份导出和恢复备份。旧身份与新身份不能混作同一签名账号；第三方接入使用当前聊天地址。
 
 ## 8. 测试向量
 

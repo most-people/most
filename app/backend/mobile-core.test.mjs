@@ -9,7 +9,6 @@ import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hypercore from 'hypercore'
 import Hyperdrive from 'hyperdrive'
-import { CID } from 'multiformats/cid'
 import {
   CHANNELS_FILE,
   normalizeChannelMessage,
@@ -785,92 +784,6 @@ describe('mobile file downloads', () => {
       secret
     )
     await assert.rejects(fs.access(path.join(storagePath, 'cid-drive-secret')))
-  })
-
-  it('migrates 0.5.x shared-drive holdings and joins only the v2 topic', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-legacy-drive-')
-    )
-    const swarms = []
-    const core = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory(swarms),
-    })
-    t.after(async () => {
-      await core.stop()
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    const bytes = b4a.from('content seeded by a 0.5.x node')
-    await core.start()
-    const published = await core.publishFile({
-      name: 'legacy.txt',
-      contentBase64: b4a.toString(bytes, 'base64'),
-    })
-    const { cid } = published.holding
-    await core.stop()
-
-    // Rewrite the data directory into the 0.5.x shape: content only in the
-    // shared drive-<digest>, holding record with the digest topic.
-    const holdingsPath = path.join(storagePath, 'node-holdings.json')
-    const [holding] = JSON.parse(await fs.readFile(holdingsPath, 'utf8'))
-    const v2TopicHex = holding.topic
-    const digestHex = b4a.toString(CID.parse(cid).multihash.digest, 'hex')
-    const legacyName = `drive-${digestHex}`
-    const store = new Corestore(storagePath, {
-      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
-      unsafe: true,
-    })
-    const own = new Hyperdrive(store.namespace(holding.driveName))
-    const legacy = new Hyperdrive(store.namespace(legacyName))
-    try {
-      await own.ready()
-      await legacy.ready()
-      await own.clear(`/${cid}`)
-      await legacy.put(`/${cid}`, bytes)
-    } finally {
-      await own.close()
-      await legacy.close()
-      await store.close()
-    }
-    await fs.writeFile(
-      holdingsPath,
-      JSON.stringify([{ ...holding, topic: digestHex, driveName: legacyName }])
-    )
-
-    const swarmsBeforeRestart = swarms.length
-    await core.start()
-    await waitFor(
-      () => core.getSnapshot().holdings[0]?.status === 'active',
-      'migrated holding to seed again',
-      5000
-    )
-    const migrated = core.getSnapshot().holdings[0]
-    assert.equal(migrated.localAvailable, true)
-    assert.notEqual(v2TopicHex, digestHex)
-    const joined = swarms
-      .slice(swarmsBeforeRestart)
-      .flatMap(swarm => swarm.joins.map(j => j.topicHex))
-    assert.ok(joined.includes(v2TopicHex))
-    assert.ok(!joined.includes(digestHex))
-    const exported = await core.downloadLink({
-      link: published.transfer.link,
-    })
-    assert.equal(exported.alreadyExists, true)
-    await core.stop()
-
-    const check = new Corestore(storagePath, {
-      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
-      unsafe: true,
-    })
-    const cleared = new Hyperdrive(check.namespace(legacyName))
-    try {
-      await cleared.ready()
-      assert.equal(await cleared.has(`/${cid}`), false)
-    } finally {
-      await cleared.close()
-      await check.close()
-    }
   })
 
   it('recognizes complete zero-byte files after restart', async t => {

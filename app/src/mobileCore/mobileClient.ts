@@ -38,7 +38,6 @@ import {
   deviceCertRenewAt,
   reissueMobileDeviceCert,
   readDeviceCertExpiry,
-  signLegacyAccountMigration,
 } from '../remoteNode/identity'
 import { resolveRemoteUrl } from '../remoteNode/protocol'
 import {
@@ -183,18 +182,6 @@ export class MobileNodeClient implements MostBoxMobileClient {
           this.#local.deriveChatSeed(username, password),
       }
     )
-    // The approval needs the password, so it is made at sign-in: after an
-    // upgrade the user may sign in on the local node (e.g. the remote node was
-    // unreachable) before reconnecting to it (#activate sends it then). Deriving the
-    // v1 key is slow on older phones, so local-only users skip it.
-    const mayHaveRemoteData = this.#mode === 'remote' || this.#nodes.length > 0
-    if (mayHaveRemoteData) {
-      identity.legacyMigration = await signLegacyAccountMigration(
-        input.username,
-        input.password,
-        identity.address
-      ).catch(() => undefined)
-    }
     if (this.#mode === 'remote' && this.#remoteConfig) {
       const remote = new RemoteMostBoxCore(this.#remoteConfig, identity)
       try {
@@ -202,12 +189,6 @@ export class MobileNodeClient implements MostBoxMobileClient {
       } catch (error) {
         await remote.stop()
         throw error
-      }
-      // Best effort: move the v1 account's data on this node to the v2 identity.
-      if (identity.legacyMigration) {
-        await remote
-          .migrateLegacyAccount(identity.legacyMigration)
-          .catch(() => {})
       }
       await saveMobileIdentity(identity)
       this.#identity = identity
@@ -465,13 +446,6 @@ export class MobileNodeClient implements MostBoxMobileClient {
     mode: 'local' | 'remote',
     config: RemoteNodeConfig | null
   ) {
-    const migration = this.#identity?.legacyMigration
-    if (mode === 'remote' && migration && next instanceof RemoteMostBoxCore) {
-      // Best effort and idempotent: the node moves the v1 data once. Done
-      // before the switch so screens that load channels on the new node see
-      // the migrated membership.
-      await next.migrateLegacyAccount(migration).catch(() => {})
-    }
     const previous = this.#active
     this.#activeUnsubscribe?.()
     this.#active = next

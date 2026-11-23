@@ -292,8 +292,6 @@ function getCidInfo(cid) {
     topic,
     topicHex: b4a.toString(topic, 'hex'),
     wantKey: wantKeyFor(digest),
-    // 0.5.x shared-key drive; read only by the one-time migration.
-    legacyDriveName: `drive-${b4a.toString(digest, 'hex')}`,
   }
 }
 
@@ -3019,39 +3017,6 @@ export class MobileP2PCore {
     }
   }
 
-  // One-time move from the 0.5.x shared-key drive (file-privacy §8). Only
-  // content that recomputes to its CID is copied; anything else stays missing
-  // and reports an error.
-  async #migrateLegacyCidDrive(cid, drive) {
-    const driveKey = `/${cid}`
-    const legacy = new Hyperdrive(
-      this.#store.namespace(getCidInfo(cid).legacyDriveName)
-    )
-    try {
-      await legacy.ready()
-      if (!(await this.#hasLocalCidContent(legacy, driveKey))) return
-      const actual = await calculateCid({
-        stream: legacy.createReadStream(driveKey, { wait: false }),
-      })
-      if (actual.cid !== cid) return
-      await new Promise((resolve, reject) => {
-        const writeStream = drive.createWriteStream(driveKey)
-        writeStream.on('finish', resolve)
-        writeStream.on('error', reject)
-        legacy
-          .createReadStream(driveKey, { wait: false })
-          .on('error', reject)
-          .pipe(writeStream)
-      })
-      await legacy.clear(driveKey).catch(() => {})
-      this.#log('info', `Migrated ${cid.slice(0, 16)} to its own seed drive`)
-    } catch (err) {
-      this.#log('warn', `Failed to migrate ${cid.slice(0, 16)}: ${err.message}`)
-    } finally {
-      await legacy.close().catch(() => {})
-    }
-  }
-
   async #clearLocalCidContent(cid, driveName) {
     try {
       const drive = await this.#getOrCreateDrive(driveName)
@@ -3074,9 +3039,6 @@ export class MobileP2PCore {
   async #restoreHolding(cid) {
     const { driveName } = this.#getCidInfo(cid)
     const drive = await this.#getOrCreateDrive(driveName)
-    if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
-      await this.#migrateLegacyCidDrive(cid, drive)
-    }
     if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
       this.#setSeedState(cid, {
         status: 'error',

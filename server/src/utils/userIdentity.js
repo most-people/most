@@ -1,12 +1,8 @@
-import { most25519, mostWallet } from './mostWallet.js'
+import { most25519 } from './mostWallet.js'
 import { shortAddress } from '../core/shared.js'
 import { createDeviceKey, issueDeviceCert } from './auth.js'
 import { deriveAccountSyncTopic } from './accountSync.js'
-import {
-  chatAccountFromSeed,
-  deriveChatSeed,
-  signAccountMigration,
-} from './chatIdentity.js'
+import { chatAccountFromSeed, deriveChatSeed } from './chatIdentity.js'
 
 /** Stored identities without this version are v1 and must sign in again. */
 export const IDENTITY_VERSION = 2
@@ -53,30 +49,10 @@ export async function createSessionFromChatSeed(
   }
 }
 
-/**
- * Signs in with the v2 chat identity (docs/protocol/v2/signatures.md §7).
- * Also returns the v1 wallet seed, kept in memory only to open old account
- * backups, and the v1 account's approval for moving its node data to the new
- * address (POST /api/user/migrate).
- */
+/** Signs in with the current chat identity (docs/protocol/v2/signatures.md §7). */
 export async function createLoginSession(username, password, options = {}) {
   const chatSeed = await deriveChatSeed(username, password)
-  const session = await createSessionFromChatSeed(
-    { username, chatSeed },
-    options
-  )
-  const legacy = mostWallet(username, password)
-  return {
-    ...session,
-    legacySeed: legacy.danger,
-    migration: {
-      oldAddress: legacy.address,
-      signature: await signAccountMigration(
-        legacy.danger,
-        session.identity.address
-      ),
-    },
-  }
+  return createSessionFromChatSeed({ username, chatSeed }, options)
 }
 
 export function loadIdentity() {

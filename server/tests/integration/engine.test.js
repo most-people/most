@@ -47,28 +47,18 @@ async function waitForHoldingStatus(
   throw new Error(`Holding ${cid} did not reach ${expectedStatus}`)
 }
 
-// Prepares a data directory that holds `bytes` under `cid`, in the node's own
-// v2 drive or, with `legacy`, in the v1 shared-key drive.
-async function seedOwnDriveWithBytes(
-  dataPath,
-  cid,
-  bytes,
-  { legacy = false } = {}
-) {
+// Prepares a data directory that holds bytes under CID in the node's own drive.
+async function seedOwnDriveWithBytes(dataPath, cid, bytes) {
   const setup = new MostBoxEngine({ dataPath, disableNetwork: true })
   await setup.start()
   await setup.stop()
-  const { topic, legacyDriveName } = getCidInfo(cid)
+  const { topic } = getCidInfo(cid)
   const store = new Corestore(dataPath, {
     primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
     unsafe: true,
   })
   const drive = new Hyperdrive(
-    store.namespace(
-      legacy
-        ? legacyDriveName
-        : cidDriveName(loadOrCreateNodeSeed(dataPath), topic)
-    )
+    store.namespace(cidDriveName(loadOrCreateNodeSeed(dataPath), topic))
   )
   await drive.ready()
   await drive.put('/' + cid, bytes)
@@ -82,11 +72,6 @@ async function seedOwnDriveWithBytes(
         fileName: 'bad.bin',
         size: bytes.length,
         source: 'manual',
-        // 0.5.x records carried the digest topic and the shared drive name.
-        ...(legacy && {
-          topic: legacyDriveName.slice('drive-'.length),
-          driveName: legacyDriveName,
-        }),
       },
     ])
   )
@@ -761,7 +746,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const content = Buffer.from('repair metadata-only duplicate publish')
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
-      const { legacyDriveName: driveName } = getCidInfo(cidString)
+      const driveName = cidDriveName(
+        loadOrCreateNodeSeed(dataPath),
+        getCidInfo(cidString).topic
+      )
       let setupEngine
       let repairEngine
 
@@ -1800,7 +1788,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
               {
                 fileName: 'slow-open.txt',
                 cid,
-                driveName: getCidInfo(cid).legacyDriveName,
+                driveName: cidDriveName(
+                  loadOrCreateNodeSeed(dataPath),
+                  getCidInfo(cid).topic
+                ),
                 size: 0,
                 publishedAt: new Date().toISOString(),
                 starred: false,
@@ -2042,7 +2033,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
       const { getCidInfo } = await import('../../src/core/cidTopic.js')
-      const { legacyDriveName: driveName } = getCidInfo(cidString)
+      const driveName = cidDriveName(
+        loadOrCreateNodeSeed(dataPath),
+        getCidInfo(cidString).topic
+      )
       let metadataEngine
 
       try {
@@ -2308,7 +2302,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       const content = Buffer.from('missing holding content')
       const { cid } = await calculateCid(content)
       const cidString = cid.toString()
-      const { topicHex, legacyDriveName: driveName } = getCidInfo(cidString)
+      const { topic, topicHex } = getCidInfo(cidString)
+      const driveName = cidDriveName(loadOrCreateNodeSeed(dataPath), topic)
       let setupEngine
       let missingEngine
 
@@ -2590,81 +2585,6 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.strictEqual(result.localAvailable, true)
         assert.deepStrictEqual((await downloader.readFileRaw(cid)).buffer, good)
         assert.ok(downloader.listHoldings().some(h => h.cid === cid))
-      } finally {
-        for (const link of links) link.close()
-        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
-        fs.rmSync(tmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('migrates verified 0.5.x shared-drive holdings and skips corrupt ones', async () => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-v1-migrate-'))
-      const engines = []
-      const links = []
-
-      try {
-        const makeEngine = async name => {
-          const nextEngine = new MostBoxEngine({
-            dataPath: path.join(tmpDir, name),
-            disableNetwork: true,
-            downloadTimeout: 3000,
-          })
-          await nextEngine.start()
-          engines.push(nextEngine)
-          return nextEngine
-        }
-
-        const good = Buffer.alloc(64 * 1024, 'm')
-        const { cid: goodCid } = await calculateCid(good)
-        await seedOwnDriveWithBytes(
-          path.join(tmpDir, 'upgraded'),
-          goodCid.toString(),
-          good,
-          { legacy: true }
-        )
-        const upgraded = await makeEngine('upgraded')
-        await waitForSeedActive(upgraded, goodCid.toString())
-
-        const fresh = await makeEngine('fresh')
-        links.push(upgraded.replicateWith(fresh))
-        await fresh.pullByCid({ cid: goodCid.toString(), fileName: 'm.bin' })
-        assert.deepStrictEqual(
-          (await fresh.readFileRaw(goodCid.toString())).buffer,
-          good
-        )
-
-        const corrupt = Buffer.alloc(64 * 1024, 'x')
-        const { cid: corruptCid } = await calculateCid(
-          Buffer.alloc(64 * 1024, 'y')
-        )
-        await seedOwnDriveWithBytes(
-          path.join(tmpDir, 'corrupt'),
-          corruptCid.toString(),
-          corrupt,
-          { legacy: true }
-        )
-        const corruptNode = await makeEngine('corrupt')
-        const deadline = Date.now() + 5000
-        let holding
-        while (Date.now() < deadline) {
-          holding = corruptNode
-            .listHoldings()
-            .find(item => item.cid === corruptCid.toString())
-          if (holding?.seedStatus === 'error') break
-          await sleep(50)
-        }
-        assert.strictEqual(holding?.seedStatus, 'error')
-
-        const other = await makeEngine('other')
-        links.push(corruptNode.replicateWith(other))
-        await assert.rejects(
-          other.pullByCid({
-            cid: corruptCid.toString(),
-            fileName: 'y.bin',
-            timeout: 1500,
-          }),
-          { name: 'PeerNotFoundError' }
-        )
       } finally {
         for (const link of links) link.close()
         await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))

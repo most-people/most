@@ -2,10 +2,7 @@ export const zhCNCidMessages = {
   'cid.meta.title': 'CID 下载检查 - MostBox',
   'cid.meta.fileTitle': '{fileName} - MostBox',
   'cid.meta.desc': '检查 MostBox CID 是否有在线种子，并在确认后开始下载。',
-  'cid.kicker': 'MostBox CID',
   'cid.title': '检查分享文件',
-  'cid.subtitle':
-    'MostBox 会先检查这个 CID 是否能从在线种子下载。确认可用后，你可以手动开始下载。',
   'cid.transfer.kicker': 'MostBox Transfer',
   'cid.transfer.title': '{fileName}',
   'cid.transfer.subtitle':
@@ -80,7 +77,6 @@ export const zhCNCidMessages = {
   'cid.status.addingToLibrary': '正在将本机已有内容加入文件库。',
   'cid.status.addedToLibrary': '{fileName} 已加入文件库，可继续做种。',
   'cid.status.downloading': '正在下载并校验文件。',
-  'cid.status.downloadingFile': '正在下载 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下载完成，已默认继续做种。',
   'cid.status.collectionPartialComplete':
     '已下载 {downloadedFileCount}/{totalFiles} 个子文件，{unavailableFileCount} 个暂无在线种子；已下载的文件已保存并继续做种。',
@@ -119,7 +115,6 @@ export const zhCNCidMessages = {
   'cid.tasks.status.downloading': '正在下载',
   'cid.tasks.status.verifying': '正在校验',
   'cid.tasks.status.cancelling': '正在取消',
-  'cid.toast.downloadStarted': '下载已开始',
   'cid.toast.backgroundStarted': '已在后台下载，可以离开此页面。',
   'cid.toast.downloadComplete': '下载完成',
   'cid.toast.collectionPartialComplete':
@@ -138,10 +133,7 @@ export const zhTWCidMessages = {
   'cid.meta.title': 'CID 下載檢查 - MostBox',
   'cid.meta.fileTitle': '{fileName} - MostBox',
   'cid.meta.desc': '檢查 MostBox CID 是否有線上種子，並在確認後開始下載。',
-  'cid.kicker': 'MostBox CID',
   'cid.title': '檢查分享檔案',
-  'cid.subtitle':
-    'MostBox 會先檢查這個 CID 是否能從線上種子下載。確認可用後，你可以手動開始下載。',
   'cid.transfer.kicker': 'MostBox Transfer',
   'cid.transfer.title': '{fileName}',
   'cid.transfer.subtitle':
@@ -216,7 +208,6 @@ export const zhTWCidMessages = {
   'cid.status.addingToLibrary': '正在將本機已有內容加入檔案庫。',
   'cid.status.addedToLibrary': '{fileName} 已加入檔案庫，可繼續做種。',
   'cid.status.downloading': '正在下載並校驗檔案。',
-  'cid.status.downloadingFile': '正在下載 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下載完成，已預設繼續做種。',
   'cid.status.collectionPartialComplete':
     '已下載 {downloadedFileCount}/{totalFiles} 個子檔案，{unavailableFileCount} 個暫無線上種子；已下載的檔案已保存並繼續做種。',
@@ -255,7 +246,6 @@ export const zhTWCidMessages = {
   'cid.tasks.status.downloading': '正在下載',
   'cid.tasks.status.verifying': '正在校驗',
   'cid.tasks.status.cancelling': '正在取消',
-  'cid.toast.downloadStarted': '下載已開始',
   'cid.toast.backgroundStarted': '已在背景下載，可以離開此頁面。',
   'cid.toast.downloadComplete': '下載完成',
   'cid.toast.collectionPartialComplete':
@@ -275,10 +265,7 @@ export const enCidMessages = {
   'cid.meta.fileTitle': '{fileName} - MostBox',
   'cid.meta.desc':
     'Check whether a MostBox CID has online seeders, then start the download after confirming it.',
-  'cid.kicker': 'MostBox CID',
   'cid.title': 'Check shared file',
-  'cid.subtitle':
-    'MostBox checks whether this CID can be downloaded from online seeders first. Once it is available, you can start the download manually.',
   'cid.transfer.kicker': 'MostBox Transfer',
   'cid.transfer.title': '{fileName}',
   'cid.transfer.subtitle':
@@ -366,7 +353,6 @@ export const enCidMessages = {
   'cid.status.addedToLibrary':
     '{fileName} was added to the file library and can keep seeding.',
   'cid.status.downloading': 'Downloading and verifying the file.',
-  'cid.status.downloadingFile': 'Downloading {fileName}.',
   'cid.status.downloadComplete':
     '{fileName} downloaded and is seeding by default.',
   'cid.status.collectionPartialComplete':
@@ -407,7 +393,6 @@ export const enCidMessages = {
   'cid.tasks.status.downloading': 'Downloading',
   'cid.tasks.status.verifying': 'Verifying',
   'cid.tasks.status.cancelling': 'Cancelling',
-  'cid.toast.downloadStarted': 'Download started',
   'cid.toast.backgroundStarted':
     'Downloading in the background. You can leave this page.',
   'cid.toast.downloadComplete': 'Download complete',

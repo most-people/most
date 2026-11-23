@@ -6,16 +6,11 @@ import {
   encodeBase64,
   getBytes,
   hexlify,
-  pbkdf2,
-  sha256,
   toUtf8Bytes,
 } from 'ethers'
 import nacl from 'tweetnacl'
 import type { MobileIdentity } from '../mobileCore/types'
 
-const SALT_PREFIX = '/most.box/'
-const PBKDF2_ITERATIONS = 50_000
-const PBKDF2_KEY_LENGTH = 32
 export const DEVICE_CERT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 /**
  * Validity periods offered at sign-in, same as the web
@@ -71,41 +66,6 @@ function hexToBytes(hex: string) {
  * 保密性来自种子，标签只需让不同设备不重复。
  */
 export const MOBILE_IDENTITY_VERSION = 2
-
-/** v1 wallet seed: PBKDF2-SHA512, 50000 iterations (kept for migration only). */
-function deriveLegacySeed(username: string, password: string) {
-  const key = pbkdf2(
-    toUtf8Bytes(password),
-    toUtf8Bytes(SALT_PREFIX + username),
-    PBKDF2_ITERATIONS,
-    PBKDF2_KEY_LENGTH,
-    'sha512'
-  )
-  return getBytes(sha256(getBytes(key)))
-}
-
-/**
- * The v1 account's approval to move its node data to the v2 identity, as
- * checked by POST /api/user/migrate (server/src/utils/chatIdentity.js).
- */
-export async function signLegacyAccountMigration(
-  usernameInput: string,
-  password: string,
-  newAddress: string
-) {
-  const wallet = HDNodeWallet.fromPhrase(
-    Mnemonic.entropyToPhrase(deriveLegacySeed(usernameInput.trim(), password))
-  )
-  const message = [
-    'most-box-account-migrate-v2',
-    wallet.address.toLowerCase(),
-    newAddress.toLowerCase(),
-  ].join('\n')
-  return {
-    oldAddress: wallet.address,
-    signature: await wallet.signMessage(message),
-  }
-}
 
 export async function createMobileIdentity(
   usernameInput: string,

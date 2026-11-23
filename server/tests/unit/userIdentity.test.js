@@ -7,10 +7,7 @@ import {
   getDisplayName,
 } from '../../src/utils/userIdentity.js'
 import { mostWallet } from '../../src/utils/mostWallet.js'
-import {
-  verifyAccountMigration,
-  verifyDeviceCert,
-} from '../../src/utils/auth.js'
+import { verifyDeviceCert } from '../../src/utils/auth.js'
 
 describe('userIdentity', () => {
   describe('createLoginIdentity', () => {
@@ -43,22 +40,12 @@ describe('userIdentity', () => {
   })
 
   describe('createLoginSession', () => {
-    it('signs in as the v2 identity and approves moving the v1 account', async () => {
+    it('signs in as the current identity and issues a device certificate', async () => {
       const session = await createLoginSession('carol', 'secret')
-      const v1 = mostWallet('carol', 'secret')
       assert.strictEqual(session.identity.version, IDENTITY_VERSION)
       assert.strictEqual(
         session.identity.address,
         (await createLoginIdentity('carol', 'secret')).address
-      )
-      assert.strictEqual(session.legacySeed, v1.danger)
-      assert.strictEqual(session.migration.oldAddress, v1.address)
-      assert.strictEqual(
-        verifyAccountMigration({
-          ...session.migration,
-          newAddress: session.identity.address,
-        }),
-        true
       )
       assert.strictEqual(
         verifyDeviceCert(session.identity.device.cert).address,

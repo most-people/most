@@ -18,40 +18,32 @@ type InternalRoutePath = '/file/' | '/chat/' | '/web3/'
 interface FeatureDef {
   id: string
   titleKey: MessageKey
-  subtitleKey: MessageKey
   descKey: MessageKey
   icon: React.ReactNode
   path: InternalRoutePath
-  requiresBackend: boolean
 }
 
 const features: FeatureDef[] = [
   {
     id: 'app',
     titleKey: 'portal.feature.app.title',
-    subtitleKey: 'portal.feature.app.subtitle',
     descKey: 'portal.feature.app.desc',
     icon: <FolderOpen size={28} />,
     path: '/file/',
-    requiresBackend: true,
   },
   {
     id: 'chat',
     titleKey: 'portal.feature.chat.title',
-    subtitleKey: 'portal.feature.chat.subtitle',
     descKey: 'portal.feature.chat.desc',
     icon: <MessagesSquare size={28} />,
     path: '/chat/',
-    requiresBackend: true,
   },
   {
     id: 'web3',
     titleKey: 'portal.feature.web3.title',
-    subtitleKey: 'portal.feature.web3.subtitle',
     descKey: 'portal.feature.web3.desc',
     icon: <Wallet size={28} />,
     path: '/web3/',
-    requiresBackend: false,
   },
 ]
 

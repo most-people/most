@@ -18,8 +18,6 @@ import {
   chatAccountFromSeed,
   deriveChatSeed,
 } from '~server/src/utils/chatIdentity.js'
-import { mostWallet } from '~server/src/utils/mostWallet.js'
-import { api } from '~server/src/utils/api'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { clearRecentCustomAvatar } from '~/lib/recentCustomAvatar'
@@ -72,8 +70,6 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
-  /** v1 wallet seed, in memory only, to open account backups made before v2. */
-  legacySeed: string | null
   seed: string | null
   unlockOpen: boolean
   unlockError: MessageKey | ''
@@ -124,23 +120,6 @@ async function deriveEmptyPasswordSeed(identity: UserIdentity) {
       : null
   } catch {
     return null
-  }
-}
-
-/**
- * Hands the v1 account's data on the connected node to the v2 identity
- * (POST /api/user/migrate). Best effort: an empty v1 account is a no-op, and
- * a node that is not reachable now keeps the old data until the next login.
- */
-export async function migrateLegacyAccount(migration?: {
-  oldAddress: string
-  signature: string
-}) {
-  if (!migration) return
-  try {
-    await api.post('/api/user/migrate', { json: migration }).json()
-  } catch {
-    // Ignored on purpose; see above.
   }
 }
 
@@ -238,7 +217,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   loginLoading: false,
   loginError: '',
   seed: null,
-  legacySeed: null,
+
   unlockOpen: false,
   unlockError: '',
   unlockReason: '',
@@ -324,18 +303,18 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     set({ loginLoading: true, loginError: '' })
     try {
-      const { identity, danger, legacySeed, migration } =
-        await createLoginSession(loginUsername.trim(), loginPassword)
+      const { identity, danger } = await createLoginSession(
+        loginUsername.trim(),
+        loginPassword
+      )
       saveIdentity(identity)
       set({
         identity,
         wallet: identity,
         seed: danger,
-        legacySeed,
         showLoginModal: false,
         ...resetLoginForm(),
       })
-      void migrateLegacyAccount(migration)
       return identity
     } catch {
       set({
@@ -365,7 +344,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       identity: null,
       wallet: undefined,
       seed: null,
-      legacySeed: null,
+
       unlockOpen: false,
       unlockError: '',
       unlockReason: '',
@@ -412,7 +391,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       }
       set({
         seed,
-        legacySeed: mostWallet(identity.username, password).danger,
+
         unlockOpen: false,
         unlockError: '',
         unlockReason: '',

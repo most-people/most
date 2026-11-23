@@ -10,7 +10,6 @@ import {
   MOST_LINK_ERROR_CODES,
   parseMostLink,
 } from './protocol'
-import { signLegacyAccountMigration } from '../remoteNode/identity'
 
 function readVectors(name: string) {
   const url = new URL(`../../../docs/protocol/vectors/${name}`, import.meta.url)
@@ -54,15 +53,5 @@ describe('protocol vectors (mobile app)', () => {
     for (const item of vectors.build) {
       assert.equal(buildMostLink(item.cid, item.fileName), item.link)
     }
-  })
-
-  it('derives the v1 wallet address (kept for account migration)', async () => {
-    const vectors = readVectors('account.json')
-    const { oldAddress } = await signLegacyAccountMigration(
-      vectors.username,
-      vectors.password,
-      `0x${'2'.repeat(40)}`
-    )
-    assert.equal(oldAddress, vectors.address)
   })
 })

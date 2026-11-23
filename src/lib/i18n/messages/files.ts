@@ -24,13 +24,6 @@ export const zhCNFilesMessages = {
   'app.noFavorites': '暂无的收藏',
   'app.noLocalFiles': '暂无文件库内容',
   'app.openFileNavigation': '打开文件导航',
-  'app.shareLink': '分享',
-  'app.shareMostLink': 'MostBox 链接',
-  'app.shareWebLink': '网页链接',
-  'app.copyMostShareLink': '复制 MostBox 链接',
-  'app.copyWebShareLink': '复制网页链接',
-  'app.shareSeedNote':
-    '两种链接都指向同一个 CID；本机在线时可下载，下载者完成后会默认继续做种。',
   'app.folderShareRequiresLocalFiles':
     '这个文件夹里有尚未下载到文件库的文件，先检测可用性并下载完成后再分享。',
   'app.folderShareEmpty': '这个文件夹里没有可分享的本地文件。',
@@ -66,7 +59,6 @@ export const zhCNFilesMessages = {
   'app.completed': '完成',
   'app.failed': '失败',
   'app.transferProgress': '{fileName} 传输进度',
-  'app.batchDelete': '批量删除',
   'app.deleteSelectedPermanent':
     '确定要永久删除选中的 {count} 个项目吗？此操作不可恢复！',
   'app.deleteSelected': '确定要删除选中的 {count} 个项目吗？',
@@ -120,13 +112,6 @@ export const zhTWFilesMessages = {
   'app.noFavorites': '暫無的收藏',
   'app.noLocalFiles': '暫無檔案庫內容',
   'app.openFileNavigation': '開啟檔案導覽',
-  'app.shareLink': '分享',
-  'app.shareMostLink': 'MostBox 連結',
-  'app.shareWebLink': '網頁連結',
-  'app.copyMostShareLink': '複製 MostBox 連結',
-  'app.copyWebShareLink': '複製網頁連結',
-  'app.shareSeedNote':
-    '兩種連結都指向同一個 CID；本機線上時可下載，下載者完成後預設繼續做種。',
   'app.folderShareRequiresLocalFiles':
     '這個資料夾裡有尚未下載到檔案庫的檔案，先檢測可用性並下載完成後再分享。',
   'app.folderShareEmpty': '這個資料夾裡沒有可分享的本機檔案。',
@@ -162,7 +147,6 @@ export const zhTWFilesMessages = {
   'app.completed': '完成',
   'app.failed': '失敗',
   'app.transferProgress': '{fileName} 傳輸進度',
-  'app.batchDelete': '批次刪除',
   'app.deleteSelectedPermanent':
     '確定要永久刪除選中的 {count} 個項目嗎？此操作不可恢復！',
   'app.deleteSelected': '確定要刪除選中的 {count} 個項目嗎？',
@@ -216,13 +200,6 @@ export const enFilesMessages = {
   'app.noFavorites': 'No favorites yet',
   'app.noLocalFiles': 'No file library content yet',
   'app.openFileNavigation': 'Open file navigation',
-  'app.shareLink': 'Share',
-  'app.shareMostLink': 'MostBox link',
-  'app.shareWebLink': 'Web link',
-  'app.copyMostShareLink': 'Copy MostBox link',
-  'app.copyWebShareLink': 'Copy web link',
-  'app.shareSeedNote':
-    'Both links point to the same CID. It is available while this device is online, and completed downloaders keep seeding by default.',
   'app.folderShareRequiresLocalFiles':
     'This folder contains files that are not on this device yet. Check availability and download them locally before sharing.',
   'app.folderShareEmpty': 'This folder has no local files to share.',
@@ -260,7 +237,6 @@ export const enFilesMessages = {
   'app.completed': 'Completed',
   'app.failed': 'Failed',
   'app.transferProgress': '{fileName} transfer progress',
-  'app.batchDelete': 'Delete selected',
   'app.deleteSelectedPermanent':
     'Permanently delete {count} selected items? This cannot be undone.',
   'app.deleteSelected': 'Delete {count} selected items?',

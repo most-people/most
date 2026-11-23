@@ -58,56 +58,6 @@
   font-size: 12px;
 }
 
-.web3-login-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-lg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  padding: var(--space-10) var(--space-8);
-  max-width: 420px;
-  width: 100%;
-  text-align: center;
-  box-shadow: var(--glass-shadow-lg);
-  animation: scaleIn 0.3s ease-out;
-  margin: auto;
-}
-
-.web3-login-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto var(--space-5);
-  color: var(--accent);
-}
-
-.web3-login-card h2 {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: var(--space-2);
-}
-
-.web3-login-desc {
-  color: var(--text-secondary);
-  font-size: 14px;
-  margin-bottom: var(--space-6);
-}
-
-.web3-login-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.web3-login-error {
-  color: var(--danger);
-  font-size: 13px;
-  margin-top: -var(--space-1);
-}
-
 /* === Identity Card === */
 .web3-identity-card {
   border-radius: var(--radius-xl);
@@ -162,10 +112,6 @@
   .web3-key-grid {
     grid-template-columns: 1fr;
   }
-
-  .web3-data-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .web3-key-card {
@@ -203,102 +149,6 @@
   gap: var(--space-2);
 }
 
-.web3-data-stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.web3-data-summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.web3-data-summary strong {
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.web3-data-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.web3-data-grid > div {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--glass-bg-subtle);
-}
-
-.web3-data-grid span {
-  display: block;
-  color: var(--text-muted);
-  font-size: 12px;
-  margin-bottom: var(--space-1);
-}
-
-.web3-data-grid strong {
-  color: var(--text-primary);
-  font-size: 18px;
-}
-
-.web3-data-muted {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.web3-import-drop {
-  border: 1px dashed var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  cursor: pointer;
-  background: var(--glass-bg-subtle);
-}
-
-.web3-import-drop input {
-  display: none;
-}
-
-.web3-import-failures,
-.web3-import-result {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: var(--glass-bg-subtle);
-}
-
-.web3-import-failures p,
-.web3-import-result p {
-  margin: var(--space-2) 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  word-break: break-word;
-}
-
-.web3-data-warning {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.web3-private-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
 /* === PEM Blocks === */
 .web3-pem-list {
   display: flex;
@@ -331,97 +181,6 @@
   gap: var(--space-2);
 }
 
-/* === Raw === */
-.web3-raw-section {
-  margin-top: var(--space-4);
-}
-
-.web3-raw-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  margin-bottom: var(--space-3);
-}
-
-.web3-raw-toggle:hover {
-  background: var(--glass-bg);
-  color: var(--text-primary);
-}
-
-.web3-raw-grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.web3-raw-item {
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-}
-
-.web3-raw-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-
-.web3-raw-value {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  word-break: break-all;
-  color: var(--text-primary);
-}
-
-.web3-raw-value.danger {
-  color: var(--danger);
-}
-
-/* === Tools Mode Switcher === */
-.web3-mode-switcher {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-5);
-}
-
-.web3-mode-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-  color: var(--text-secondary);
-}
-
-.web3-mode-pill:hover {
-  background: var(--glass-bg);
-  color: var(--text-primary);
-}
-
-.web3-mode-pill.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
 /* === Tools Inputs & Preview === */
 .web3-tools-inputs {
   display: flex;
@@ -430,7 +189,6 @@
   margin-bottom: var(--space-3);
 }
 
-.web3-tools-warning,
 .web3-tools-danger {
   margin-top: var(--space-3);
   display: flex;
@@ -442,53 +200,6 @@
   border: 1px solid rgba(255, 59, 48, 0.15);
   border-radius: var(--radius-md);
   padding: 10px 12px;
-}
-
-.web3-tools-error {
-  font-size: 13px;
-  color: var(--danger);
-  margin-top: -var(--space-1);
-}
-
-.web3-tools-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-lg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-5);
-  text-align: center;
-}
-
-.web3-tools-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: var(--radius-full);
-  object-fit: cover;
-  box-shadow: var(--shadow-md);
-}
-
-.web3-tools-address {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.web3-tools-address span {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.web3-tools-address code {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--text-primary);
-  word-break: break-all;
 }
 
 /* === Tools Sections === */
@@ -626,15 +337,6 @@
   padding: var(--space-5);
 }
 
-.web3-box-source-panel {
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  box-shadow: var(--glass-shadow);
-}
-
 .web3-box-account {
   min-width: 0;
 }
@@ -662,8 +364,7 @@
 }
 
 .web3-box-account p,
-.web3-box-flow-header p,
-.web3-box-placeholder {
+.web3-box-flow-header p {
   margin-top: 4px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -749,23 +450,6 @@
 
 .web3-box-result-header span {
   margin-bottom: 0;
-}
-
-.web3-box-source-panel {
-  min-width: 0;
-}
-
-.web3-box-source-loading {
-  min-height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.web3-box-source-editor {
-  min-height: 0;
 }
 
 .web3-box-flow-grid {

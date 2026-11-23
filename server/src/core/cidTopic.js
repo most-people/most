@@ -39,8 +39,6 @@ export function getCidInfo(cid) {
       topic,
       topicHex: b4a.toString(topic, 'hex'),
       wantKey: wantKeyFor(digest),
-      // 0.5.x shared-key drive; read only by the one-time migration (§8).
-      legacyDriveName: `drive-${b4a.toString(digest, 'hex')}`,
     }
   } catch (err) {
     if (err instanceof ValidationError) {

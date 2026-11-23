@@ -85,14 +85,11 @@ driveName = "cid-drive-" ‖ hex(MAC(secret, "cid-drive/name", topic))
 
 discoveryKey 的关联风险当前仍存在；本规范没有定义按连接隔离 core 的额外能力。
 
-## 8. 迁移
+## 8. 旧版升级边界
 
-本节记录 0.5.x → 0.8.0 的迁移；当时生产节点停在 0.5.x，0.6.0 / 0.7.0 只在测试环境运行，其 `cid-drive-<HMAC("most-cid-drive-v2:"…)>` drive 不迁移。已实现的一次性路径如下：
+参考实现已移除 0.5.x 共享 drive 的一次性迁移，不再打开旧 drive 或搬运旧块；只读取本节点自有 CID drive 中的内容。原有用户数据不由此删除，但仅存于旧 drive 的文件须通过当前版本重新发布或下载。已完成迁移的文件不受影响。
 
-- 启动恢复 holding 时，若本节点新 drive 中没有 `/<cid>`，从 0.5.x 的共享 drive `drive-<digestHex>` 读出、重算 CID、写入新 drive，成功后清除旧块；失败按「本地内容缺失」处理。
-- 不再加入摘要 topic，只加入 v2 文件 topic。
-- `published-files.json` / `node-holdings.json` 中的 `topic`、`driveName` 字段改为现算，不再信任记录值。
-- 这是已列版本的迁移说明，不构成未来必迁移或兼容承诺；本次规范整理不删除现有迁移实现或用户数据。
+本次清理不改变现行文件 topic、drive 名、证明或线上报文字节，也不改变旧聊天历史归档的读取规则。
 
 ## 9. 攻击与接力检查
 

@@ -4,7 +4,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { useAppStore } from '~/stores/useAppStore'
-import { migrateLegacyAccount, useUserStore } from '~/stores/userStore'
+import { useUserStore } from '~/stores/userStore'
 import {
   checkBackendConnectionTarget,
   configureBackend,
@@ -171,13 +171,9 @@ function ChatJoinContent() {
       }
 
       signal.throwIfAborted()
-      const {
-        identity: nextIdentity,
-        danger,
-        migration,
-      } = await createChatJoinInviteIdentity(activeInvite)
+      const { identity: nextIdentity, danger } =
+        await createChatJoinInviteIdentity(activeInvite)
       setUserIdentity(nextIdentity, danger)
-      await migrateLegacyAccount(migration)
 
       let firstJoinedChannelKey = ''
       for (const channel of activeInvite.channels) {

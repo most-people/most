@@ -47,7 +47,6 @@ export const zhCNProfileMessages = {
   'profile.backup.error.backendRequired': '请先连接 MostBox 后端',
   'profile.backup.error.loginRequired': '请先登录',
   'profile.backup.error.ownerMismatch': '备份不属于当前账号',
-  'profile.backup.error.restoreFailed': '账号恢复失败',
   'profile.backup.error.exportFailed': '导出备份失败',
   'profile.backup.error.importFailed': '导入备份失败',
   'profile.backup.error.profileSaveFailed':
@@ -115,7 +114,6 @@ export const zhTWProfileMessages = {
   'profile.backup.error.backendRequired': '請先連接 MostBox 後端',
   'profile.backup.error.loginRequired': '請先登入',
   'profile.backup.error.ownerMismatch': '備份不屬於目前帳號',
-  'profile.backup.error.restoreFailed': '帳號恢復失敗',
   'profile.backup.error.exportFailed': '匯出備份失敗',
   'profile.backup.error.importFailed': '匯入備份失敗',
   'profile.backup.error.profileSaveFailed':
@@ -186,7 +184,6 @@ export const enProfileMessages = {
   'profile.backup.error.loginRequired': 'Sign in first',
   'profile.backup.error.ownerMismatch':
     'This backup belongs to another account',
-  'profile.backup.error.restoreFailed': 'Account restore failed',
   'profile.backup.error.exportFailed': 'Backup export failed',
   'profile.backup.error.importFailed': 'Backup import failed',
   'profile.backup.error.profileSaveFailed':

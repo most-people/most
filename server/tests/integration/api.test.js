@@ -702,11 +702,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 55)
+      assert.strictEqual(documentedOperations.length, 54)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        55
+        54
       )
       assert.ok(
         documentedOperations.every(
