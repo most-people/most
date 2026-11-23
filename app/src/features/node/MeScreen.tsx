@@ -85,7 +85,7 @@ export function MeScreen({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('me.profile')}
-        onPress={onOpenProfile}
+        onPress={address ? onOpenProfile : onOpenNode}
         style={({ pressed }) => [
           styles.profileCard,
           pressed ? styles.pressed : null,

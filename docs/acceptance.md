@@ -80,6 +80,8 @@ npm run build
 
 UnixFS 的 `protons-runtime` 7.x / 8.x 整数编码补丁由根项目和移动子包的 `postinstall` 自动应用。使用 `--ignore-scripts` 安装后，必须分别运行 `npm run postinstall` 和 `npm --prefix app run postinstall`，再计算 CID 或生成 Bare bundle。升级该依赖时必须重新验收补丁和黄金样本。
 
+同一 `postinstall` 还会应用 Hyperswarm 发现重试补丁，覆盖桌面 4.17.2 与移动端 4.17.0：重复发现不绕过失败退避，尚未成功的重试不抢占首次连接，挂起丢弃队列后清除等待标记。补丁校验依赖版本和源码，升级 Hyperswarm 前必须重验 `hyperswarmDiscovery.test.js` / `backend/hyperswarm-discovery.test.mjs`、晚到种子和 cross-core 回归；不得忽略补丁失败继续构建。
+
 大文件专用回归需安装两个包的依赖，并预留至少 20GiB 临时磁盘空间：
 
 ```bash

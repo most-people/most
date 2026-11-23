@@ -8,6 +8,7 @@ export const P2P_PING_CODE_PATTERN = /^\d{6}$/
 export const P2P_PING_FRAME_VERSION = 3
 export const P2P_PING_HOST_TTL_MS = 2 * 60 * 1000
 export const P2P_PING_JOIN_TIMEOUT_MS = 45 * 1000
+export const P2P_PING_LOOKUP_INTERVAL_MS = 5000
 export const P2P_PING_DIRECTIONS = ['hostToJoin', 'joinToHost']
 
 const DIRECTION_INITIATOR_ROLE = {
@@ -251,6 +252,7 @@ export class P2PPingManager {
         client: DIRECTION_INITIATOR_ROLE[direction] === role,
         swarm: null,
         discovery: null,
+        lookupTimer: null,
         candidates: new Map(),
         stream: null,
         hadConnection: false,
@@ -341,6 +343,18 @@ export class P2PPingManager {
           client: runtime.client,
         }
       )
+      // The creator can finish its first lookup before the joiner announces.
+      // Hyperswarm's default refresh is longer than this diagnostic session.
+      if (runtime.client) {
+        runtime.lookupTimer = setInterval(() => {
+          if (
+            isTerminal(session.record.status) ||
+            isDirectionTerminal(runtime.record.status)
+          )
+            return
+          void runtime.discovery.refresh().catch(() => {})
+        }, P2P_PING_LOOKUP_INTERVAL_MS)
+      }
       const flushed = await runtime.discovery.flushed()
       if (flushed === false) throw new Error('DHT setup did not flush')
       if (
@@ -636,6 +650,8 @@ export class P2PPingManager {
     refresh = true
   ) {
     if (isDirectionTerminal(runtime.record.status)) return
+    clearInterval(runtime.lookupTimer)
+    runtime.lookupTimer = null
     const completedPhase = runtime.record.phase
     runtime.record.status = status
     runtime.record.phase = status === 'success' ? 'success' : completedPhase
@@ -724,6 +740,8 @@ export class P2PPingManager {
     clearTimeout(session.cleanupTimer)
     const tasks = []
     for (const runtime of session.directions.values()) {
+      clearInterval(runtime.lookupTimer)
+      runtime.lookupTimer = null
       if (runtime.discovery?.destroy) {
         tasks.push(Promise.resolve(runtime.discovery.destroy()))
       }

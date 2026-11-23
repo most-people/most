@@ -14,6 +14,7 @@
     "out",
     "public",
     "scripts/patch-unixfs-runtime.mjs",
+    "scripts/patch-hyperswarm-runtime.mjs",
     "electron/afterPack.cjs",
     "electron/deepLink.js",
     "electron/main.js",
@@ -25,7 +26,7 @@
     "server/cli.js"
   ],
   "scripts": {
-    "postinstall": "node scripts/patch-unixfs-runtime.mjs",
+    "postinstall": "node scripts/patch-unixfs-runtime.mjs && node scripts/patch-hyperswarm-runtime.mjs",
     "start": "vite --port 2020",
     "app": "cd app && npm start",
     "server": "node --watch server/index.js",

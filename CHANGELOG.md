@@ -4,6 +4,10 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep failed P2P discovery candidates in backoff and prioritize first connection attempts over unproven retries, preventing stale DHT records from starving an available seed. Apply the same guarded dependency patch to desktop and mobile builds, and clear discarded queue state when the swarm resumes.
+
 ## [0.8.4] - 2026-11-22
 
 ### Added

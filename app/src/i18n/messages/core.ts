@@ -291,9 +291,9 @@ export const coreMessages = {
     en: 'MostBox user',
   },
   'me.localIdentity': {
-    'zh-CN': '本地身份 · 点击查看详情',
-    'zh-TW': '本機身分 · 點擊查看詳情',
-    en: 'Local identity · Tap for details',
+    'zh-CN': '未登录 · 点击登录节点',
+    'zh-TW': '未登入 · 點擊登入節點',
+    en: 'Not signed in · Tap to sign in to the node',
   },
   'me.filesTitle': {
     'zh-CN': '文件库',

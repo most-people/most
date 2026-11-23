@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { describe, it } from 'node:test'
+import { P2PPingManager as MobileP2PPingManager } from '../../../app/backend/p2p-ping.mjs'
 
 import {
   createP2PPingFrameDecoder,
@@ -58,8 +59,9 @@ class MemoryConnection extends EventEmitter {
 }
 
 class MemoryPingNetwork {
-  constructor({ blockedTopics = [] } = {}) {
+  constructor({ blockedTopics = [], lookupOnly = false } = {}) {
     this.blockedTopics = new Set(blockedTopics)
+    this.lookupOnly = lookupOnly
     this.entries = []
     this.swarms = []
     this.nextKey = 1
@@ -81,9 +83,13 @@ class MemoryPingNetwork {
       return {
         flushed: async () => {
           this.entries.push(entry)
-          queueMicrotask(() => this.connectEligible())
+          queueMicrotask(() => {
+            if (!this.lookupOnly || options.client)
+              this.connectEligible(this.lookupOnly ? entry : null)
+          })
           return true
         },
+        refresh: async () => this.connectEligible(entry),
         destroy: async () => {
           entry.destroyed = true
         },
@@ -98,12 +104,13 @@ class MemoryPingNetwork {
     return swarm
   }
 
-  connectEligible() {
+  connectEligible(requester = null) {
     for (const host of this.entries) {
       if (host.destroyed || !host.options.server || host.connected) continue
       if (this.blockedTopics.has(host.topic.toString('hex'))) continue
       const join = this.entries.find(
         candidate =>
+          (!requester || candidate === requester) &&
           !candidate.destroyed &&
           candidate.options.client &&
           !candidate.connected &&
@@ -134,6 +141,49 @@ class MemoryPingNetwork {
 }
 
 describe('P2P Ping protocol', () => {
+  for (const [label, Manager] of [
+    ['desktop', P2PPingManager],
+    ['mobile', MobileP2PPingManager],
+  ]) {
+    it(`${label} retries a lookup after the other device announces later`, async t => {
+      t.mock.timers.enable({ apis: ['setInterval'] })
+      const network = new MemoryPingNetwork({ lookupOnly: true })
+      const options = {
+        createSwarm: network.createSwarm,
+        randomBytes: deterministicRandomBytes,
+      }
+      const host = new Manager(options)
+      const join = new Manager(options)
+      t.after(async () => {
+        await host.destroy()
+        await join.destroy()
+      })
+      const hostRecord = await host.start({ role: 'host' })
+      await waitFor(() => host.get(hostRecord.id).status === 'waiting')
+      const joinRecord = await join.start({
+        role: 'join',
+        code: hostRecord.code,
+      })
+      await waitFor(
+        () => host.get(hostRecord.id).directions.joinToHost.status === 'success'
+      )
+      assert.notEqual(
+        host.get(hostRecord.id).directions.hostToJoin.status,
+        'success'
+      )
+      t.mock.timers.tick(5000)
+      await waitFor(
+        () =>
+          host.get(hostRecord.id).status === 'success' &&
+          join.get(joinRecord.id).status === 'success'
+      )
+      for (const result of [host.get(hostRecord.id), join.get(joinRecord.id)]) {
+        assert.equal(result.directions.hostToJoin.discoveredPeers, 1)
+        assert.equal(result.directions.joinToHost.discoveredPeers, 1)
+      }
+    })
+  }
+
   it('preserves leading zeroes and rejects invalid codes', () => {
     assert.equal(generateP2PPingCode(deterministicRandomBytes), '000042')
     assert.equal(validateP2PPingCode('000042'), '000042')

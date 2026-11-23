@@ -1008,14 +1008,10 @@ export function ChatScreen({
         ? await bridge.createChannel?.({ name, type: 'public' })
         : await api?.createOrJoinChannel({ name })
       if (scopeRef.current !== scope) return
+      const channelId = String(joined?.channelKey || '')
+      if (!isChannelId(channelId)) throw new Error(t('chat.joinFailed'))
       if (identity) {
         try {
-          const channelId = String(
-            joined && typeof joined === 'object' && 'channelKey' in joined
-              ? joined.channelKey
-              : ''
-          )
-          if (!isChannelId(channelId)) throw new Error(t('chat.joinFailed'))
           const members = localMode
             ? await bridge.getChannelMemberProfiles?.(channelId)
             : await api?.getChannelMemberProfiles(channelId)
@@ -1053,7 +1049,7 @@ export function ChatScreen({
       if (scopeRef.current !== scope) return
       setChannelInput('')
       setJoinSheetOpen(false)
-      if (await loadChannel(name)) updateChatRoute(name)
+      if (await loadChannel(channelId)) updateChatRoute(channelId)
     } catch (error) {
       if (scopeRef.current !== scope) return
       toast(
@@ -1429,7 +1425,10 @@ export function ChatScreen({
   // signature binds it to the channel's public ID.
   const requireSignIn = () => {
     if (identity) return false
-    toast(t('chat.signInRequired'), 'error')
+    alert(t('chat.signInRequired'), t('chat.signInRequiredBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('node.account.signIn'), onPress: onOpenNode },
+    ])
     return true
   }
 
@@ -1798,6 +1797,11 @@ export function ChatScreen({
             )}
           </View>
           {detailNotice}
+          {!identity ? (
+            <MostButton onPress={onOpenNode} variant="ghost">
+              {t('chat.signInRequired')}
+            </MostButton>
+          ) : null}
           {voiceJoined ? (
             <Pressable
               accessibilityRole="button"
@@ -2414,7 +2418,7 @@ export function ChatScreen({
                     accessibilityLabel={t('chat.voiceRoom')}
                     onPress={() => {
                       setActionSheetOpen(false)
-                      setCallSheetOpen(true)
+                      alert(t('chat.voiceRoom'), t('chat.voiceHint'))
                     }}
                     style={({ pressed }) => [
                       styles.actionOption,
@@ -2524,6 +2528,11 @@ export function ChatScreen({
               autoCorrect={false}
               autoFocus
             />
+            {!channelInput.trim() ? (
+              <Text style={styles.emptyBody}>
+                {t('chat.channelPlaceholder')}
+              </Text>
+            ) : null}
             <MostButton
               disabled={loading || !conversation.ready || !channelInput.trim()}
               onPress={() => void joinChannel()}
@@ -2588,7 +2597,13 @@ function chatStyles(
       justifyContent: 'space-between',
       marginBottom: 8,
     },
-    listTitle: { color: colors.text, fontSize: 23, fontWeight: '700' },
+    listTitle: {
+      flex: 1,
+      minWidth: 0,
+      color: colors.text,
+      fontSize: 23,
+      fontWeight: '700',
+    },
     searchRow: {
       alignItems: 'center',
       flexDirection: 'row',
