@@ -1,13 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import {
-  getDownloadCheckErrorMessageFromPayload,
-  getDownloadLinkValidationMessage,
-} from '../../src/utils/downloadMessages.js'
-
-const VALID_LINK =
-  'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt'
-const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+import { getDownloadCheckErrorMessageFromPayload } from '../../src/utils/downloadMessages.js'
 
 describe('getDownloadCheckErrorMessageFromPayload', () => {
   it('explains timeouts as missing online seeds', () => {
@@ -41,59 +34,6 @@ describe('getDownloadCheckErrorMessageFromPayload', () => {
     assert.strictEqual(
       getDownloadCheckErrorMessageFromPayload({ status: 503 }),
       expected
-    )
-  })
-})
-
-describe('getDownloadLinkValidationMessage', () => {
-  it('accepts a valid most link', () => {
-    assert.strictEqual(getDownloadLinkValidationMessage(VALID_LINK), null)
-  })
-
-  it('accepts web entry links and bare CID targets', () => {
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(
-        `https://most.box/cid/${VALID_CID}?filename=a.txt`
-      ),
-      null
-    )
-    assert.strictEqual(getDownloadLinkValidationMessage(VALID_CID), null)
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(`${VALID_CID}?filename=a.txt`),
-      null
-    )
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(
-        `http://localhost:3000/cid/${VALID_CID}/?filename=chat-file`
-      ),
-      null
-    )
-  })
-
-  it('rejects empty links before parsing', () => {
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(' '),
-      '请先粘贴分享链接或 CID。'
-    )
-  })
-
-  it('accepts links with blank filename values', () => {
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(
-        'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=%20%20'
-      ),
-      null
-    )
-  })
-
-  it('uses link parser errors for invalid links', () => {
-    assert.strictEqual(
-      getDownloadLinkValidationMessage('https://example.com'),
-      'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。'
-    )
-    assert.strictEqual(
-      getDownloadLinkValidationMessage(`${VALID_LINK}&foo=bar`),
-      '链接包含暂不支持的参数 foo，请只保留 filename。'
     )
   })
 })

@@ -1,5 +1,3 @@
-import { MOST_LINK_ERROR_CODES, parseMostLink } from '../core/mostLink.js'
-
 const DOWNLOAD_CHECK_MESSAGES = {
   timeout:
     '检测等待超时，暂时没有等到在线种子响应。请确认分享者或其他下载者仍在线做种，稍后再检测。',
@@ -13,23 +11,6 @@ const DOWNLOAD_CHECK_MESSAGES = {
   starting: '本地节点还没有启动完成，请稍等几秒后重新检测。',
   server: '本地节点检测时出错，请稍后重试或查看节点日志。',
   fallback: '检测未通过，请确认链接完整、发布者在线且本机网络正常。',
-}
-
-const LINK_VALIDATION_MESSAGES = {
-  [MOST_LINK_ERROR_CODES.INVALID_URL]:
-    '链接无法解析，请粘贴 most://、网页入口或 CID。',
-  [MOST_LINK_ERROR_CODES.INVALID_PROTOCOL]:
-    '链接格式不正确，请确认输入末尾是有效的 CID 或 CID?filename=...。',
-  [MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH]:
-    '链接路径不受支持，请确认输入末尾是 CID 或 CID?filename=...。',
-  [MOST_LINK_ERROR_CODES.CID_EMPTY]:
-    'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。',
-  [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]:
-    'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。',
-  [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]:
-    'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
-  [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]:
-    'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
 }
 
 export function getDownloadCheckErrorMessageFromPayload(
@@ -64,22 +45,4 @@ export function getDownloadCheckErrorMessageFromPayload(
   return data.error
     ? `检测未通过：${data.error}`
     : DOWNLOAD_CHECK_MESSAGES.fallback
-}
-
-export function getDownloadLinkValidationMessage(link = '') {
-  const value = String(link || '').trim()
-  if (!value) return '请先粘贴分享链接或 CID。'
-
-  const result = parseMostLink(value)
-  if (!result.errorCode) return null
-
-  if (result.errorCode === MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM) {
-    const unsupportedParam = result.details?.param || ''
-    return `链接包含暂不支持的参数 ${unsupportedParam}，请只保留 filename。`
-  }
-
-  return (
-    LINK_VALIDATION_MESSAGES[result.errorCode] ||
-    DOWNLOAD_CHECK_MESSAGES.validation
-  )
 }

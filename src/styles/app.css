@@ -604,62 +604,6 @@
   margin-top: 2px;
 }
 
-/* === Welcome Guide === */
-.welcome-modal {
-  text-align: center;
-
-  h2 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 12px;
-  }
-
-  p {
-    font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 20px;
-  }
-}
-
-.welcome-steps {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 20px;
-}
-
-.welcome-step-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-
-  &.active {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-}
-
-.welcome-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-
-.welcome-success-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(52, 199, 89, 0.15);
-  border: 1px solid rgba(52, 199, 89, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-}
-
 /* === Spinner Animation === */
 .spinner {
   display: inline-block;
@@ -675,115 +619,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-/* === Settings Modal === */
-.settings-modal {
-  .settings-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .settings-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-  }
-
-  .settings-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .settings-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 8px;
-  }
-
-  .settings-divider {
-    border-top: 1px solid var(--glass-border);
-    padding-top: 16px;
-  }
-
-  .settings-about {
-    text-align: center;
-    margin-bottom: 16px;
-
-    h3 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
-      color: var(--text-primary);
-    }
-
-    p {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-  }
-}
-
-/* === Network addresses (shared between modal and drawer) === */
-.network-addresses {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.address-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--glass-bg-subtle);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  font-size: 13px;
-}
-
-.address-type {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.address-type-local {
-  background: rgba(100, 116, 139, 0.15);
-  color: var(--text-secondary);
-}
-
-.address-type-lan {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.address-type-tailscale {
-  background: rgba(52, 199, 89, 0.12);
-  color: var(--success);
-}
-
-.address-type-zerotier {
-  background: rgba(90, 200, 250, 0.12);
-  color: var(--info);
-}
-
-.address-url {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── Page Header ── */
@@ -1503,36 +1338,6 @@
   bottom: 380px;
 }
 
-/* === Welcome Guide Path Step === */
-.welcome-path-section {
-  text-align: left;
-  margin-bottom: 20px;
-
-  .path-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-  }
-
-  .path-value {
-    font-size: 12px;
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    background: var(--glass-bg-subtle);
-    padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    word-break: break-all;
-    margin-bottom: 12px;
-    border: 1px solid var(--glass-border);
-  }
-
-  .path-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
-}
-
 .login-modal-header {
   margin-bottom: 20px;
 }
@@ -1763,20 +1568,6 @@
 
 .btn-shutdown {
   margin-top: 20px;
-}
-
-.settings-section {
-  margin-bottom: 20px;
-}
-
-.settings-divider-top {
-  margin-top: 20px;
-}
-
-.settings-subtitle {
-  font-size: 12px;
-  text-align: center;
-  color: var(--text-secondary);
 }
 
 .icon-inline {

@@ -5,6 +5,11 @@ import {
   ChannelPresenceManager,
 } from '../../src/core/channelPresence.js'
 
+import {
+  createSignedPresenceFrame,
+  presenceSession,
+} from '../../src/core/channelSignedPresence.js'
+
 const ALICE = `0x${'ab'.repeat(20)}`
 const CHANNEL = { channelKey: 'room', channelId: 'room' }
 
@@ -76,5 +81,24 @@ describe('channel presence manager', () => {
     })
     assert.equal(presence.clearSource('peer:remote').length, 1)
     assert.equal(presence.list('room').length, 0)
+  })
+})
+
+describe('signed presence wire messages', () => {
+  it('forwards only signed envelope fields and sets the local receipt time', () => {
+    const body = { author: 'alice', sessionId: 'one', lastSeen: 1 }
+    const signed = { body, device: 'device', cert: 'cert', sig: 'signature' }
+    assert.deepEqual(
+      createSignedPresenceFrame({ ...signed, peerId: 'untrusted' }),
+      {
+        ...signed,
+        v: 2,
+        type: 'channel-presence',
+      }
+    )
+    const before = Date.now()
+    const session = presenceSession(body, 'stream')
+    assert.equal(session.sourceId, 'stream')
+    assert.ok(session.lastSeen >= before && session.lastSeen <= Date.now())
   })
 })
