@@ -1,0 +1,10 @@
+MostBox review sample
+====================
+
+This plain text file exists only so an App Store reviewer can complete a
+file transfer between two devices.
+
+It contains no personal data, no links and no instructions.
+
+MostBox recomputes the UnixFS CID of every downloaded file and compares it
+with the CID in the most:// link. Only a matching file is saved and seeded.

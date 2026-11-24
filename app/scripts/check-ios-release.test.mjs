@@ -78,6 +78,10 @@ describe('iOS release preflight', () => {
         ios: {
           ...expo.ios,
           supportsTablet: true,
+          infoPlist: {
+            ...expo.ios.infoPlist,
+            ITSAppUsesNonExemptEncryption: false,
+          },
           privacyManifests: {
             ...expo.ios.privacyManifests,
             NSPrivacyTracking: true,
@@ -103,6 +107,9 @@ describe('iOS release preflight', () => {
     assert.ok(issues.some(issue => issue.includes('disable tracking')))
     assert.ok(issues.some(issue => issue.includes('store distribution')))
     assert.ok(issues.some(issue => issue.includes('cannot use alpha')))
+    assert.ok(
+      issues.some(issue => issue.includes('ITSAppUsesNonExemptEncryption'))
+    )
   })
 
   it('rejects invalid release versions and PNG input', () => {

@@ -169,6 +169,10 @@ export function collectIosReleaseIssues({
       localNetworkDescription.trim().length > 0,
     'NSLocalNetworkUsageDescription is required for P2P networking'
   )
+  requireValue(
+    expo?.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === true,
+    'iOS build must declare ITSAppUsesNonExemptEncryption; MostBox uses its own channel and file encryption, which is not export-exempt'
+  )
 
   const privacyManifest = expo?.ios?.privacyManifests
   requireValue(

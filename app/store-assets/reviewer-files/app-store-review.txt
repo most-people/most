@@ -1,0 +1,62 @@
+MostBox App Store review notes (template)
+Version: 0.8.4 (build 804) — Bundle ID most.box
+Last updated: 2026-11-24
+
+MostBox is a peer-to-peer channel chat and file transfer app. There is no
+login and no server-side account: a local identity is generated on first
+launch, and the privacy policy plus terms must be accepted before the P2P
+core starts. No reviewer account is needed.
+
+WHY TWO DEVICES ARE NEEDED
+
+Messages and files travel directly between peers; there is no server that
+stores them. A single device can create a channel and send messages, but
+delivery cannot be observed without a second participant.
+
+OPTION A — TWO DEVICES
+
+1. Device 1: Channels -> Create, enter any joining value, copy the invite.
+2. Device 2: Channels -> Join, paste the invite.
+3. Device 1: send a text message; it appears on device 2 within a few
+   seconds when both are on the same network.
+4. Device 1: attach the sample text file, copy the generated most:// link,
+   open it on device 2 and confirm the download prompt.
+5. After the download finishes MostBox recomputes the UnixFS CID and only
+   saves the file when it matches the link. A mismatch is reported instead
+   of a false success.
+6. Quit MostBox on device 1. Keep device 2 in the foreground so it keeps
+   seeding, then download the same link on a third device or after
+   reinstalling. The transfer should still complete and verify.
+
+OPTION B — SINGLE DEVICE WITH OUR TEST NODE
+
+Channel joining value: <to be filled before submission>
+Test node address: <to be filled before submission>
+Sample file link: <to be filled before submission>
+Valid until: <to be filled before submission>
+
+If any of these expire, write to dev@most.box and we will reissue within
+24 hours.
+
+FUNCTIONAL NOTES FOR THE REVIEWER
+
+- Channel messages are not end-to-end encrypted. Nodes holding the channel
+  can read stored messages; signatures only prove the sender. This is
+  stated in the privacy policy shown at first launch.
+- Camera and microphone are requested only when the user takes a photo or
+  records a voice message. Both features are optional, and recording stops
+  when the app moves to the background.
+- Executable files, installers and scripts are rejected by the store build
+  before any transfer starts.
+- Long-press a message to copy it, report it to dev@most.box, or block the
+  sender. Blocked senders' messages are hidden locally and can be unblocked
+  from the channel details screen.
+- MostBox does not promise permanent hosting: availability depends on peers
+  currently online. This is stated in the app and in the terms.
+- The app requests local network access because peers are discovered on the
+  local network. It does not include analytics, ads, crash reporting or any
+  third-party SDK that collects data.
+
+SAMPLE CONTENT
+
+All sample files used in review contain no personal data.
