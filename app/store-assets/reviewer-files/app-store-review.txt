@@ -56,6 +56,12 @@ FUNCTIONAL NOTES FOR THE REVIEWER
 - The app requests local network access because peers are discovered on the
   local network. It does not include analytics, ads, crash reporting or any
   third-party SDK that collects data.
+- App Transport Security: node addresses are entered by the user and can
+  point at any self-hosted host and port, so they cannot be enumerated in
+  advance and listed as NSExceptionDomains. NSAllowsArbitraryLoads is kept
+  only for those user-supplied node endpoints; the app itself talks to no
+  developer-operated server and has no fixed backend domain. No user
+  traffic goes through any host controlled by us.
 
 SAMPLE CONTENT
 
