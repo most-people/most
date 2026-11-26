@@ -47,12 +47,12 @@ type AvatarOption = {
 }
 
 const profileDefaultAvatarIds = [
-  'panda',
-  'owl',
-  'dolphin',
-  'tiger',
-  'turtle',
-  'snow-mountain',
+  'sweater-cat',
+  'meadow',
+  'underwater',
+  'starlight',
+  'flower-cat',
+  'cat-and-bird',
 ]
 
 type BackupConfirm = {

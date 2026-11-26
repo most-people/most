@@ -2,12 +2,12 @@ import { Avatar, Style } from '@dicebear/core'
 import planetsDefinition from '@dicebear/styles/planets.json' with { type: 'json' }
 
 export const defaultAvatarIds = [
-  'panda',
-  'owl',
-  'dolphin',
-  'tiger',
-  'turtle',
-  'snow-mountain',
+  'sweater-cat',
+  'meadow',
+  'underwater',
+  'starlight',
+  'flower-cat',
+  'cat-and-bird',
 ]
 
 function normalizeDefaultAvatarId(id) {
@@ -21,13 +21,13 @@ export function getDefaultAvatarValue(id) {
 }
 
 export function getDefaultAvatarPath(id) {
-  return `/avatars/default/${id}.svg`
+  return `/avatars/default/${id}.jpg`
 }
 
 function getDefaultAvatarId(avatar) {
   if (typeof avatar !== 'string') return ''
   const value = avatar.trim()
-  const match = /^\/avatars\/default\/([^/]+)\.svg$/.exec(value)
+  const match = /^\/avatars\/default\/([^/]+)\.jpg$/.exec(value)
   return normalizeDefaultAvatarId(match?.[1] || '')
 }
 

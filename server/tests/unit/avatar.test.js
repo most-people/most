@@ -23,18 +23,19 @@ describe('generateAvatar', () => {
   })
 
   it('treats built-in default avatars as regular links', () => {
-    const avatar = getDefaultAvatarValue('panda')
-    assert.strictEqual(avatar, '/avatars/default/panda.svg')
+    const avatar = getDefaultAvatarValue('sweater-cat')
+    assert.strictEqual(avatar, '/avatars/default/sweater-cat.jpg')
+    assert.strictEqual(normalizeDefaultAvatarValue(avatar), avatar)
     assert.strictEqual(
       generateAvatar('0x1234567890abcdef', avatar),
-      '/avatars/default/panda.svg'
+      '/avatars/default/sweater-cat.jpg'
     )
   })
 
   it('does not normalize removed default avatar aliases', () => {
     assert.strictEqual(
       getDefaultAvatarValue('mint'),
-      '/avatars/default/mint.svg'
+      '/avatars/default/mint.jpg'
     )
     assert.strictEqual(
       normalizeDefaultAvatarValue('/avatars/default/ocean.svg'),
