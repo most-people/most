@@ -204,11 +204,6 @@ describe('frontend smoke checks', () => {
     const profileAppearanceSource = readSource(SOURCE_PATHS.profileAppearance)
     const appStoreSource = readSource(SOURCE_PATHS.appStore)
     const rootRouteSource = readSource(SOURCE_PATHS.rootRoute)
-    const navigationSource = [
-      readSource(SOURCE_PATHS.appShell),
-      readSource(SOURCE_PATHS.marketingHeader),
-      readSource(SOURCE_PATHS.marketingLayout),
-    ].join('\n')
     const {
       isAppearancePreference,
       normalizeAppearancePreference,
@@ -232,7 +227,6 @@ describe('frontend smoke checks', () => {
     assert.match(profileAppearanceSource, /role="radiogroup"/)
     assert.match(profileAppearanceSource, /aria-checked=\{selected\}/)
     assert.match(readSource(SOURCE_PATHS.profile), /<ProfileAppearanceSettings/)
-    assert.doesNotMatch(navigationSource, /AppearanceToggle/)
     assert.match(appStoreSource, /systemTheme\.addEventListener\('change'/)
     assert.match(appStoreSource, /localStorage\.setItem\('theme', appearance\)/)
     assert.match(rootRouteSource, /data-theme-preference/)

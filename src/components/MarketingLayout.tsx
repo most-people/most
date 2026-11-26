@@ -6,6 +6,7 @@ import { Download } from 'lucide-react'
 import { Footer } from '~/components/Footer'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import { LanguageToggle } from '~/components/LanguageToggle'
+import { AppearanceToggle } from '~/components/AppearanceToggle'
 import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useIsDesktopClient } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
@@ -38,6 +39,7 @@ function DefaultMarketingHeader() {
         </Link>
 
         <div className="mkt-nav-cta">
+          <AppearanceToggle />
           <LanguageToggle />
           {!isDesktopClient && (
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">

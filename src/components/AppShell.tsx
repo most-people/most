@@ -8,6 +8,7 @@ import React, {
 } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
+import { AppearanceToggle } from '~/components/AppearanceToggle'
 import {
   LanguageToggle,
   type LanguageToggleTheme,
@@ -151,6 +152,7 @@ export default function AppShell({
             </div>
             <div className="header-right">
               {headerRight}
+              <AppearanceToggle />
               <LanguageToggle theme={languageTheme} />
               {!hideAccountMenu && <AccountMenuButton />}
             </div>
