@@ -144,7 +144,17 @@ npm run build:play
 npx eas-cli@latest build --platform android --profile android-production
 ```
 
-现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 包名为 `most.people`（`inkbox` 配置），尚无正式签名与候选包，不应据此提交备案。
+现有 APK/AAB/EAS production 命令只定义构建与签名格式，不定义发行版本或审核状态。全功能版稳定后再适配海外和中国大陆商店版，范围及现有 profile 差异见[开发与发行路线](../docs/roadmap.md)。中国大陆 Android 包名为 `most.people`（`inkbox` 配置）；2026-11-26 已用永久分发密钥生成 `0.8.4 / 804` 候选 APK，完成静态校验、Android 12 安装与小文件前台接力，见[验证状态](../docs/validation-status.md)。该证据不代表备案受理、完整合规或商店审核通过。
+
+在配置上述签名变量后，墨盒构建需同时设置原生与 JavaScript 产品选择：
+
+```powershell
+$env:MOST_PRODUCT='inkbox'
+$env:EXPO_PUBLIC_MOST_PRODUCT='inkbox'
+npm run build:store
+```
+
+构建脚本的默认文件名仍为 `mostbox-android-<version>-store-release.apk`，应先核对实际包名、显示名和签名，再按发行目标另行归档，避免用文件名判断产品配置。
 
 ## 验收
 

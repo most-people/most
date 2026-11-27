@@ -28,7 +28,7 @@
 
 - `app/product-profiles.json` 目前只有 `most` 和 `inkbox` 两个 profile，尚未实现三个独立发行配置。
 - `most` 是当前全功能配置，移动端 Android package 和 iOS Bundle ID 均为 `most.box`。
-- `inkbox` 是“墨盒”裁剪配置，Android 包名与 iOS Bundle ID 均已改为 `most.people`。尚无正式签名密钥和候选包。
+- `inkbox` 是“墨盒”裁剪配置，Android 包名与 iOS Bundle ID 均为 `most.people`。2026-11-26 已生成永久签名 Android 候选包，完成安装、深链确认下载、原发布者退出后的前台接力及重启后接力烟测，范围见[验证状态](validation-status.md)；尚不代表完整大陆商店适配、备案或审核完成。
 - `build:store`、`build:play` 和 EAS production 只代表现有构建格式或签名入口，不代表已经做过海外或大陆商店适配。
 - 共享协议当前实现为 v2。早期不承担历史版本兼容，允许按[协议演进规则](protocol/v2/envelope.md#7-协议演进规则)进行不兼容升级，不默认增加兼容分支或旧数据迁移；文件名不作为内容身份。
 - 群聊产品规则、分页与清理设计及实现差异统一见[群聊模型](chat-model.md)，不由路线中的目标认定已实现。
@@ -48,7 +48,7 @@
 - 从 UI、路由、深链、HTTP/WebSocket、Bare 核心和原生权限验证功能边界，不能只隐藏按钮。
 - 用最终分发包重新检查 SDK、网络行为、权限、图标、截图、用户手册和隐私披露。
 - 按实际渠道分别处理正式签名、商店账号、版权材料、地区要求及中国大陆 APP 备案。
-- 现有腾讯云草稿与公司资料由官网仓库的 [资质与备案状态](../../most.red/docs/release-readiness.md)维护；当前不提交旧 MostBox 草稿或旧版签名信息。
+- 现有腾讯云草稿与公司资料由官网仓库的 [资质与备案状态](../../most.people/docs/release-readiness.md)维护；当前不提交旧 MostBox 草稿或旧版签名信息。
 
 ## 开发验收
 

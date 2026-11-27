@@ -2,6 +2,16 @@
 
 本文件记录既有开发、构建和真机验证；各节结论以列明的提交、包和验证范围为准。2026-11-23 的本地测试归档已移出仓库，不据此新增真机或可靠性验收结论。内部验证包不能直接作为商店候选包。
 
+## 2026-11-26：墨盒 Android 永久签名候选包与前台接力
+
+- 代码提交 `c3ea090e79cb36fd73a30fb39f48fdbfe7115bd1`，构建时生产代码工作区干净；Windows、Node.js 26.10.0、JDK 17，选择 `MOST_PRODUCT=inkbox` 与 `EXPO_PUBLIC_MOST_PRODUCT=inkbox`，执行 app 的 `npm run build:store`。复用既有永久 App Signing Key，不使用调试或 Play Upload Key，不改变协议或业务代码。
+- 产物 `app/dist/inkbox-android-0.8.4-804-release.apk`，71,444,814 bytes，SHA-256 `d704d6e24185572bd386d3e93224b2c21640e17f55acdb4dda6e9518e302d2c0`；由构建默认输出复制归档，字节相同。包名 `most.people`，显示名「墨盒」，版本 `0.8.4 / 804`，仅 arm64-v8a，最低 API 29、目标 API 36。apksigner 验证通过，唯一签名证书 SHA-256 为 `476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233`；不可调试，备份关闭。
+- 最终 APK 清单不含相机、录音、通知、前台服务、旧存储与悬浮窗权限；仍有 AndroidX 动态接收器、安装来源及厂商角标依赖权限，共 21 个 uses-permission，不宣称只含网络三项权限。产品配置、平台边界、原生同步与签名相关 28 项检查通过。
+- M2007J3SC / Android 12（API 31）安装及冷启动通过；隐私确认后进入文件界面，底栏为文件、发现、我。`most://` 深链先显示确认页，确认后下载 144 B 样本，CID `bafkreihyrvykisjxmtjnx2cyue33mstohpxxwoanesdy76k2uoztoz4cqq`，界面显示前台做种。原桌面发布者退出后，空数据目录验证节点完成下载并独立于手机重新计算 UnixFS CID，一致，耗时 7.2s（从 pull 开始计时）；手机强制停止并重新启动后，另一空目录节点再次下载并校验一致，耗时 7,792ms。另从两个验证节点重新读出已存内容，与原样本逐字节比较，并只用标准库 SHA-256、手工 CID v1 raw-leaf 头与 base32 编码重算，CID 均一致；该独立预言机仅覆盖本次 144 B 单 raw-leaf 样本。
+- 本轮是同一小文件的两次前台功能烟测。手机使用 Wi-Fi，NAT 类型、具体直连/打洞路径未独立采集；未验证跨网、蜂窝、系统清理、空间不足、大文件、最低系统或 16 KB 页设备，不代表 MVP 量化可靠性门槛通过。未完成最终联网清单与数据流实测复核，也不代表大陆合规、备案或商店审核通过。
+- Bare Kit `2.3.0` 按 API 29 重编译。首次构建临时隔离 npm 用户脚本策略、备份两项失效 Gradle transform 缓存，并使用经授权的本地代理；BoringSSL 源码使用同一固定提交 `617634bc015344093f5ea0b0a5b653c924cfa20d` 的本机精简缓存，跳过不参与构建的测试数据，未修改源码。工具链缓存与代理配置不提交仓库。
+- 生产包、SHA-256 文件及接力运行目录位于本机忽略目录 `app/dist/`、`.tmp/inkbox-filing-20261126/`。构建日志、签名/公钥/权限提取、手机截图和接力原始日志保存在关联私有仓库，入口为 `../most.people/docs/app-filing.md`；公开仓库不保存公司或办理材料。根目录 `node scripts/android-real-p2p-seed.mjs --handoff-check` 可重跑前台接力，手机操作仍需单独执行，不宣称全流程已一条命令自动重放。
+
 ## 2026-11-24：iPhone 本机聊天与小文件接力（开发签名 Release 包）
 
 - 候选代码 `904447f4388097f1d10aaf3b8110968f6ac2056c`，版本 `0.8.4 / 804`、Bundle ID `most.box`。在 Intel Mac / macOS 26.4.1、Xcode 26.5（17F42）、Node.js 24.14.1 本地构建 Release，以 Apple Development 签名安装到 iPhone 16；CoreDevice 报告系统为 `27.2.1 (24B156)`。开发描述文件有效至 2026-11-30，非 App Store / TestFlight 分发包。归档 `MostBox-0.8.4-804-development.app.zip` 为 24,654,703 bytes，SHA-256 `8b6b2d5ec6c10e4c871cdcbc32be26dc73521353f55fb0e80ae2dbe5648ce5f0`；该值标识整个 `.app` 的 ZIP，不是 IPA。
@@ -28,7 +38,7 @@
 - AAB：`app/dist/mostbox-android-0.8.4-release.aab`，79,183,011 bytes，SHA-256 `7a9bf359cacca753490f311370437a3410eae7753935c78d56c7952ade04a80d`。永久签名 APK：`app/dist/mostbox-android-0.8.4-store-release.apk`，74,670,161 bytes，SHA-256 `a643f8db330f5692637759d57436c511626c0c148be0ce3e6fef6cf8ffa7a820`；上传与应用签名证书分别核对匹配，构建成功。
 - 已通过格式化、根 lint、移动端类型检查、i18n / 产品配置相关 5 项测试、`check:versions -- --tag v0.8.4`。本轮未修改协议，未重复协议或全量可靠性测试。
 - Redmi K30S Ultra / Android 12 / arm64 / 4096-byte pages：以永久签名 APK 从 803 侧载升级到 804，原隔离测试身份、频道及一个文件保留，冷启动及两个入口可见性通过。随后以保留应用数据方式移除侧载安装，再从 Google Play 安装 804，来源 `com.android.vending`，base 与 3 个 split APK 签名均匹配永久证书；冷启动后原专用测试身份、频道、消息及文件保留，Profile 删除入口可见。此前 803 证据仍单独保留。
-- 本地支持页预览及邮件草稿链接已核验，两个入口截图已留存于关联私有仓库。804 AAB 已被 Play 接受，预览无阻塞错误，已发布内部测试，轨道显示最新 `0.8.4 (804) internal` 且有效；其 Play 来源实际安装与分包签名已验证。法律页 PR #13 已合并为 `a90e4ea`，全部 CI 通过，生产隐私与支持页已核验，删除申请邮件收发渠道通过。专用测试安装经物理连接核对身份后清除应用数据，首次启动隐私同意重置，旧测试身份、频道及文件未出现、做种为 0，连接表无历史；force-stop 后再次启动结果一致，未恢复旧凭据。仅本机及支持申请闭环的限定范围验收通过，未验证独立远程节点的完整账号关联数据删除。入口仅发起申请，不代表账号或远端副本已自动删除；现有管理员清理接口不能证明完整删除。办理记录见 `../most.red/docs/release-readiness.md`。
+- 本地支持页预览及邮件草稿链接已核验，两个入口截图已留存于关联私有仓库。804 AAB 已被 Play 接受，预览无阻塞错误，已发布内部测试，轨道显示最新 `0.8.4 (804) internal` 且有效；其 Play 来源实际安装与分包签名已验证。法律页 PR #13 已合并为 `a90e4ea`，全部 CI 通过，生产隐私与支持页已核验，删除申请邮件收发渠道通过。专用测试安装经物理连接核对身份后清除应用数据，首次启动隐私同意重置，旧测试身份、频道及文件未出现、做种为 0，连接表无历史；force-stop 后再次启动结果一致，未恢复旧凭据。仅本机及支持申请闭环的限定范围验收通过，未验证独立远程节点的完整账号关联数据删除。入口仅发起申请，不代表账号或远端副本已自动删除；现有管理员清理接口不能证明完整删除。办理记录见 `../most.people/docs/release-readiness.md`。
 
 ## 2026-11-22：Android 16 KB 构建修复（候选包）
 
@@ -38,7 +48,7 @@
 - Play 签名通用 APK SHA-256 `c7561de11cb107be2b7f8b987e9b20cc2878d7221dbea4c79ddaf188196e87fc`，已在 M2007J3SC / Android 12 / arm64 通过 ADB 安装及冷启动。144 B 样本 CID `bafkreiatmbvxlr6ou7nsiu7j5wk22i6w4xox5zfojp3jgrdebnacf2qoum`：原发布者退出后新节点从手机取到并重算 CID 一致；手机强制停止/冷启动后再次接力通过（18,273 ms）；手动开启后台保持并退到后台后接力通过（25,027 ms），通知停止后服务确已退出。后两轮时间包含新节点启动，样本 SHA-256 为 `13606b75c7cea7db2453e9ed95ad23d6e5dd7ee4ae4bf69344640b4022ea0ea3`。
 - 同日后续已从 Google Play 内部测试真实安装 0.8.3 / 803，安装来源 `com.android.vending`；提取 base 与 3 个 split APK，签名校验均通过。首次启动、双向文本、附件点击前未自动下载、确认后下载并通过 CID 校验均通过；屏蔽后对方消息隐藏、解除后恢复，举报入口可见但未发送举报。4 张英文截图取自该安装版。
 - 停止桌面原发布者后，独立空目录节点从该 Play 安装版手机取到上述 144 B 样本，原始字节、SHA-256 与重算 CID 全部匹配，耗时 18,427 ms（含新节点启动）。
-- 本轮为单个小样本烟测：手机 Wi-Fi / VPN 开启，NAT 未标定、直连与打洞未区分，未配置应用中继。该机实际内存页为 4096 bytes；未测真实 16 KB 页设备、蜂窝、长时后台及量化可靠性门槛。原始事件、verifier 日志、截图与办理状态见 `../most.red/docs/release-readiness.md` 及其私有证据目录，静态对齐不替代运行验收。
+- 本轮为单个小样本烟测：手机 Wi-Fi / VPN 开启，NAT 未标定、直连与打洞未区分，未配置应用中继。该机实际内存页为 4096 bytes；未测真实 16 KB 页设备、蜂窝、长时后台及量化可靠性门槛。原始事件、verifier 日志、截图与办理状态见 `../most.people/docs/release-readiness.md` 及其私有证据目录，静态对齐不替代运行验收。
 
 ## 2026-11-21–22：产品决定与待验收范围
 

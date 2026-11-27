@@ -42,14 +42,14 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 - 优先完成公共协议的独立实现、基础设施接替与维护交接证据，补齐聊天和文件可靠性；品牌、官方客户端和商店覆盖不作为协议存续的前提。
 - 先开发并验证全功能版，再按上架需要适配海外 APP 商店版和中国大陆 APP 商店版；三个版本共享代码与协议核心，不默认复制三套业务工程。
-- 中国大陆 Android 包名与 iOS Bundle ID 均为 `most.people`（`inkbox` profile）；正式签名与候选包尚未生成，不代表已完成合规。
+- 中国大陆 Android 包名与 iOS Bundle ID 均为 `most.people`（`inkbox` profile）；2026-11-26 已生成永久签名 Android 候选包并完成小文件前台接力烟测，范围见 `docs/validation-status.md`；不代表已完成备案或商店审核。
 - 长期目标与协议工作看 `docs/decentralization-plan.md`；客户端与发行范围看 `docs/roadmap.md`；已有证据和未覆盖项看 `docs/validation-status.md`，不以旧日志或商店构建命令认定审核通过。
 
 ## 关联仓库
 
-- 官网与合规事务在私有仓库 `most-people/most.red`，本机位于同级目录 `../most.red`：中国大陆官网、APP 上架（Google Play、App Store、大陆商店）、备案、公司资质与账号。上架状态和商店提出的产品侧依赖看 `../most.red/docs/release-readiness.md`，大陆 APP 备案看 `../most.red/docs/app-filing.md`。
+- 官网与合规事务在私有仓库 `most-people/most.people`，本机目录为同级 `../most.people`：中国大陆官网、APP 上架（Google Play、App Store、大陆商店）、备案、公司资质与账号。上架状态和商店提出的产品侧依赖看 `../most.people/docs/release-readiness.md`，大陆 APP 备案看 `../most.people/docs/app-filing.md`。
 - 本仓库负责产品与客户端实现；验收结果、候选包提交与哈希在 `docs/validation-status.md` 记录，供上架办理核对。
-- 本仓库公开：不要把 `most.red` 中的公司证件、账号 ID、联系电话、订单号或审核往来复制到这里，引用时只写文档路径。
+- 本仓库公开：不要把 `most.people` 中的公司证件、账号 ID、联系电话、订单号或审核往来复制到这里，引用时只写文档路径。
 
 ## 当前文档
 
